@@ -6,12 +6,12 @@ LIKAS (Filipino for "nature" and "to evacuate") is an offline-first, AI-powered 
 The project is currently in the **Design and Requirements phase**.
 
 ### Main Technologies (Planned)
-- **Framework:** Flutter (Android 10+ / iOS 15+)
-- **On-device AI:** Gemma 4 E2B via Google AI Edge's LiteRT-LM (`flutter_gemma`)
-- **Maps:** MapLibre Native (`maplibre_gl`) with bundled MBTiles
-- **Database:** SQLite (`sqflite`) with R-tree for geospatial queries
-- **STT:** Whisper.cpp via FFI for offline voice input
-- **State Management:** Riverpod
+- **Framework:** React Native (Android 10+ / iOS 15+)
+- **On-device AI:** Gemma 4 E2B via Google AI Edge's LiteRT-LM (Custom JSI Native Module)
+- **Maps:** MapLibre React Native (`@maplibre/maplibre-react-native`) with bundled MBTiles
+- **Database:** SQLite (`react-native-sqlite-storage`) with R-tree for geospatial queries
+- **STT:** `whisper.rn` (Whisper.cpp bindings) for offline voice input
+- **State Management:** Zustand
 
 ## Directory Structure
 - `docs/`: Core project documentation.
@@ -29,7 +29,7 @@ The project is currently in the **Design and Requirements phase**.
 - [x] PRD Finalized
 - [x] Requirements Specification
 - [x] Technical Design
-- [ ] Flutter Project Initialization (TODO)
+- [ ] React Native Project Initialization (TODO)
 - [ ] Onboarding Implementation (TODO)
 - [ ] Dashboard Implementation (TODO)
-- [ ] LiteRT-LM Integration (TODO)
+- [ ] LiteRT-LM JSI Integration (TODO)

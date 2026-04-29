@@ -4,20 +4,20 @@
 
 LIKAS is an offline-first, AI-powered disaster companion mobile application for Filipino communities. It transforms a smartphone into a self-contained survival tool by bundling all critical data — maps, evacuation centers, fault lines, ashfall zones, disaster protocols, and a quantized language model — within the application package at install time.
 
-The application is built with **Flutter** (targeting Android 10+ / iOS 15+) to maximize code reuse across platforms while enabling deep native integration for on-device AI inference. The centerpiece is an **Always-On AI Assistant** powered by **Gemma 4 E2B** (2-billion-parameter edge model, 4-bit quantized, ~2.58 GB) running via **Google AI Edge's LiteRT-LM** runtime through the `flutter_gemma` plugin. Every feature — maps, routing, protocols, checklists, and AI — operates with zero network dependency at runtime.
+The application is built with **React Native** (targeting Android 10+ / iOS 15+) to maximize code reuse across platforms while enabling deep native integration for on-device AI inference. The centerpiece is an **Always-On AI Assistant** powered by **Gemma 4 E2B** (2-billion-parameter edge model, 4-bit quantized, ~2.58 GB) running via **Google AI Edge's LiteRT-LM** runtime through a **Custom JSI Native Module**. Every feature — maps, routing, protocols, checklists, and AI — operates with zero network dependency at runtime.
 
 ### Key Design Decisions
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Mobile framework | Flutter | Single codebase for Android + iOS; strong plugin ecosystem for LiteRT, maps, and SQLite |
-| On-device LLM | Gemma 4 E2B via LiteRT-LM | ~2.58 GB at 4-bit quantization; fits within 3 GB RAM budget; multilingual (Filipino/English); supported by `flutter_gemma` |
-| Offline maps | MapLibre Native (`maplibre_gl`) | Vendor-neutral, open-source, supports bundled MBTiles vector tiles; no API key required |
+| Mobile framework | React Native | Single codebase for Android + iOS; strong ecosystem for native modules and high-performance JSI bridges |
+| On-device LLM | Gemma 4 E2B via LiteRT-LM | ~2.58 GB at 4-bit quantization; fits within 3 GB RAM budget; multilingual (Filipino/English); integrated via Custom JSI Module |
+| Offline maps | MapLibre React Native (`@maplibre/maplibre-react-native`) | Vendor-neutral, open-source, supports bundled MBTiles vector tiles; no API key required |
 | Routing engine | Pre-computed pedestrian graph (Dijkstra over OSM data) | Valhalla/GraphHopper are too large to bundle; a pre-processed routing graph for Philippine disaster-prone areas fits within the storage budget |
-| Local database | SQLite via `sqflite` | Mature, cross-platform, supports geospatial queries via R-tree extension |
-| On-device STT | Whisper.cpp (base multilingual model) via FFI | Fully offline; supports Filipino and English; ~150 MB model size |
-| State management | Riverpod | Compile-time safe, testable, no BuildContext dependency |
-| Local persistence | SQLite (structured data) + Flutter Secure Storage (preferences) | Separation of concerns; secure storage for user preferences |
+| Local database | SQLite via `react-native-sqlite-storage` | Mature, cross-platform, supports geospatial queries via R-tree extension |
+| On-device STT | `whisper.rn` (Whisper.cpp) | Fully offline; supports Filipino and English; ~150 MB model size; high-performance native bindings |
+| State management | Zustand | Lightweight, hook-based, easy to test, and perfect for React Native |
+| Local persistence | SQLite (structured data) + `react-native-keychain` (secure preferences) | Separation of concerns; secure storage for sensitive user data |
 
 ---
 
@@ -28,8 +28,8 @@ LIKAS follows a **layered, offline-first architecture** with strict separation b
 ```mermaid
 graph TD
     subgraph UI["UI Layer"]
-        A[Flutter Screens & Widgets]
-        B[Riverpod Providers]
+        A[React Native Screens & Components]
+        B[Zustand Stores / Hooks]
     end
 
     subgraph Domain["Domain Layer"]
@@ -44,13 +44,13 @@ graph TD
     end
 
     subgraph Data["Data Layer"]
-        K[LiteRT-LM Runtime\nGemma 4 E2B]
-        L[Whisper.cpp STT Engine]
+        K[LiteRT-LM Runtime\nCustom JSI Module]
+        L[whisper.rn STT Engine]
         M[SQLite Database\nlikas.db]
         N[MapLibre Offline Map\nMBTiles bundle]
         O[Routing Graph\nPre-computed OSM]
         P[Asset Bundle\nProtocols, Illustrations]
-        Q[Flutter Secure Storage\nUser Preferences]
+        Q[react-native-keychain\nUser Preferences]
     end
 
     A --> B
@@ -69,8 +69,8 @@ graph TD
 The architecture enforces offline operation through three mechanisms:
 
 1. **No ambient network client**: The app contains no HTTP client calls during normal operation.
-2. **Bundled assets**: All map tiles (MBTiles), model weights (`.litertlm`), routing graph, and protocol content are packaged as Flutter assets.
-3. **Local-only data stores**: SQLite and Flutter Secure Storage are the only persistence mechanisms.
+2. **Bundled assets**: All map tiles (MBTiles), model weights (`.litertlm`), routing graph, and protocol content are packaged as app assets (via `react-native-asset` or similar).
+3. **Local-only data stores**: SQLite and `react-native-keychain` are the only persistence mechanisms.
 
 ---
 
@@ -80,26 +80,34 @@ The architecture enforces offline operation through three mechanisms:
 
 Manages the LiteRT-LM inference session and conversation state.
 
-```dart
-abstract class AIAssistantService {
-  /// Loads the Gemma 4 E2B model into the LiteRT-LM runtime.
-  Future<void> initialize();
+```typescript
+interface AIAssistantService {
+  /**
+   * Loads the Gemma 4 E2B model into the LiteRT-LM runtime via JSI.
+   */
+  initialize(): Promise<void>;
 
-  /// Immediately returns the first actionable safety step for a context.
-  /// e.g. "DROP, COVER, AND HOLD ON!" for Earthquake.
-  String getImmediateAction(DisasterContext context);
+  /**
+   * Immediately returns the first actionable safety step for a context.
+   * e.g. "DROP, COVER, AND HOLD ON!" for Earthquake.
+   */
+  getImmediateAction(context: DisasterContext): string;
 
-  /// Returns suggested quick-reply chips based on context.
-  List<String> getContextualChips(DisasterContext context);
+  /**
+   * Returns suggested quick-reply chips based on context.
+   */
+  getContextualChips(context: DisasterContext): string[];
 
-  /// Submits a text query and streams the response.
-  Stream<String> query({
-    required String userMessage,
-    DisasterContext? context,
-    List<ChatMessage> conversationHistory,
-  });
+  /**
+   * Submits a text query and streams the response.
+   */
+  query(params: {
+    userMessage: string;
+    context?: DisasterContext;
+    conversationHistory: ChatMessage[];
+  }): AsyncIterableIterator<string>;
 
-  bool get isReady;
+  readonly isReady: boolean;
 }
 ```
 
@@ -107,25 +115,29 @@ abstract class AIAssistantService {
 
 Handles route calculation and ranking based on the **Scoring System**.
 
-```dart
-abstract class EvacuationService {
-  /// Returns ranked evacuation centers based on UserProfile.
-  /// Scoring factors: Distance, Capacity, PWD Access, Pet Friendliness.
-  Future<List<EvacuationRanking>> getRankedCenters({
-    required LatLng origin,
-    required UserProfile profile,
-    EvacuationType type = EvacuationType.typhoonFlood,
-  });
+```typescript
+interface EvacuationService {
+  /**
+   * Returns ranked evacuation centers based on UserProfile.
+   * Scoring factors: Distance, Capacity, PWD Access, Pet Friendliness.
+   */
+  getRankedCenters(params: {
+    origin: LatLng;
+    profile: UserProfile;
+    type?: EvacuationType;
+  }): Promise<EvacuationRanking[]>;
 
-  /// Returns the custom meeting places set during onboarding.
-  List<MeetingPoint> getMeetingPoints();
+  /**
+   * Returns the custom meeting places set during onboarding.
+   */
+  getMeetingPoints(): MeetingPoint[];
 }
 
-class EvacuationRanking {
-  final EvacuationCenter center;
-  final double score; // 0.0 to 1.0
-  final bool isBestMatch;
-  final EvacuationRoute route;
+interface EvacuationRanking {
+  center: EvacuationCenter;
+  score: number; // 0.0 to 1.0
+  isBestMatch: boolean;
+  route: EvacuationRoute;
 }
 ```
 
@@ -139,19 +151,19 @@ class EvacuationRanking {
 
 Manages user data entered during the 5-screen onboarding.
 
-```dart
-abstract class ProfileService {
-  Future<UserProfile> getProfile();
-  Future<void> updateProfile(UserProfile profile);
-  Future<void> saveEmergencyContacts(List<Contact> contacts);
+```typescript
+interface ProfileService {
+  getProfile(): Promise<UserProfile>;
+  updateProfile(profile: UserProfile): Promise<void>;
+  saveEmergencyContacts(contacts: Contact[]): Promise<void>;
 }
 
-class UserProfile {
-  final String name;
-  final String ageGroup;
-  final Dependents dependents;
-  final List<String> healthConditions;
-  final LocationPreference location;
+interface UserProfile {
+  name: string;
+  ageGroup: string;
+  dependents: Dependents;
+  healthConditions: string[];
+  location: LocationPreference;
 }
 ```
 
@@ -159,15 +171,17 @@ class UserProfile {
 
 Triggers the platform-native SMS intent with pre-formatted emergency data.
 
-```dart
-abstract class EmergencyService {
-  /// Formats and opens the SMS intent with:
-  /// "SOS! I am at [Lat, Long]. [Name] needs help. [Context] emergency."
-  Future<void> triggerSOS({
-    required LatLng location,
-    required UserProfile profile,
-    String? disasterContext,
-  });
+```typescript
+interface EmergencyService {
+  /**
+   * Formats and opens the SMS intent with:
+   * "SOS! I am at [Lat, Long]. [Name] needs help. [Context] emergency."
+   */
+  triggerSOS(params: {
+    location: LatLng;
+    profile: UserProfile;
+    disasterContext?: string;
+  }): Promise<void>;
 }
 ```
 
@@ -254,7 +268,7 @@ assets/
 *For any* call to `triggerSOS`, the resulting message string SHALL contain the substring "SOS", the user's name, and the decimal coordinates (latitude/longitude).
 
 ### Property P15: Battery-Aware Mode Transition
-*Whenever* the device battery level reported by the platform channel is < 15%, the UI SHALL display a low-power warning and the `AIAssistantService` SHALL refuse generative inference.
+*Whenever* the device battery level reported by the native module is < 15%, the UI SHALL display a low-power warning and the `AIAssistantService` SHALL refuse generative inference.
 
 ### Property P16: Dashboard Immediate Action Latency
 *Whenever* a "Big Button" is tapped, the `getImmediateAction` response SHALL be rendered in the UI within 500ms, regardless of whether the LiteRT model has finished loading.

@@ -12,12 +12,12 @@
 
 ## Technology Stack
 
-- **Framework:** [Flutter](https://flutter.dev/) (Android 10+ / iOS 15+)
-- **AI Engine:** [LiteRT-LM](https://ai.google.dev/edge/litert-lm) (formerly TensorFlow Lite LLM)
+- **Framework:** [React Native](https://reactnative.dev/) (Android 10+ / iOS 15+)
+- **AI Engine:** [LiteRT-LM](https://ai.google.dev/edge/litert-lm) (via Custom JSI Native Module)
 - **Model:** Gemma 4 E2B (4-bit quantized, ~2.58 GB)
-- **Maps:** [MapLibre Native](https://maplibre.org/) with local MBTiles
+- **Maps:** [MapLibre React Native](https://github.com/maplibre/maplibre-react-native) with local MBTiles
 - **Database:** SQLite with R-Tree extension for geospatial queries
-- **State Management:** [Riverpod](https://riverpod.dev/)
+- **State Management:** [Zustand](https://github.com/pmndrs/zustand)
 
 ## Project Structure
 
@@ -35,15 +35,15 @@
 Currently, the project is in the **Technical Design** phase.
 
 ### Prerequisites (Future)
-- Flutter SDK (latest stable)
+- Node.js (LTS) & React Native CLI
 - 4GB available internal storage (for model and map assets)
 - Android 10+ or iOS 15+ device with at least 3GB RAM
 
 ### Setup (Future)
 1. Clone the repository.
-2. Run `flutter pub get`.
+2. Run `npm install` or `yarn install`.
 3. Download and place the Gemma 4 `.litertlm` and Philippines `.mbtiles` in the `assets/` directory.
-4. Run `flutter run`.
+4. Run `npx react-native run-android` or `npx react-native run-ios`.
 
 ## Core Mandates
 
