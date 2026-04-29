@@ -1,0 +1,35 @@
+# LIKAS Disaster Companion - Project Context
+
+## Project Overview
+LIKAS (Filipino for "nature" and "to evacuate") is an offline-first, AI-powered disaster companion mobile application designed for Filipino communities. It transforms a smartphone into a self-contained survival tool by bundling maps, evacuation centers, disaster protocols, and a quantized language model (Gemma 4) for on-device inference.
+
+The project is currently in the **Design and Requirements phase**.
+
+### Main Technologies (Planned)
+- **Framework:** Flutter (Android 10+ / iOS 15+)
+- **On-device AI:** Gemma 4 E2B via Google AI Edge's LiteRT-LM (`flutter_gemma`)
+- **Maps:** MapLibre Native (`maplibre_gl`) with bundled MBTiles
+- **Database:** SQLite (`sqflite`) with R-tree for geospatial queries
+- **STT:** Whisper.cpp via FFI for offline voice input
+- **State Management:** Riverpod
+
+## Directory Structure
+- `docs/`: Core project documentation.
+    - `PRD.md`: Product Requirement Document covering the vision, challenge, and solution overview.
+    - `requirements.md`: Detailed functional/non-functional requirements and acceptance criteria.
+    - `design.md`: Technical architecture, component interfaces, data models, and testing strategy.
+
+## Core Mandates
+1. **Zero Network Transmission:** All core features (AI, maps, routing) must function with zero network dependency.
+2. **Authority Alignment:** All guidance must align with official protocols from NDRRMC, PAGASA, and PHIVOLCS.
+3. **Accessibility:** Support for Filipino and English, high-contrast UI, and visual-first survival instructions.
+4. **Performance:** App launch < 5s, AI response < 10s, and RAM usage < 3GB on minimum hardware (3GB RAM).
+
+## Development Status
+- [x] PRD Finalized
+- [x] Requirements Specification
+- [x] Technical Design
+- [ ] Flutter Project Initialization (TODO)
+- [ ] Onboarding Implementation (TODO)
+- [ ] Dashboard Implementation (TODO)
+- [ ] LiteRT-LM Integration (TODO)
