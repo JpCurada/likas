@@ -1,22 +1,45 @@
-export const colors = {
-  background: '#F6F1E8',
-  surface: '#FFFDF7',
-  surfaceStrong: '#F2E2C4',
-  primary: '#115E46',
-  primaryDark: '#0B3B2D',
-  alert: '#B42318',
-  warning: '#C77700',
-  text: '#17231E',
-  muted: '#5E6C64',
-  border: '#D8CCB5',
+// src/theme.ts
+// Place this file at: Likas/src/theme.ts
+
+export const COLORS = {
+  darkGreen: '#091610',
+  primaryGreen: '#3bb372',
+  lightGreen: '#dafbe6',
+  accentGreen: '#74e7b8',
+
+  cyan: '#2eb5d0',
+  blue: '#2c6baa',
+  darkBlue: '#084189',
+
   white: '#FFFFFF',
+  error: '#e11d48',
+  gray: '#64748b',
 };
 
-export const spacing = {
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
-  xxl: 32,
+export const FONTS = {
+  primaryRegular: 'Sora-Regular',
+  primaryBold: 'Sora-Bold',
+  primaryExtraBold: 'Sora-ExtraBold',
+  primaryExtraLight: 'Sora-ExtraLight',
+  primaryLight: 'Sora-Light',
+  primaryMedium: 'Sora-Medium',
+  primarySemiBold: 'Sora-SemiBold',
+  primaryThin: 'Sora-Thin',
+
+  secondarySemiBold: 'Clinton-SemiBold',
+  secondaryBold: 'Clinton-Bold',
+  secondaryBoldItalic: 'Clinton-BoldItalic',
+  secondaryExtraBold: 'Clinton-ExtraBold',
 };
+
+export const SIZES = {
+  h1: 32,
+  h2: 24,
+  h3: 18,
+  body: 16,
+  small: 14,
+  padding: 20,
+  radius: 12,
+};
+
+export default { COLORS, FONTS, SIZES };
