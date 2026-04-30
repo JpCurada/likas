@@ -1,0 +1,53 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "assets/fonts/Clinton-Bold.ttf",
+      "sha1": "1e9b9d3931265aea1f225a656bd986dca0334b55"
+    },
+    {
+      "path": "assets/fonts/Clinton-BoldItalic.ttf",
+      "sha1": "86973b46e0396740a6cd4f284e9f417328a9d3ce"
+    },
+    {
+      "path": "assets/fonts/Clinton-ExtraBold.ttf",
+      "sha1": "ad9dfcef3ad2fb5168b0be17d8c6d8d54b2f01a4"
+    },
+    {
+      "path": "assets/fonts/Clinton-SemiBold.ttf",
+      "sha1": "0f7de11ffd9d05314f68b8c0fb5cfd2e91d1f57e"
+    },
+    {
+      "path": "assets/fonts/Sora-Bold.ttf",
+      "sha1": "f907b49488151754b4d4ca4a5a2aa55e8f01a887"
+    },
+    {
+      "path": "assets/fonts/Sora-ExtraBold.ttf",
+      "sha1": "a262e745d980abb98f6f064cfcd692ddfcda2131"
+    },
+    {
+      "path": "assets/fonts/Sora-ExtraLight.ttf",
+      "sha1": "4ff7803650703a1a590154eda9d47ddbb6fd8466"
+    },
+    {
+      "path": "assets/fonts/Sora-Light.ttf",
+      "sha1": "01761af81a86e7d3a0a41680208fb703e5f4148b"
+    },
+    {
+      "path": "assets/fonts/Sora-Medium.ttf",
+      "sha1": "3e1cdc1bc46fa42af1341d290445e42da67cd6e0"
+    },
+    {
+      "path": "assets/fonts/Sora-Regular.ttf",
+      "sha1": "1d7fc67be342deb56a0b3e90e5e212166117b34e"
+    },
+    {
+      "path": "assets/fonts/Sora-SemiBold.ttf",
+      "sha1": "b28cc2fd0b3d43c007fe82fbf7e72715ee3afaab"
+    },
+    {
+      "path": "assets/fonts/Sora-Thin.ttf",
+      "sha1": "ef1bbd232020073a8351b3151515c121c61622db"
+    }
+  ]
+}
