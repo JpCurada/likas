@@ -36,3 +36,11 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Android/Gradle Build Artifacts
+**/.gradle/
+**/android/build/
+**/android/app/build/
+**/android/app/.cxx/
+**/local.properties
+**/*.iml
