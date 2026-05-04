@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, FONTS, SIZES } from '../theme';
+import { Icon } from '../components/Icon';
 import { loadProfile, UserProfile } from '../database/storage';
 
 // ─── Disaster Content ─────────────────────────────────────────────────────────
@@ -23,22 +24,22 @@ const EARTHQUAKE_STEPS = [
     color: COLORS.error,
     items: [
       {
-        icon: '⬇️',
+        icon: 'arrow-down-bold-circle-outline',
         title: 'DROP, COVER, HOLD ON',
         desc: 'Drop to hands and knees. Take cover under a sturdy table or desk. Hold on until shaking stops.',
       },
       {
-        icon: '🚫',
+        icon: 'cancel',
         title: 'Do NOT run outside',
         desc: 'Most injuries happen when people try to move or run during shaking. Stay where you are.',
       },
       {
-        icon: '🪟',
+        icon: 'window-closed-variant',
         title: 'Away from windows',
         desc: 'Move away from glass, windows, outside doors, and walls that could shatter.',
       },
       {
-        icon: '🛏️',
+        icon: 'bed-empty',
         title: 'If in bed',
         desc: 'Stay there. Hold on and protect your head with a pillow. Rolling to the floor can cause injury.',
       },
@@ -49,22 +50,22 @@ const EARTHQUAKE_STEPS = [
     color: COLORS.blue,
     items: [
       {
-        icon: '🔥',
+        icon: 'fire',
         title: 'Check for fires',
         desc: 'Check for gas leaks. If you smell gas, open windows, leave the building, and do not use electrical switches.',
       },
       {
-        icon: '🩺',
+        icon: 'stethoscope',
         title: 'Check for injuries',
         desc: 'Do not move seriously injured persons unless in immediate danger. Apply first aid.',
       },
       {
-        icon: '📻',
+        icon: 'radio',
         title: 'Listen for updates',
         desc: 'Use a battery-powered radio for official PHIVOLCS/NDRRMC updates.',
       },
       {
-        icon: '🏠',
+        icon: 'home-outline',
         title: 'Inspect your home',
         desc: 'Check for structural damage before re-entering. Watch for aftershocks.',
       },
@@ -75,17 +76,17 @@ const EARTHQUAKE_STEPS = [
     color: '#7c3aed',
     items: [
       {
-        icon: '💧',
+        icon: 'water-alert-outline',
         title: 'Near the coast',
         desc: 'Move to high ground immediately — tsunami waves can arrive within minutes of a strong quake.',
       },
       {
-        icon: '🏚️',
+        icon: 'home-off-outline',
         title: 'Building is damaged',
         desc: 'Leave if you see cracks in walls, tilting floors, or smell gas.',
       },
       {
-        icon: '🔥',
+        icon: 'fire-alert',
         title: 'Fire breaks out',
         desc: 'Evacuate immediately using stairs. Do not use elevators.',
       },
@@ -99,22 +100,22 @@ const TYPHOON_STEPS = [
     color: COLORS.blue,
     items: [
       {
-        icon: '🎒',
+        icon: 'bag-personal',
         title: 'Prepare your Go-Bag',
         desc: 'Pack food, water (3-day supply), medicines, important documents, flashlight, and cash.',
       },
       {
-        icon: '📱',
+        icon: 'cellphone',
         title: 'Charge all devices',
         desc: 'Charge phones, power banks, and radios. Save NDRRMC and LGU numbers.',
       },
       {
-        icon: '🏠',
+        icon: 'home',
         title: 'Secure your home',
         desc: 'Board up windows, clear drains, bring loose outdoor items inside.',
       },
       {
-        icon: '📡',
+        icon: 'antenna',
         title: 'Monitor PAGASA alerts',
         desc: 'Signal No. 3+ means evacuate low-lying areas, coastal zones, and unstable slopes.',
       },
@@ -125,22 +126,22 @@ const TYPHOON_STEPS = [
     color: COLORS.error,
     items: [
       {
-        icon: '🏠',
+        icon: 'home',
         title: 'Stay indoors',
         desc: 'Stay in the strongest part of your home. Avoid upper floors if the roof is weak.',
       },
       {
-        icon: '🚪',
+        icon: 'door',
         title: 'Away from windows',
         desc: 'Strong winds can shatter glass. Move to interior rooms.',
       },
       {
-        icon: '💧',
+        icon: 'water-alert',
         title: 'Watch for flooding',
         desc: 'If water rises rapidly, move to upper floors. Do NOT wait to evacuate if warned.',
       },
       {
-        icon: '⚡',
+        icon: 'lightning-bolt',
         title: 'Avoid floodwater',
         desc: '6 inches of water can knock you off your feet. Never walk in flowing floodwater.',
       },
@@ -151,17 +152,17 @@ const TYPHOON_STEPS = [
     color: '#7c3aed',
     items: [
       {
-        icon: '🏔️',
+        icon: 'image-filter-hdr',
         title: 'Near slopes or mountains',
         desc: 'Landslide risk is high during heavy rain. Leave early — do not wait for the signal.',
       },
       {
-        icon: '🌊',
+        icon: 'waves',
         title: 'In a flood-prone area',
         desc: 'If you live in a low-lying or coastal barangay, pre-emptive evacuation saves lives.',
       },
       {
-        icon: '📢',
+        icon: 'bullhorn-outline',
         title: 'LGU orders evacuation',
         desc: 'Obey barangay evacuation orders immediately. Your life is worth more than your property.',
       },
@@ -216,11 +217,14 @@ export const HomeScreen: React.FC = () => {
       <View style={s.header}>
         <View style={s.headerTop}>
           <View>
-            <Text style={s.greeting}>
-              Mabuhay, {profile?.name || 'Friend'} 👋
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={s.greeting}>
+                Mabuhay, {profile?.name || 'Friend'}
+              </Text>
+              <Icon name="hand-wave" size={24} color={COLORS.accentGreen} />
+            </View>
             <Text style={s.location}>
-              📍{' '}
+              <Icon name="map-marker" size={12} color={COLORS.accentGreen} />
               {profile?.location.barangay
                 ? `Brgy. ${profile.location.barangay}, ${profile.location.city}`
                 : 'Location not set'}
@@ -235,7 +239,7 @@ export const HomeScreen: React.FC = () => {
         {/* Meeting point reminder */}
         {profile?.location.primaryMeeting.landmark ? (
           <View style={s.meetBanner}>
-            <Text style={s.meetIcon}>📌</Text>
+            <Icon name="map-marker" size={14} color={COLORS.lightGreen} />
             <Text style={s.meetTxt} numberOfLines={1}>
               Meeting: {profile.location.primaryMeeting.landmark}
               {profile.location.primaryMeeting.streetAddress
@@ -261,12 +265,14 @@ export const HomeScreen: React.FC = () => {
           onPress={() => setDisasterModal('EARTHQUAKE')}
           activeOpacity={0.88}
         >
-          <Text style={s.bigBtnEmoji}>🌏</Text>
-          <View>
+          <View style={s.bigBtnEmojiContainer}>
+            <Icon name="earthquake" size={42} color={COLORS.white} />
+          </View>
+          <View style={{ flex: 1 }}>
             <Text style={s.bigBtnLabel}>EARTHQUAKE</Text>
             <Text style={s.bigBtnSub}>Lindol · Ground shaking</Text>
           </View>
-          <Text style={s.bigBtnArrow}>›</Text>
+          <Icon name="chevron-right" size={28} color={COLORS.white} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -274,28 +280,30 @@ export const HomeScreen: React.FC = () => {
           onPress={() => setDisasterModal('TYPHOON')}
           activeOpacity={0.88}
         >
-          <Text style={s.bigBtnEmoji}>🌀</Text>
-          <View>
+          <View style={s.bigBtnEmojiContainer}>
+            <Icon name="weather-hurricane" size={42} color={COLORS.white} />
+          </View>
+          <View style={{ flex: 1 }}>
             <Text style={s.bigBtnLabel}>TYPHOON</Text>
             <Text style={s.bigBtnSub}>Bagyo · Storm · Flood</Text>
           </View>
-          <Text style={s.bigBtnArrow}>›</Text>
+          <Icon name="chevron-right" size={28} color={COLORS.white} />
         </TouchableOpacity>
 
         {/* Quick info cards */}
         <View style={s.infoRow}>
           <View style={s.infoCard}>
-            <Text style={s.infoEmoji}>🎒</Text>
+            <Icon name="bag-personal" size={26} color={COLORS.primaryGreen} style={{ marginBottom: 4 }} />
             <Text style={s.infoLabel}>Go-Bag</Text>
             <Text style={s.infoSub}>Check Prep tab</Text>
           </View>
           <View style={s.infoCard}>
-            <Text style={s.infoEmoji}>🗺️</Text>
+            <Icon name="map-marker-radius" size={26} color={COLORS.primaryGreen} style={{ marginBottom: 4 }} />
             <Text style={s.infoLabel}>Evacuation</Text>
             <Text style={s.infoSub}>Map tab</Text>
           </View>
           <View style={s.infoCard}>
-            <Text style={s.infoEmoji}>📞</Text>
+            <Icon name="phone" size={26} color={COLORS.primaryGreen} style={{ marginBottom: 4 }} />
             <Text style={s.infoLabel}>
               {contacts.length > 0
                 ? `${contacts.length} Contact${contacts.length > 1 ? 's' : ''}`
@@ -307,7 +315,10 @@ export const HomeScreen: React.FC = () => {
 
         {/* Emergency numbers */}
         <View style={s.emrgCard}>
-          <Text style={s.emrgTitle}>🇵🇭 Emergency Hotlines</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+            <Icon name="phone-classic" size={16} color={COLORS.darkGreen} style={{ marginRight: 6 }} />
+            <Text style={[s.emrgTitle, { marginBottom: 0 }]}>Emergency Hotlines</Text>
+          </View>
           {[
             { label: 'NDRRMC', number: '8911' },
             { label: 'Red Cross', number: '143' },
@@ -320,7 +331,7 @@ export const HomeScreen: React.FC = () => {
               onPress={() => Linking.openURL(`tel:${number}`)}
             >
               <Text style={s.emrgLabel}>{label}</Text>
-              <Text style={s.emrgNum}>{number} 📞</Text>
+              <Text style={s.emrgNum}>{number} <Icon name="phone" size={14} color={COLORS.primaryGreen} /></Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -353,9 +364,7 @@ export const HomeScreen: React.FC = () => {
                 : s.modalHeaderTY,
             ]}
           >
-            <Text style={s.modalEmoji}>
-              {disasterModal === 'EARTHQUAKE' ? '🌏' : '🌀'}
-            </Text>
+            <Icon name={disasterModal === 'EARTHQUAKE' ? 'earthquake' : 'weather-hurricane'} size={36} color={COLORS.white} />
             <View style={{ flex: 1 }}>
               <Text style={s.modalTitle}>{disasterModal}</Text>
               <Text style={s.modalSubtitle}>Step-by-step guide</Text>
@@ -392,9 +401,12 @@ export const HomeScreen: React.FC = () => {
             {/* Quick contacts inside modal */}
             {contacts.length > 0 && (
               <View style={s.quickContacts}>
-                <Text style={s.quickContactsTitle}>
-                  📞 Quick SMS to Contacts
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Icon name="phone" size={16} color={COLORS.error} />
+                  <Text style={s.quickContactsTitle}>
+                    Quick SMS to Contacts
+                  </Text>
+                </View>
                 {contacts.map((c, i) => (
                   <TouchableOpacity
                     key={i}
@@ -417,7 +429,10 @@ export const HomeScreen: React.FC = () => {
       <Modal visible={sosModal} animationType="slide" transparent>
         <View style={s.sosOverlay}>
           <View style={s.sosSheet}>
-            <Text style={s.sosTitle}>🆘 Send Emergency SOS</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <Icon name="alert-decagram" size={24} color={COLORS.error} />
+              <Text style={s.sosTitle}>Send Emergency SOS</Text>
+            </View>
             <Text style={s.sosSub}>
               This opens your SMS app with a pre-filled message including your
               location and meeting point.
@@ -447,7 +462,7 @@ export const HomeScreen: React.FC = () => {
                       {c.relationship ? ` · ${c.relationship}` : ''}
                     </Text>
                   </View>
-                  <Text style={s.sosContactAction}>📱 SMS</Text>
+                  <Text style={s.sosContactAction}><Icon name="cellphone-message" size={14} color={COLORS.error} /> SMS</Text>
                 </TouchableOpacity>
               ))
             )}
@@ -542,7 +557,7 @@ const s = StyleSheet.create({
   },
   eqBtn: { backgroundColor: COLORS.darkGreen },
   tyBtn: { backgroundColor: COLORS.blue },
-  bigBtnEmoji: { fontSize: 42 },
+  bigBtnEmojiContainer: { width: 42, alignItems: 'center' },
   bigBtnLabel: {
     fontFamily: FONTS.primaryExtraBold,
     fontSize: 22,
@@ -555,11 +570,6 @@ const s = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
     marginTop: 2,
   },
-  bigBtnArrow: {
-    fontSize: 32,
-    color: 'rgba(255,255,255,0.5)',
-    marginLeft: 'auto',
-  },
   infoRow: { flexDirection: 'row', gap: 10 },
   infoCard: {
     flex: 1,
@@ -571,7 +581,6 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.lightGreen,
   },
-  infoEmoji: { fontSize: 26 },
   infoLabel: {
     fontFamily: FONTS.primaryBold,
     fontSize: 12,
