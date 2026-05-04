@@ -7,9 +7,11 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  TextInput,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 import { COLORS, FONTS, SIZES } from '../theme';
 import {
   loadProfile,
@@ -17,14 +19,185 @@ import {
   clearAllData,
   UserProfile,
   DEFAULT_PROFILE,
+  Companion,
+  MeetingPoint,
+  Pet,
+  PetEntry,
+  PetSize,
+  MedicalCondition,
+  EmergencyContact,
 } from '../database/storage';
-import { ProfileSection } from '../components/profile/ProfileSection';
-import { EditableField } from '../components/profile/EditableField';
+import {
+  CITIES,
+  METRO_MANILA,
+  LANDMARK_SUGGESTIONS,
+} from '../data/metroManila';
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+const SectionCard: React.FC<{
+  emoji: string;
+  title: string;
+  children: React.ReactNode;
+}> = ({ emoji, title, children }) => {
+  const [open, setOpen] = useState(true);
+  return (
+    <View style={ps.card}>
+      <TouchableOpacity
+        style={ps.cardHeader}
+        onPress={() => setOpen(v => !v)}
+        activeOpacity={0.7}
+      >
+        <View style={ps.cardHeaderL}>
+          <Text style={ps.cardEmoji}>{emoji}</Text>
+          <Text style={ps.cardTitle}>{title}</Text>
+        </View>
+        <Text style={[ps.chevron, open && ps.chevronOpen]}>›</Text>
+      </TouchableOpacity>
+      {open && <View style={ps.cardBody}>{children}</View>}
+    </View>
+  );
+};
+
+const FieldRow: React.FC<{
+  label: string;
+  value: string;
+  placeholder?: string;
+  onSave: (v: string) => void;
+  keyboardType?: any;
+  multiline?: boolean;
+}> = ({
+  label,
+  value,
+  placeholder,
+  onSave,
+  keyboardType = 'default',
+  multiline = false,
+}) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const commit = () => {
+    onSave(draft.trim());
+    setEditing(false);
+  };
+  const cancel = () => {
+    setDraft(value);
+    setEditing(false);
+  };
+  return (
+    <View style={ps.fieldRow}>
+      <Text style={ps.fieldLabel}>{label}</Text>
+      {editing ? (
+        <>
+          <TextInput
+            style={[ps.fieldInput, multiline && ps.fieldInputMulti]}
+            value={draft}
+            onChangeText={setDraft}
+            autoFocus
+            keyboardType={keyboardType}
+            multiline={multiline}
+            numberOfLines={multiline ? 3 : 1}
+            returnKeyType={multiline ? 'default' : 'done'}
+            onSubmitEditing={multiline ? undefined : commit}
+          />
+          <View style={ps.fieldBtns}>
+            <TouchableOpacity style={ps.cancelBtn} onPress={cancel}>
+              <Text style={ps.cancelTxt}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={ps.saveBtn} onPress={commit}>
+              <Text style={ps.saveTxt}>✓ Save</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : (
+        <TouchableOpacity
+          style={ps.fieldDisplay}
+          onPress={() => {
+            setDraft(value);
+            setEditing(true);
+          }}
+          activeOpacity={0.7}
+        >
+          <Text style={[ps.fieldVal, !value && ps.fieldEmpty]}>
+            {value || placeholder || 'Tap to edit'}
+          </Text>
+          <Text style={ps.editIcon}>✏️</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+};
+
+const Counter: React.FC<{
+  value: number;
+  onInc: () => void;
+  onDec: () => void;
+}> = ({ value, onInc, onDec }) => (
+  <View style={ps.counter}>
+    <TouchableOpacity
+      style={[ps.cBtn, value === 0 && ps.cBtnOff]}
+      onPress={onDec}
+      disabled={value === 0}
+    >
+      <Text style={ps.cBtnTxt}>−</Text>
+    </TouchableOpacity>
+    <Text style={ps.cVal}>{value}</Text>
+    <TouchableOpacity style={ps.cBtn} onPress={onInc}>
+      <Text style={ps.cBtnTxt}>+</Text>
+    </TouchableOpacity>
+  </View>
+);
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+
+const PET_SIZES: PetSize[] = ['Small', 'Medium', 'Large'];
+type PetKey = keyof Omit<Pet, 'hasPets'>;
+const PET_ROWS: {
+  key: PetKey;
+  emoji: string;
+  label: string;
+  hasSize: boolean;
+}[] = [
+  { key: 'dogs', emoji: '🐕', label: 'Dogs', hasSize: true },
+  { key: 'cats', emoji: '🐈', label: 'Cats', hasSize: true },
+  { key: 'birds', emoji: '🐦', label: 'Birds', hasSize: false },
+  { key: 'rabbits', emoji: '🐇', label: 'Rabbits', hasSize: true },
+  { key: 'reptiles', emoji: '🦎', label: 'Reptiles', hasSize: false },
+  { key: 'others', emoji: '🐾', label: 'Others', hasSize: true },
+];
+
+const AGE_GROUPS = ['Under 18', '18-35', '36-55', '56+'];
+const CONDITIONS: {
+  key: keyof Omit<MedicalCondition, 'other'>;
+  emoji: string;
+  label: string;
+}[] = [
+  { key: 'asthma', emoji: '🫁', label: 'Asthma' },
+  { key: 'diabetes', emoji: '💉', label: 'Diabetes' },
+  { key: 'heartCondition', emoji: '❤️', label: 'Heart Condition' },
+  { key: 'hypertension', emoji: '🩺', label: 'Hypertension' },
+  { key: 'epilepsy', emoji: '⚡', label: 'Epilepsy' },
+  { key: 'kidneydisease', emoji: '🫘', label: 'Kidney Disease' },
+  { key: 'none', emoji: '✅', label: 'None / All Healthy' },
+];
+const RELATIONSHIPS = [
+  'Spouse/Partner',
+  'Parent',
+  'Sibling',
+  'Child',
+  'Relative',
+  'Friend',
+  'Neighbor',
+  'Other',
+];
 
 export const ProfileScreen: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [cityModal, setCityModal] = useState(false);
+  const [brgyModal, setBrgyModal] = useState(false);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     loadProfile().then(p => {
@@ -33,7 +206,7 @@ export const ProfileScreen: React.FC = () => {
     });
   }, []);
 
-  const updateAndSave = useCallback(
+  const commit = useCallback(
     async (updates: Partial<UserProfile>) => {
       const updated = { ...profile, ...updates };
       setProfile(updated);
@@ -41,7 +214,7 @@ export const ProfileScreen: React.FC = () => {
       try {
         await saveProfile(updated);
       } catch {
-        Alert.alert('Error', 'Could not save changes. Please try again.');
+        Alert.alert('Error', 'Could not save.');
       } finally {
         setSaving(false);
       }
@@ -49,261 +222,527 @@ export const ProfileScreen: React.FC = () => {
     [profile],
   );
 
-  const handleResetOnboarding = () => {
-    Alert.alert(
-      'Reset Profile?',
-      'This will delete all your data and restart onboarding. Are you sure?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset',
-          style: 'destructive',
-          onPress: async () => {
-            await clearAllData();
-            // The AppNavigator will detect this and show onboarding
-            Alert.alert('Done', 'App will restart onboarding on next launch.');
-          },
+  const updLoc = (patch: Partial<typeof profile.location>) =>
+    commit({ location: { ...profile.location, ...patch } });
+  const updMeeting = (
+    which: 'primaryMeeting' | 'secondaryMeeting',
+    patch: Partial<MeetingPoint>,
+  ) => updLoc({ [which]: { ...profile.location[which], ...patch } });
+  const updComp = (key: keyof Companion, delta: number) =>
+    commit({
+      companions: {
+        ...profile.companions,
+        [key]: Math.max(0, profile.companions[key] + delta),
+      },
+    });
+  const updPetCount = (key: PetKey, delta: number) => {
+    const e = profile.pets[key] as PetEntry;
+    commit({
+      pets: {
+        ...profile.pets,
+        [key]: { ...e, count: Math.max(0, e.count + delta) },
+      },
+    });
+  };
+  const updPetSize = (key: PetKey, size: PetSize) => {
+    const e = profile.pets[key] as PetEntry;
+    commit({ pets: { ...profile.pets, [key]: { ...e, size } } });
+  };
+  const toggleCondition = (key: keyof Omit<MedicalCondition, 'other'>) => {
+    const mc = profile.medicalConditions;
+    if (key === 'none')
+      commit({
+        medicalConditions: {
+          asthma: false,
+          diabetes: false,
+          heartCondition: false,
+          hypertension: false,
+          epilepsy: false,
+          kidneydisease: false,
+          none: !mc.none,
+          other: '',
         },
-      ],
+      });
+    else commit({ medicalConditions: { ...mc, [key]: !mc[key], none: false } });
+  };
+  const updContact = (i: number, patch: Partial<EmergencyContact>) => {
+    const c = profile.emergencyContacts.map((x, idx) =>
+      idx === i ? { ...x, ...patch } : x,
     );
+    commit({ emergencyContacts: c });
   };
 
-  if (loading) {
+  if (loading)
     return (
-      <SafeAreaView style={styles.loadingContainer}>
+      <SafeAreaView style={ps.loadSafe}>
         <ActivityIndicator color={COLORS.primaryGreen} size="large" />
-        <Text style={styles.loadingText}>Loading your profile...</Text>
+        <Text style={ps.loadTxt}>Loading profile...</Text>
       </SafeAreaView>
     );
-  }
+
+  const barangays = profile.location.city
+    ? METRO_MANILA[profile.location.city] ?? []
+    : [];
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={ps.safe} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={ps.header}>
         <View>
-          <Text style={styles.headerTitle}>My Profile</Text>
-          <Text style={styles.headerSub}>Tap any field to edit</Text>
+          <Text style={ps.headerTitle}>My Profile</Text>
+          <Text style={ps.headerSub}>All changes save automatically</Text>
         </View>
         {saving && (
-          <View style={styles.savingBadge}>
+          <View style={ps.saveBadge}>
             <ActivityIndicator size="small" color={COLORS.primaryGreen} />
-            <Text style={styles.savingText}>Saving...</Text>
+            <Text style={ps.saveTxt2}>Saving...</Text>
           </View>
         )}
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={ps.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* Identity Card */}
-        <View style={styles.identityCard}>
-          <Text style={styles.identityEmoji}>🌿</Text>
+        {/* Identity Banner */}
+        <View style={ps.banner}>
+          <Text style={ps.bannerEmoji}>🌿</Text>
           <View>
-            <Text style={styles.identityName}>
-              {profile.name || 'Your Name'}
-            </Text>
-            <Text style={styles.identityAge}>
-              {profile.ageGroup || 'Age group not set'}
+            <Text style={ps.bannerName}>{profile.name || 'Your Name'}</Text>
+            <Text style={ps.bannerAge}>
+              {profile.ageGroup || 'Age not set'}
             </Text>
           </View>
         </View>
 
-        {/* Section: Identity */}
-        <ProfileSection emoji="👤" title="Identity" defaultOpen>
-          <EditableField
+        {/* ── IDENTITY ── */}
+        <SectionCard emoji="👤" title="Identity">
+          <FieldRow
             label="Name / Nickname"
             value={profile.name}
-            onSave={val => updateAndSave({ name: val })}
             placeholder="Your name"
+            onSave={v => commit({ name: v })}
           />
-          {/* Age group - simple display, user can tap to see note */}
-          <View style={styles.readonlyField}>
-            <Text style={styles.readonlyLabel}>Age Group</Text>
-            <Text style={styles.readonlyValue}>
-              {profile.ageGroup || 'Not set'}
-            </Text>
-            <Text style={styles.readonlyNote}>
-              To change age group, please redo onboarding (Settings below).
-            </Text>
+          <View style={ps.fieldRow}>
+            <Text style={ps.fieldLabel}>Age Group</Text>
+            <View style={ps.chipRow}>
+              {AGE_GROUPS.map(ag => (
+                <TouchableOpacity
+                  key={ag}
+                  style={[ps.chip, profile.ageGroup === ag && ps.chipOn]}
+                  onPress={() => commit({ ageGroup: ag as any })}
+                >
+                  <Text
+                    style={[
+                      ps.chipTxt,
+                      profile.ageGroup === ag && ps.chipTxtOn,
+                    ]}
+                  >
+                    {ag}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </ProfileSection>
+        </SectionCard>
 
-        {/* Section: Location */}
-        <ProfileSection emoji="📍" title="Location & Meeting Points">
-          <View style={styles.readonlyField}>
-            <Text style={styles.readonlyLabel}>City</Text>
-            <Text style={styles.readonlyValue}>
-              {profile.location.city || 'Not set'}
-            </Text>
-          </View>
-          <View style={styles.readonlyField}>
-            <Text style={styles.readonlyLabel}>Barangay</Text>
-            <Text style={styles.readonlyValue}>
-              {profile.location.barangay || 'Not set'}
-            </Text>
-          </View>
-          <EditableField
-            label="Primary Meeting Point ⭐"
-            value={profile.location.primaryMeetingPoint}
-            onSave={val =>
-              updateAndSave({
-                location: { ...profile.location, primaryMeetingPoint: val },
-              })
-            }
-            placeholder="e.g., Basketball court on Rizal St."
-            multiline
-          />
-          <EditableField
-            label="Secondary Meeting Point"
-            value={profile.location.secondaryMeetingPoint}
-            onSave={val =>
-              updateAndSave({
-                location: { ...profile.location, secondaryMeetingPoint: val },
-              })
-            }
-            placeholder="e.g., Grandma's house in Marikina"
-            multiline
-          />
-        </ProfileSection>
-
-        {/* Section: Emergency Contacts */}
-        <ProfileSection emoji="📞" title="Emergency Contacts">
-          {profile.emergencyContacts.map((contact, index) => (
-            <View key={index} style={styles.contactGroup}>
-              <Text style={styles.contactGroupTitle}>
-                {index === 0
-                  ? '⭐ Primary'
-                  : index === 1
-                  ? '👤 Secondary'
-                  : '👤 Third'}{' '}
-                Contact
-              </Text>
-              <EditableField
-                label="Name"
-                value={contact.name}
-                onSave={val => {
-                  const updated = profile.emergencyContacts.map((c, i) =>
-                    i === index ? { ...c, name: val } : c,
-                  );
-                  updateAndSave({ emergencyContacts: updated });
-                }}
-                placeholder="Contact name"
-              />
-              <EditableField
-                label="Phone Number"
-                value={contact.phone}
-                onSave={val => {
-                  const updated = profile.emergencyContacts.map((c, i) =>
-                    i === index ? { ...c, phone: val } : c,
-                  );
-                  updateAndSave({ emergencyContacts: updated });
-                }}
-                placeholder="09XX-XXX-XXXX"
-                keyboardType="phone-pad"
+        {/* ── HOUSEHOLD ── */}
+        <SectionCard emoji="👨‍👩‍👧‍👦" title="Household Members">
+          {(
+            [
+              {
+                key: 'infants',
+                emoji: '👶',
+                label: 'Infants / Toddlers',
+                sub: '0–3 yrs',
+              },
+              {
+                key: 'children',
+                emoji: '🧒',
+                label: 'Children',
+                sub: '4–12 yrs',
+              },
+              { key: 'elderly', emoji: '👴', label: 'Elderly', sub: '60+ yrs' },
+              {
+                key: 'pwd',
+                emoji: '♿',
+                label: 'PWD / Mobility',
+                sub: 'Disabilities',
+              },
+            ] as const
+          ).map(row => (
+            <View key={row.key} style={ps.counterRow}>
+              <View style={ps.counterRowL}>
+                <Text style={ps.rEmoji}>{row.emoji}</Text>
+                <View>
+                  <Text style={ps.rLabel}>{row.label}</Text>
+                  <Text style={ps.rSub}>{row.sub}</Text>
+                </View>
+              </View>
+              <Counter
+                value={profile.companions[row.key]}
+                onInc={() => updComp(row.key, 1)}
+                onDec={() => updComp(row.key, -1)}
               />
             </View>
           ))}
-        </ProfileSection>
+        </SectionCard>
 
-        {/* Section: Companions (read-only summary, redirect to onboarding to re-do) */}
-        <ProfileSection emoji="👨‍👩‍👧‍👦" title="Household & Health Summary">
-          <View style={styles.summaryGrid}>
-            {profile.companions.infants > 0 && (
-              <View style={styles.summaryChip}>
-                <Text style={styles.summaryChipText}>
-                  👶 {profile.companions.infants} Infant(s)
-                </Text>
-              </View>
-            )}
-            {profile.companions.children > 0 && (
-              <View style={styles.summaryChip}>
-                <Text style={styles.summaryChipText}>
-                  🧒 {profile.companions.children} Child(ren)
-                </Text>
-              </View>
-            )}
-            {profile.companions.elderly > 0 && (
-              <View style={styles.summaryChip}>
-                <Text style={styles.summaryChipText}>
-                  👴 {profile.companions.elderly} Elderly
-                </Text>
-              </View>
-            )}
-            {profile.companions.pwd > 0 && (
-              <View style={styles.summaryChip}>
-                <Text style={styles.summaryChipText}>
-                  ♿ {profile.companions.pwd} PWD
-                </Text>
-              </View>
-            )}
-            {profile.pets.hasPets && (
-              <View style={[styles.summaryChip, styles.summaryChipPet]}>
-                <Text style={styles.summaryChipText}>🐾 Has Pets</Text>
-              </View>
-            )}
-            {profile.medicalConditions.asthma && (
-              <View style={[styles.summaryChip, styles.summaryChipMed]}>
-                <Text style={styles.summaryChipText}>🫁 Asthma</Text>
-              </View>
-            )}
-            {profile.medicalConditions.diabetes && (
-              <View style={[styles.summaryChip, styles.summaryChipMed]}>
-                <Text style={styles.summaryChipText}>💉 Diabetes</Text>
-              </View>
-            )}
-            {profile.medicalConditions.heartCondition && (
-              <View style={[styles.summaryChip, styles.summaryChipMed]}>
-                <Text style={styles.summaryChipText}>❤️ Heart Condition</Text>
-              </View>
-            )}
-            {profile.medicalConditions.hypertension && (
-              <View style={[styles.summaryChip, styles.summaryChipMed]}>
-                <Text style={styles.summaryChipText}>🩺 Hypertension</Text>
-              </View>
-            )}
+        {/* ── PETS ── */}
+        <SectionCard emoji="🐾" title="Pets">
+          <View style={ps.toggleRow}>
+            <TouchableOpacity
+              style={[ps.tBtn, !profile.pets.hasPets && ps.tBtnOn]}
+              onPress={() =>
+                commit({ pets: { ...profile.pets, hasPets: false } })
+              }
+            >
+              <Text style={[ps.tTxt, !profile.pets.hasPets && ps.tTxtOn]}>
+                No Pets
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[ps.tBtn, profile.pets.hasPets && ps.tBtnYes]}
+              onPress={() =>
+                commit({ pets: { ...profile.pets, hasPets: true } })
+              }
+            >
+              <Text style={[ps.tTxt, profile.pets.hasPets && ps.tTxtOn]}>
+                Has Pets 🐾
+              </Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.summaryNote}>
-            To update household or health details in depth, use the "Redo
-            Onboarding" option below.
-          </Text>
-        </ProfileSection>
+          {profile.pets.hasPets &&
+            PET_ROWS.map(row => {
+              const e = profile.pets[row.key] as PetEntry;
+              return (
+                <View key={row.key} style={ps.petBlock}>
+                  <View style={ps.counterRow}>
+                    <View style={ps.counterRowL}>
+                      <Text style={ps.rEmoji}>{row.emoji}</Text>
+                      <Text style={ps.rLabel}>{row.label}</Text>
+                    </View>
+                    <Counter
+                      value={e.count}
+                      onInc={() => updPetCount(row.key, 1)}
+                      onDec={() => updPetCount(row.key, -1)}
+                    />
+                  </View>
+                  {e.count > 0 && row.hasSize && (
+                    <View style={ps.sizeRow}>
+                      <Text style={ps.sizeLabel}>Size:</Text>
+                      {PET_SIZES.map(sz => (
+                        <TouchableOpacity
+                          key={sz}
+                          style={[ps.sizeChip, e.size === sz && ps.sizeChipOn]}
+                          onPress={() => updPetSize(row.key, sz)}
+                        >
+                          <Text
+                            style={[ps.sizeTxt, e.size === sz && ps.sizeTxtOn]}
+                          >
+                            {sz}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+        </SectionCard>
 
-        {/* Danger Zone */}
-        <View style={styles.dangerSection}>
-          <Text style={styles.dangerTitle}>⚙️ Settings</Text>
-          <TouchableOpacity
-            style={styles.dangerButton}
-            onPress={handleResetOnboarding}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.dangerButtonText}>🔄 Redo Full Onboarding</Text>
-            <Text style={styles.dangerButtonSub}>
-              Update all details from scratch
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {/* ── HEALTH ── */}
+        <SectionCard emoji="🏥" title="Medical Conditions">
+          <View style={ps.condGrid}>
+            {CONDITIONS.map(c => {
+              const on =
+                c.key === 'none'
+                  ? profile.medicalConditions.none
+                  : profile.medicalConditions[c.key];
+              return (
+                <TouchableOpacity
+                  key={c.key}
+                  style={[ps.condChip, on && ps.condChipOn]}
+                  onPress={() => toggleCondition(c.key)}
+                >
+                  <Text style={ps.condEmoji}>{c.emoji}</Text>
+                  <Text style={[ps.condLabel, on && ps.condLabelOn]}>
+                    {c.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <FieldRow
+            label="Other condition"
+            value={profile.medicalConditions.other}
+            placeholder="e.g., Epilepsy, Kidney disease..."
+            onSave={v =>
+              commit({
+                medicalConditions: { ...profile.medicalConditions, other: v },
+              })
+            }
+          />
+        </SectionCard>
+
+        {/* ── LOCATION ── */}
+        <SectionCard emoji="📍" title="Location">
+          {/* City */}
+          <View style={ps.fieldRow}>
+            <Text style={ps.fieldLabel}>City / Municipality</Text>
+            <TouchableOpacity
+              style={[ps.selector, profile.location.city && ps.selectorOn]}
+              onPress={() => {
+                setSearch('');
+                setCityModal(true);
+              }}
+            >
+              <Text
+                style={[ps.selTxt, !profile.location.city && ps.selPlaceholder]}
+              >
+                {profile.location.city || 'Select city...'}
+              </Text>
+              <Text style={ps.chevron}>▼</Text>
+            </TouchableOpacity>
+          </View>
+          {/* Barangay */}
+          <View style={ps.fieldRow}>
+            <Text style={ps.fieldLabel}>Barangay</Text>
+            <TouchableOpacity
+              style={[
+                ps.selector,
+                profile.location.barangay && ps.selectorOn,
+                !profile.location.city && ps.selectorOff,
+              ]}
+              onPress={() => {
+                if (profile.location.city) {
+                  setSearch('');
+                  setBrgyModal(true);
+                }
+              }}
+            >
+              <Text
+                style={[
+                  ps.selTxt,
+                  !profile.location.barangay && ps.selPlaceholder,
+                ]}
+              >
+                {profile.location.barangay || 'Select barangay...'}
+              </Text>
+              <Text style={ps.chevron}>▼</Text>
+            </TouchableOpacity>
+          </View>
+          <FieldRow
+            label="Home Street Address"
+            value={profile.location.streetAddress}
+            placeholder="e.g., 25 Mabini St."
+            onSave={v => updLoc({ streetAddress: v })}
+          />
+
+          <Text style={ps.meetingTitle}>⭐ Primary Meeting Place</Text>
+          <FieldRow
+            label="Landmark"
+            value={profile.location.primaryMeeting.landmark}
+            placeholder="Basketball Court, Church..."
+            onSave={v => updMeeting('primaryMeeting', { landmark: v })}
+          />
+          <FieldRow
+            label="Street Address"
+            value={profile.location.primaryMeeting.streetAddress}
+            placeholder="12 Rizal St., Brgy. ..."
+            onSave={v => updMeeting('primaryMeeting', { streetAddress: v })}
+          />
+          <FieldRow
+            label="Notes"
+            value={profile.location.primaryMeeting.notes}
+            placeholder="Near the red sari-sari store..."
+            onSave={v => updMeeting('primaryMeeting', { notes: v })}
+            multiline
+          />
+
+          <Text style={ps.meetingTitle}>📍 Secondary Meeting Place</Text>
+          <FieldRow
+            label="Landmark"
+            value={profile.location.secondaryMeeting.landmark}
+            placeholder="Basketball Court, Church..."
+            onSave={v => updMeeting('secondaryMeeting', { landmark: v })}
+          />
+          <FieldRow
+            label="Street Address"
+            value={profile.location.secondaryMeeting.streetAddress}
+            placeholder="12 Rizal St., Brgy. ..."
+            onSave={v => updMeeting('secondaryMeeting', { streetAddress: v })}
+          />
+          <FieldRow
+            label="Notes"
+            value={profile.location.secondaryMeeting.notes}
+            placeholder="Near the red sari-sari store..."
+            onSave={v => updMeeting('secondaryMeeting', { notes: v })}
+            multiline
+          />
+        </SectionCard>
+
+        {/* ── CONTACTS ── */}
+        <SectionCard emoji="📞" title="Emergency Contacts">
+          {profile.emergencyContacts.map((c, i) => (
+            <View key={i} style={ps.contactBlock}>
+              <Text style={ps.contactTitle}>
+                {i === 0 ? '⭐ Primary' : i === 1 ? '2nd' : '3rd'} Contact
+              </Text>
+              <FieldRow
+                label="Name"
+                value={c.name}
+                placeholder="Full name"
+                onSave={v => updContact(i, { name: v })}
+              />
+              <FieldRow
+                label="Phone Number"
+                value={c.phone}
+                placeholder="09XX-XXX-XXXX"
+                onSave={v => updContact(i, { phone: v })}
+                keyboardType="phone-pad"
+              />
+              {/* Relationship chips */}
+              <Text style={ps.fieldLabel}>Relationship</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={ps.relScroll}
+              >
+                {RELATIONSHIPS.map(r => (
+                  <TouchableOpacity
+                    key={r}
+                    style={[ps.relChip, c.relationship === r && ps.relChipOn]}
+                    onPress={() => updContact(i, { relationship: r })}
+                  >
+                    <Text
+                      style={[ps.relTxt, c.relationship === r && ps.relTxtOn]}
+                    >
+                      {r}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          ))}
+        </SectionCard>
+
+        {/* Reset */}
+        <TouchableOpacity
+          style={ps.resetBtn}
+          onPress={() =>
+            Alert.alert(
+              'Reset All Data?',
+              'This deletes everything and restarts onboarding.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Reset', style: 'destructive', onPress: clearAllData },
+              ],
+            )
+          }
+        >
+          <Text style={ps.resetTxt}>🔄 Reset & Redo Onboarding</Text>
+        </TouchableOpacity>
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* City Modal */}
+      <Modal visible={cityModal} animationType="slide" transparent>
+        <View style={ps.overlay}>
+          <View style={ps.sheet}>
+            <Text style={ps.modalTitle}>Select City</Text>
+            <TextInput
+              style={ps.modalSearch}
+              placeholder="Search..."
+              placeholderTextColor={COLORS.gray}
+              value={search}
+              onChangeText={setSearch}
+              autoFocus
+            />
+            <FlatList
+              data={CITIES.filter(c =>
+                c.toLowerCase().includes(search.toLowerCase()),
+              )}
+              keyExtractor={i => i}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={ps.modalItem}
+                  onPress={() => {
+                    updLoc({ city: item, barangay: '' });
+                    setCityModal(false);
+                    setSearch('');
+                  }}
+                >
+                  <Text style={ps.modalItemTxt}>{item}</Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity
+              style={ps.modalCancel}
+              onPress={() => setCityModal(false)}
+            >
+              <Text style={ps.modalCancelTxt}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Barangay Modal */}
+      <Modal visible={brgyModal} animationType="slide" transparent>
+        <View style={ps.overlay}>
+          <View style={ps.sheet}>
+            <Text style={ps.modalTitle}>Select Barangay</Text>
+            <Text style={ps.modalSub}>{profile.location.city}</Text>
+            <TextInput
+              style={ps.modalSearch}
+              placeholder="Search..."
+              placeholderTextColor={COLORS.gray}
+              value={search}
+              onChangeText={setSearch}
+              autoFocus
+            />
+            <FlatList
+              data={barangays.filter(b =>
+                b.toLowerCase().includes(search.toLowerCase()),
+              )}
+              keyExtractor={i => i}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={ps.modalItem}
+                  onPress={() => {
+                    updLoc({ barangay: item });
+                    setBrgyModal(false);
+                    setSearch('');
+                  }}
+                >
+                  <Text style={ps.modalItemTxt}>{item}</Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity
+              style={ps.modalCancel}
+              onPress={() => setBrgyModal(false)}
+            >
+              <Text style={ps.modalCancelTxt}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  safe: {
+const ps = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: '#f0fdf4' },
+  loadSafe: {
     flex: 1,
     backgroundColor: '#f0fdf4',
-  },
-  loadingContainer: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    backgroundColor: '#f0fdf4',
   },
-  loadingText: {
+  loadTxt: {
     fontFamily: FONTS.primaryRegular,
     color: COLORS.gray,
     fontSize: SIZES.small,
@@ -329,7 +768,7 @@ const styles = StyleSheet.create({
     color: COLORS.gray,
     marginTop: 2,
   },
-  savingBadge: {
+  saveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -338,16 +777,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  savingText: {
+  saveTxt2: {
     fontFamily: FONTS.primaryRegular,
     fontSize: 12,
     color: COLORS.primaryGreen,
   },
-  scroll: {
-    padding: SIZES.padding,
-    gap: 12,
-  },
-  identityCard: {
+  scroll: { padding: SIZES.padding, gap: 12 },
+  banner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
@@ -355,114 +791,362 @@ const styles = StyleSheet.create({
     borderRadius: SIZES.radius + 4,
     padding: 20,
   },
-  identityEmoji: {
-    fontSize: 36,
-  },
-  identityName: {
+  bannerEmoji: { fontSize: 36 },
+  bannerName: {
     fontFamily: FONTS.primaryExtraBold,
     fontSize: SIZES.h2,
     color: COLORS.white,
   },
-  identityAge: {
+  bannerAge: {
     fontFamily: FONTS.primaryRegular,
     fontSize: SIZES.small,
     color: COLORS.accentGreen,
     marginTop: 2,
   },
-  readonlyField: {
-    gap: 2,
+  card: {
+    backgroundColor: COLORS.white,
+    borderRadius: SIZES.radius,
+    borderWidth: 1,
+    borderColor: COLORS.lightGreen,
+    overflow: 'hidden',
   },
-  readonlyLabel: {
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  cardHeaderL: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  cardEmoji: { fontSize: 20 },
+  cardTitle: {
+    fontFamily: FONTS.primaryBold,
+    fontSize: SIZES.body,
+    color: COLORS.darkGreen,
+  },
+  chevron: { fontSize: 22, color: COLORS.gray },
+  chevronOpen: { transform: [{ rotate: '90deg' }] },
+  cardBody: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.lightGreen,
+    paddingTop: 12,
+    gap: 12,
+  },
+  fieldRow: { gap: 5 },
+  fieldLabel: {
     fontFamily: FONTS.primarySemiBold,
     fontSize: 12,
     color: COLORS.gray,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
-  readonlyValue: {
-    fontFamily: FONTS.primaryRegular,
-    fontSize: SIZES.small,
-    color: COLORS.darkGreen,
+  fieldDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: COLORS.lightGreen,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  readonlyNote: {
+  fieldVal: {
     fontFamily: FONTS.primaryRegular,
-    fontSize: 11,
-    color: COLORS.gray,
-    fontStyle: 'italic',
+    fontSize: SIZES.small,
+    color: COLORS.darkGreen,
+    flex: 1,
   },
-  contactGroup: {
+  fieldEmpty: { color: COLORS.gray, fontStyle: 'italic' },
+  editIcon: { fontSize: 14, marginLeft: 8 },
+  fieldInput: {
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: COLORS.primaryGreen,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontFamily: FONTS.primaryRegular,
+    fontSize: SIZES.small,
+    color: COLORS.darkGreen,
+  },
+  fieldInputMulti: { minHeight: 72, textAlignVertical: 'top' },
+  fieldBtns: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
+  cancelBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: COLORS.lightGreen,
+    borderRadius: 8,
+  },
+  cancelTxt: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: SIZES.small,
+    color: COLORS.gray,
+  },
+  saveBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: COLORS.primaryGreen,
+    borderRadius: 8,
+  },
+  saveTxt: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: SIZES.small,
+    color: COLORS.white,
+  },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 100,
+    backgroundColor: COLORS.lightGreen,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  chipOn: {
+    backgroundColor: COLORS.primaryGreen,
+    borderColor: COLORS.darkGreen,
+  },
+  chipTxt: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: SIZES.small,
+    color: COLORS.primaryGreen,
+  },
+  chipTxtOn: { color: COLORS.white },
+  counterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  counterRowL: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  rEmoji: { fontSize: 22 },
+  rLabel: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: SIZES.small,
+    color: COLORS.darkGreen,
+  },
+  rSub: { fontFamily: FONTS.primaryRegular, fontSize: 12, color: COLORS.gray },
+  counter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: COLORS.lightGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cBtnOff: { opacity: 0.3 },
+  cBtnTxt: {
+    fontFamily: FONTS.primaryBold,
+    fontSize: 18,
+    color: COLORS.primaryGreen,
+    lineHeight: 22,
+  },
+  cVal: {
+    fontFamily: FONTS.primaryBold,
+    fontSize: SIZES.body,
+    color: COLORS.darkGreen,
+    minWidth: 22,
+    textAlign: 'center',
+  },
+  toggleRow: { flexDirection: 'row', gap: 10 },
+  tBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: SIZES.radius,
+    backgroundColor: COLORS.lightGreen,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  tBtnOn: { borderColor: COLORS.primaryGreen },
+  tBtnYes: { backgroundColor: COLORS.primaryGreen },
+  tTxt: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: SIZES.small,
+    color: COLORS.primaryGreen,
+  },
+  tTxtOn: { color: COLORS.darkGreen },
+  petBlock: {
+    gap: 6,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGreen,
+  },
+  sizeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingLeft: 32,
+  },
+  sizeLabel: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 12,
+    color: COLORS.gray,
+  },
+  sizeChip: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 100,
+    backgroundColor: COLORS.lightGreen,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  sizeChipOn: {
+    backgroundColor: COLORS.accentGreen,
+    borderColor: COLORS.primaryGreen,
+  },
+  sizeTxt: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 12,
+    color: COLORS.primaryGreen,
+  },
+  sizeTxtOn: { color: COLORS.darkGreen },
+  condGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  condChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 100,
+    backgroundColor: COLORS.lightGreen,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  condChipOn: { backgroundColor: '#dcfce7', borderColor: COLORS.primaryGreen },
+  condEmoji: { fontSize: 14 },
+  condLabel: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 12,
+    color: COLORS.gray,
+  },
+  condLabelOn: { color: COLORS.darkGreen },
+  selector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.lightGreen,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  selectorOn: { borderColor: COLORS.primaryGreen },
+  selectorOff: { opacity: 0.5 },
+  selTxt: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: SIZES.small,
+    color: COLORS.darkGreen,
+    flex: 1,
+  },
+  selPlaceholder: { color: COLORS.gray, fontStyle: 'italic' },
+  meetingTitle: {
+    fontFamily: FONTS.primaryBold,
+    fontSize: SIZES.small,
+    color: COLORS.darkGreen,
+    marginTop: 4,
+  },
+  contactBlock: {
     gap: 8,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.lightGreen,
   },
-  contactGroupTitle: {
+  contactTitle: {
     fontFamily: FONTS.primaryBold,
     fontSize: SIZES.small,
     color: COLORS.darkGreen,
   },
-  summaryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  summaryChip: {
-    backgroundColor: COLORS.lightGreen,
-    borderRadius: 100,
-    paddingHorizontal: 12,
+  relScroll: { gap: 8, paddingVertical: 2 },
+  relChip: {
     paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 100,
+    backgroundColor: COLORS.lightGreen,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
   },
-  summaryChipPet: {
-    backgroundColor: '#fef3c7',
+  relChipOn: {
+    backgroundColor: COLORS.primaryGreen,
+    borderColor: COLORS.darkGreen,
   },
-  summaryChipMed: {
-    backgroundColor: '#fee2e2',
-  },
-  summaryChipText: {
-    fontFamily: FONTS.primarySemiBold,
-    fontSize: 12,
-    color: COLORS.darkGreen,
-  },
-  summaryNote: {
+  relTxt: {
     fontFamily: FONTS.primaryRegular,
     fontSize: 12,
-    color: COLORS.gray,
-    fontStyle: 'italic',
-    lineHeight: 18,
+    color: COLORS.primaryGreen,
   },
-  dangerSection: {
-    gap: 8,
-    marginTop: 8,
-  },
-  dangerTitle: {
-    fontFamily: FONTS.primaryBold,
-    fontSize: SIZES.small,
-    color: COLORS.gray,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  dangerButton: {
+  relTxtOn: { color: COLORS.white },
+  resetBtn: {
     backgroundColor: COLORS.white,
     borderRadius: SIZES.radius,
     padding: 16,
     borderWidth: 1.5,
     borderColor: '#fecaca',
+    alignItems: 'center',
   },
-  dangerButtonText: {
+  resetTxt: {
     fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.body,
     color: COLORS.error,
   },
-  dangerButtonSub: {
-    fontFamily: FONTS.primaryRegular,
-    fontSize: 12,
-    color: COLORS.gray,
-    marginTop: 2,
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
   },
+  sheet: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '78%',
+  },
+  modalTitle: {
+    fontFamily: FONTS.primaryBold,
+    fontSize: SIZES.h3,
+    color: COLORS.darkGreen,
+    marginBottom: 2,
+  },
+  modalSub: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: SIZES.small,
+    color: COLORS.gray,
+    marginBottom: 10,
+  },
+  modalSearch: {
+    backgroundColor: COLORS.lightGreen,
+    borderRadius: SIZES.radius,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontFamily: FONTS.primaryRegular,
+    fontSize: SIZES.small,
+    color: COLORS.darkGreen,
+    marginBottom: 10,
+  },
+  modalItem: {
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGreen,
+  },
+  modalItemTxt: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: SIZES.body,
+    color: COLORS.darkGreen,
+  },
+  modalCancel: {
+    marginTop: 10,
+    paddingVertical: 14,
+    backgroundColor: COLORS.lightGreen,
+    borderRadius: SIZES.radius,
+    alignItems: 'center',
+  },
+  modalCancelTxt: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: SIZES.body,
+    color: COLORS.primaryGreen,
+  },
+  chevronField: { color: COLORS.gray, fontSize: 12 },
 });
 
 export default ProfileScreen;
