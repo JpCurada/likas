@@ -10,7 +10,12 @@ import {
 } from 'react-native';
 import { StepWrapper } from './StepWrapper';
 import { COLORS, FONTS, SIZES } from '../../theme';
-import { UserProfile } from '../../database/storage';
+import { UserProfile, MeetingPoint } from '../../database/storage';
+import {
+  CITIES,
+  METRO_MANILA,
+  LANDMARK_SUGGESTIONS,
+} from '../../data/metroManila';
 
 interface Props {
   profile: UserProfile;
@@ -19,178 +24,139 @@ interface Props {
   onBack: () => void;
 }
 
-// Metro Manila cities with sample barangays
-const METRO_MANILA: Record<string, string[]> = {
-  'Quezon City': [
-    'Bagong Pag-asa',
-    'Batasan Hills',
-    'Brgy. Holy Spirit',
-    'Commonwealth',
-    'Cubao',
-    'Diliman',
-    'Fairview',
-    'Kamuning',
-    'Novaliches',
-    'Project 6',
-    'Tandang Sora',
-    'UP Campus',
-    'Vasra',
-  ],
-  Manila: [
-    'Binondo',
-    'Ermita',
-    'Intramuros',
-    'Malate',
-    'Paco',
-    'Pandacan',
-    'Quiapo',
-    'Sampaloc',
-    'San Miguel',
-    'Sta. Ana',
-    'Sta. Cruz',
-    'Tondo',
-  ],
-  Makati: [
-    'Bel-Air',
-    'Cembo',
-    'Dasmariñas',
-    'Forbes Park',
-    'Guadalupe Nuevo',
-    'Magallanes',
-    'Palanan',
-    'Pio del Pilar',
-    'San Lorenzo',
-    'Singkamas',
-  ],
-  Pasig: [
-    'Bagong Ilog',
-    'Bagong Katipunan',
-    'Caniogan',
-    'Kapitolyo',
-    'Manggahan',
-    'Maybunga',
-    'Ortigas',
-    'Pinagbuhatan',
-    'San Joaquin',
-  ],
-  Taguig: [
-    'Bagumbayan',
-    'Bambang',
-    'BGC',
-    'Fort Bonifacio',
-    'Hagonoy',
-    'Ligid-Tipas',
-    'Lower Bicutan',
-    'Pinagsama',
-    'Upper Bicutan',
-  ],
-  Marikina: [
-    'Barangka',
-    'Calumpang',
-    'Concepcion Dos',
-    'Fortune',
-    'Industrial Valley',
-    'Nangka',
-    'Parang',
-    'San Roque',
-    'Tañong',
-    'Tumana',
-  ],
-  Pasay: [
-    'Baclaran',
-    'EDSA',
-    'Libertad',
-    'Malibay',
-    'Palanan',
-    'San Dionisio',
-    'San Isidro',
-    'Santa Clara',
-  ],
-  Caloocan: [
-    'Bagong Silang',
-    'Camarin',
-    'EDSA',
-    'Grace Park',
-    'Llano',
-    'Sangandaan',
-    'Sta. Quiteria',
-    'Tinajeros',
-  ],
-  'Las Piñas': [
-    'Almanza Uno',
-    'Almanza Dos',
-    'B.F. International',
-    'CAA',
-    'Daniel Fajardo',
-    'Pamplona',
-    'Pilar',
-    'Pulang Lupa',
-  ],
-  Paranaque: [
-    'BF Homes',
-    'Don Galo',
-    'Marcelo Green',
-    'Moonwalk',
-    'San Antonio',
-    'San Dionisio',
-    'San Martin de Porres',
-    'Sun Valley',
-  ],
-  Malabon: [
-    'Acacia',
-    'Baritan',
-    'Catmon',
-    'Concepcion',
-    'Dagat-dagatan',
-    'Hulong Duhat',
-  ],
-  Mandaluyong: [
-    'Addition Hills',
-    'Bagong Silang',
-    'Buayang Bato',
-    'Hagdang Bato',
-    'Mauway',
-    'Plainview',
-  ],
-  Muntinlupa: [
-    'Alabang',
-    'Ayala Alabang',
-    'Buli',
-    'Cupang',
-    'New Alabang',
-    'Poblacion',
-    'Putatan',
-    'Sucat',
-    'Tunasan',
-  ],
-  Navotas: [
-    'Bagumbayan Norte',
-    'Bagumbayan Sur',
-    'Bangculasi',
-    'Daanghari',
-    'North Bay Blvd',
-  ],
-  'San Juan': [
-    'Addition Hills',
-    'Balong Bato',
-    'Corazon de Jesus',
-    'Salapan',
-    'St. Joseph',
-  ],
-  Valenzuela: [
-    'Arkong Bato',
-    'Balangkas',
-    'Dalandanan',
-    'Karuhatan',
-    'Lawang Bato',
-    'Malinta',
-    'Mapulang Lupa',
-  ],
+type ModalType = 'city' | 'barangay' | null;
+
+const MeetingPointForm = ({
+  label,
+  emoji,
+  required,
+  value,
+  onChange,
+}: {
+  label: string;
+  emoji: string;
+  required?: boolean;
+  value: MeetingPoint;
+  onChange: (v: MeetingPoint) => void;
+}) => {
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  return (
+    <View style={ms.container}>
+      <Text style={ms.heading}>
+        {emoji} {label}
+        {required && <Text style={ms.req}> *</Text>}
+      </Text>
+
+      {/* Landmark */}
+      <View style={ms.field}>
+        <Text style={ms.label}>Landmark / Place Name</Text>
+        <TextInput
+          style={ms.input}
+          placeholder="e.g., Basketball Court, Church, School"
+          placeholderTextColor={COLORS.gray}
+          value={value.landmark}
+          onChangeText={t => onChange({ ...value, landmark: t })}
+          onFocus={() => setShowSuggestions(true)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+        />
+        {showSuggestions && value.landmark.length === 0 && (
+          <View style={ms.suggestions}>
+            {LANDMARK_SUGGESTIONS.map(s => (
+              <TouchableOpacity
+                key={s}
+                style={ms.suggestion}
+                onPress={() => onChange({ ...value, landmark: s })}
+              >
+                <Text style={ms.suggestionTxt}>{s}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* Street Address */}
+      <View style={ms.field}>
+        <Text style={ms.label}>Street Address</Text>
+        <TextInput
+          style={ms.input}
+          placeholder="e.g., 12 Rizal St., Brgy. Commonwealth"
+          placeholderTextColor={COLORS.gray}
+          value={value.streetAddress}
+          onChangeText={t => onChange({ ...value, streetAddress: t })}
+        />
+      </View>
+
+      {/* Notes */}
+      <View style={ms.field}>
+        <Text style={ms.label}>Additional Notes (optional)</Text>
+        <TextInput
+          style={[ms.input, ms.inputMulti]}
+          placeholder="e.g., Near the red-roofed sari-sari store, across from the waiting shed"
+          placeholderTextColor={COLORS.gray}
+          value={value.notes}
+          onChangeText={t => onChange({ ...value, notes: t })}
+          multiline
+          numberOfLines={2}
+        />
+      </View>
+    </View>
+  );
 };
 
-const CITIES = Object.keys(METRO_MANILA).sort();
-
-type ModalType = 'city' | 'barangay' | null;
+const ms = StyleSheet.create({
+  container: {
+    backgroundColor: '#f0fdf4',
+    borderRadius: SIZES.radius,
+    padding: 14,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: COLORS.lightGreen,
+  },
+  heading: {
+    fontFamily: FONTS.primaryBold,
+    fontSize: SIZES.small,
+    color: COLORS.darkGreen,
+  },
+  req: { color: COLORS.error },
+  field: { gap: 4 },
+  label: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 12,
+    color: COLORS.gray,
+  },
+  input: {
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: COLORS.lightGreen,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontFamily: FONTS.primaryRegular,
+    fontSize: SIZES.small,
+    color: COLORS.darkGreen,
+  },
+  inputMulti: { minHeight: 60, textAlignVertical: 'top' },
+  suggestions: {
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.lightGreen,
+    maxHeight: 180,
+    overflow: 'hidden',
+  },
+  suggestion: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGreen,
+  },
+  suggestionTxt: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: SIZES.small,
+    color: COLORS.darkGreen,
+  },
+});
 
 export const Step4Location: React.FC<Props> = ({
   profile,
@@ -199,170 +165,156 @@ export const Step4Location: React.FC<Props> = ({
   onBack,
 }) => {
   const [openModal, setOpenModal] = useState<ModalType>(null);
-  const [searchText, setSearchText] = useState('');
+  const [search, setSearch] = useState('');
 
+  const loc = profile.location;
   const isValid =
-    profile.location.city !== '' &&
-    profile.location.barangay !== '' &&
-    profile.location.primaryMeetingPoint.trim().length >= 3;
+    loc.city !== '' &&
+    loc.barangay !== '' &&
+    loc.primaryMeeting.landmark.trim().length >= 2;
 
-  const barangays = profile.location.city
-    ? METRO_MANILA[profile.location.city] || []
-    : [];
-
+  const barangays = loc.city ? METRO_MANILA[loc.city] ?? [] : [];
   const filteredCities = CITIES.filter(c =>
-    c.toLowerCase().includes(searchText.toLowerCase()),
+    c.toLowerCase().includes(search.toLowerCase()),
   );
-  const filteredBarangays = barangays.filter(b =>
-    b.toLowerCase().includes(searchText.toLowerCase()),
+  const filteredBrgys = barangays.filter(b =>
+    b.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const selectCity = (city: string) => {
-    onChange({ location: { ...profile.location, city, barangay: '' } });
+  const pickCity = (city: string) => {
+    onChange({ location: { ...loc, city, barangay: '' } });
     setOpenModal(null);
-    setSearchText('');
+    setSearch('');
   };
-
-  const selectBarangay = (brgy: string) => {
-    onChange({ location: { ...profile.location, barangay: brgy } });
+  const pickBrgy = (brgy: string) => {
+    onChange({ location: { ...loc, barangay: brgy } });
     setOpenModal(null);
-    setSearchText('');
+    setSearch('');
   };
 
   return (
     <StepWrapper
       emoji="📍"
       title="Your Location"
-      subtitle="This helps pre-load the right offline maps and find nearby evacuation centers."
+      subtitle="Helps pre-load offline maps and find the nearest evacuation centers for your area."
       onNext={onNext}
       onBack={onBack}
       nextDisabled={!isValid}
     >
-      {/* City Selector */}
-      <View style={styles.field}>
-        <Text style={styles.label}>City / Municipality *</Text>
+      {/* City */}
+      <View style={s.field}>
+        <Text style={s.label}>
+          City / Municipality <Text style={s.req}>*</Text>
+        </Text>
         <TouchableOpacity
-          style={[
-            styles.selector,
-            profile.location.city && styles.selectorFilled,
-          ]}
+          style={[s.selector, loc.city && s.selectorFilled]}
           onPress={() => {
-            setSearchText('');
+            setSearch('');
             setOpenModal('city');
           }}
         >
-          <Text
-            style={[
-              styles.selectorText,
-              !profile.location.city && styles.selectorPlaceholder,
-            ]}
-          >
-            {profile.location.city || 'Select your city...'}
+          <Text style={[s.selTxt, !loc.city && s.selPlaceholder]}>
+            {loc.city || 'Select city...'}
           </Text>
-          <Text style={styles.chevron}>▼</Text>
+          <Text style={s.chevron}>▼</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Barangay Selector */}
-      <View style={styles.field}>
-        <Text style={styles.label}>Barangay *</Text>
+      {/* Barangay */}
+      <View style={s.field}>
+        <Text style={s.label}>
+          Barangay <Text style={s.req}>*</Text>
+        </Text>
         <TouchableOpacity
           style={[
-            styles.selector,
-            !profile.location.city && styles.selectorDisabled,
-            profile.location.barangay && styles.selectorFilled,
+            s.selector,
+            !loc.city && s.selectorDisabled,
+            loc.barangay && s.selectorFilled,
           ]}
           onPress={() => {
-            if (!profile.location.city) return;
-            setSearchText('');
+            if (!loc.city) return;
+            setSearch('');
             setOpenModal('barangay');
           }}
-          disabled={!profile.location.city}
+          disabled={!loc.city}
         >
-          <Text
-            style={[
-              styles.selectorText,
-              !profile.location.barangay && styles.selectorPlaceholder,
-            ]}
-          >
-            {profile.location.barangay ||
-              (profile.location.city
-                ? 'Select barangay...'
-                : 'Select city first')}
+          <Text style={[s.selTxt, !loc.barangay && s.selPlaceholder]}>
+            {loc.barangay ||
+              (loc.city ? 'Select barangay...' : 'Select city first')}
           </Text>
-          <Text style={styles.chevron}>▼</Text>
+          <Text style={s.chevron}>▼</Text>
         </TouchableOpacity>
+        {loc.city && (
+          <Text style={s.count}>{barangays.length} barangays available</Text>
+        )}
       </View>
 
-      {/* Meeting Points */}
-      <View style={styles.meetingSection}>
-        <Text style={styles.meetingSectionTitle}>📌 Family Meeting Points</Text>
-        <Text style={styles.meetingSectionHint}>
-          Set these now so your family knows where to go if you're separated
-          during a disaster.
-        </Text>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Primary Meeting Place *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g., Basketball Court on Rizal St."
-            placeholderTextColor={COLORS.gray}
-            value={profile.location.primaryMeetingPoint}
-            onChangeText={text =>
-              onChange({
-                location: { ...profile.location, primaryMeetingPoint: text },
-              })
-            }
-          />
-        </View>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Secondary Meeting Place (optional)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g., Grandma's house in Marikina"
-            placeholderTextColor={COLORS.gray}
-            value={profile.location.secondaryMeetingPoint}
-            onChangeText={text =>
-              onChange({
-                location: { ...profile.location, secondaryMeetingPoint: text },
-              })
-            }
-          />
-        </View>
+      {/* Home street address */}
+      <View style={s.field}>
+        <Text style={s.label}>Home Street Address (optional)</Text>
+        <TextInput
+          style={s.input}
+          placeholder="e.g., 25 Mabini St., Brgy. Holy Spirit"
+          placeholderTextColor={COLORS.gray}
+          value={loc.streetAddress}
+          onChangeText={t =>
+            onChange({ location: { ...loc, streetAddress: t } })
+          }
+        />
       </View>
+
+      <View style={s.divider} />
+      <Text style={s.sectionTitle}>📌 Family Meeting Points</Text>
+      <Text style={s.sectionHint}>
+        Where does your family go if you get separated? Be as specific as
+        possible so anyone can find it.
+      </Text>
+
+      <MeetingPointForm
+        label="Primary Meeting Place"
+        emoji="⭐"
+        required
+        value={loc.primaryMeeting}
+        onChange={v => onChange({ location: { ...loc, primaryMeeting: v } })}
+      />
+
+      <MeetingPointForm
+        label="Secondary Meeting Place"
+        emoji="📍"
+        value={loc.secondaryMeeting}
+        onChange={v => onChange({ location: { ...loc, secondaryMeeting: v } })}
+      />
 
       {/* City Modal */}
       <Modal visible={openModal === 'city'} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Select City</Text>
+        <View style={s.overlay}>
+          <View style={s.sheet}>
+            <Text style={s.modalTitle}>Select City</Text>
             <TextInput
-              style={styles.searchInput}
-              placeholder="Search cities..."
+              style={s.searchInput}
+              placeholder="Search..."
               placeholderTextColor={COLORS.gray}
-              value={searchText}
-              onChangeText={setSearchText}
+              value={search}
+              onChangeText={setSearch}
               autoFocus
             />
             <FlatList
               data={filteredCities}
-              keyExtractor={item => item}
+              keyExtractor={i => i}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={styles.modalItem}
-                  onPress={() => selectCity(item)}
+                  style={s.modalItem}
+                  onPress={() => pickCity(item)}
                 >
-                  <Text style={styles.modalItemText}>{item}</Text>
+                  <Text style={s.modalItemTxt}>{item}</Text>
                 </TouchableOpacity>
               )}
             />
             <TouchableOpacity
-              style={styles.modalCancel}
+              style={s.cancelBtn}
               onPress={() => setOpenModal(null)}
             >
-              <Text style={styles.modalCancelText}>Cancel</Text>
+              <Text style={s.cancelTxt}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -374,35 +326,35 @@ export const Step4Location: React.FC<Props> = ({
         animationType="slide"
         transparent
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Select Barangay</Text>
-            <Text style={styles.modalSubtitle}>{profile.location.city}</Text>
+        <View style={s.overlay}>
+          <View style={s.sheet}>
+            <Text style={s.modalTitle}>Select Barangay</Text>
+            <Text style={s.modalSub}>{loc.city}</Text>
             <TextInput
-              style={styles.searchInput}
-              placeholder="Search barangays..."
+              style={s.searchInput}
+              placeholder="Search..."
               placeholderTextColor={COLORS.gray}
-              value={searchText}
-              onChangeText={setSearchText}
+              value={search}
+              onChangeText={setSearch}
               autoFocus
             />
             <FlatList
-              data={filteredBarangays}
-              keyExtractor={item => item}
+              data={filteredBrgys}
+              keyExtractor={i => i}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={styles.modalItem}
-                  onPress={() => selectBarangay(item)}
+                  style={s.modalItem}
+                  onPress={() => pickBrgy(item)}
                 >
-                  <Text style={styles.modalItemText}>{item}</Text>
+                  <Text style={s.modalItemTxt}>{item}</Text>
                 </TouchableOpacity>
               )}
             />
             <TouchableOpacity
-              style={styles.modalCancel}
+              style={s.cancelBtn}
               onPress={() => setOpenModal(null)}
             >
-              <Text style={styles.modalCancelText}>Cancel</Text>
+              <Text style={s.cancelTxt}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -411,13 +363,14 @@ export const Step4Location: React.FC<Props> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  field: { gap: 6 },
+const s = StyleSheet.create({
+  field: { gap: 5 },
   label: {
     fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.small,
     color: COLORS.darkGreen,
   },
+  req: { color: COLORS.error },
   selector: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -430,68 +383,68 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   selectorFilled: { borderColor: COLORS.primaryGreen },
-  selectorDisabled: { backgroundColor: '#f5f5f5', opacity: 0.6 },
-  selectorText: {
+  selectorDisabled: { opacity: 0.5, backgroundColor: '#f5f5f5' },
+  selTxt: {
     fontFamily: FONTS.primaryRegular,
     fontSize: SIZES.small,
     color: COLORS.darkGreen,
+    flex: 1,
   },
-  selectorPlaceholder: { color: COLORS.gray },
+  selPlaceholder: { color: COLORS.gray },
   chevron: { color: COLORS.gray, fontSize: 12 },
+  count: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 11,
+    color: COLORS.gray,
+    marginLeft: 4,
+  },
   input: {
     backgroundColor: COLORS.white,
     borderRadius: SIZES.radius,
     borderWidth: 1.5,
     borderColor: COLORS.lightGreen,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     fontFamily: FONTS.primaryRegular,
     fontSize: SIZES.small,
     color: COLORS.darkGreen,
   },
-  meetingSection: {
-    backgroundColor: '#f0fdf4',
-    borderRadius: SIZES.radius,
-    padding: 14,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: COLORS.lightGreen,
-  },
-  meetingSectionTitle: {
+  divider: { height: 1, backgroundColor: COLORS.lightGreen },
+  sectionTitle: {
     fontFamily: FONTS.primaryBold,
-    fontSize: SIZES.small,
+    fontSize: SIZES.body,
     color: COLORS.darkGreen,
   },
-  meetingSectionHint: {
+  sectionHint: {
     fontFamily: FONTS.primaryRegular,
     fontSize: 12,
     color: COLORS.gray,
     lineHeight: 18,
     marginTop: -6,
   },
-  modalOverlay: {
+  overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
-  modalSheet: {
+  sheet: {
     backgroundColor: COLORS.white,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
-    maxHeight: '75%',
+    maxHeight: '78%',
   },
   modalTitle: {
     fontFamily: FONTS.primaryBold,
     fontSize: SIZES.h3,
     color: COLORS.darkGreen,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  modalSubtitle: {
+  modalSub: {
     fontFamily: FONTS.primaryRegular,
     fontSize: SIZES.small,
     color: COLORS.gray,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   searchInput: {
     backgroundColor: COLORS.lightGreen,
@@ -501,26 +454,26 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.primaryRegular,
     fontSize: SIZES.small,
     color: COLORS.darkGreen,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   modalItem: {
-    paddingVertical: 14,
+    paddingVertical: 13,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.lightGreen,
   },
-  modalItemText: {
+  modalItemTxt: {
     fontFamily: FONTS.primaryRegular,
     fontSize: SIZES.body,
     color: COLORS.darkGreen,
   },
-  modalCancel: {
-    marginTop: 12,
+  cancelBtn: {
+    marginTop: 10,
     paddingVertical: 14,
     backgroundColor: COLORS.lightGreen,
     borderRadius: SIZES.radius,
     alignItems: 'center',
   },
-  modalCancelText: {
+  cancelTxt: {
     fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.body,
     color: COLORS.primaryGreen,
