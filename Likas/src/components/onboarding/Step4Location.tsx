@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Modal,
   FlatList,
   StyleSheet,
+  ScrollView,
 } from 'react-native';
 import { StepWrapper } from './StepWrapper';
 import { COLORS, FONTS, SIZES } from '../../theme';
@@ -40,6 +41,13 @@ const MeetingPointForm = ({
   onChange: (v: MeetingPoint) => void;
 }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   return (
     <View style={ms.container}>
@@ -58,10 +66,16 @@ const MeetingPointForm = ({
           value={value.landmark}
           onChangeText={t => onChange({ ...value, landmark: t })}
           onFocus={() => setShowSuggestions(true)}
-          onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+          onBlur={() => {
+            timeoutRef.current = setTimeout(() => setShowSuggestions(false), 150);
+          }}
         />
-        {showSuggestions && value.landmark.length === 0 && (
-          <View style={ms.suggestions}>
+        {showSuggestions && (value.landmark || '').length === 0 && (
+          <ScrollView
+            style={ms.suggestions}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled={true}
+          >
             {LANDMARK_SUGGESTIONS.map(s => (
               <TouchableOpacity
                 key={s}
@@ -71,7 +85,7 @@ const MeetingPointForm = ({
                 <Text style={ms.suggestionTxt}>{s}</Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
         )}
       </View>
 
@@ -169,9 +183,9 @@ export const Step4Location: React.FC<Props> = ({
 
   const loc = profile.location;
   const isValid =
-    loc.city !== '' &&
-    loc.barangay !== '' &&
-    loc.primaryMeeting.landmark.trim().length >= 2;
+    loc?.city !== '' &&
+    loc?.barangay !== '' &&
+    (loc?.primaryMeeting?.landmark || '').trim().length >= 2;
 
   const barangays = loc.city ? METRO_MANILA[loc.city] ?? [] : [];
   const filteredCities = CITIES.filter(c =>
@@ -286,7 +300,12 @@ export const Step4Location: React.FC<Props> = ({
       />
 
       {/* City Modal */}
-      <Modal visible={openModal === 'city'} animationType="slide" transparent>
+      <Modal 
+        visible={openModal === 'city'} 
+        animationType="slide" 
+        transparent
+        onRequestClose={() => setOpenModal(null)}
+      >
         <View style={s.overlay}>
           <View style={s.sheet}>
             <Text style={s.modalTitle}>Select City</Text>
@@ -325,6 +344,7 @@ export const Step4Location: React.FC<Props> = ({
         visible={openModal === 'barangay'}
         animationType="slide"
         transparent
+        onRequestClose={() => setOpenModal(null)}
       >
         <View style={s.overlay}>
           <View style={s.sheet}>
