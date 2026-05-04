@@ -11,6 +11,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 import { COLORS, FONTS } from '../theme';
+import { Icon } from '../components/Icon';
 import { isOnboardingComplete } from '../database/storage';
 
 import { OnboardingScreen } from '../screens/OnboardingScreen';
@@ -37,20 +38,24 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
 const TAB_CONFIG: Record<string, { icon: string; label: string }> = {
-  Home: { icon: '🏠', label: 'Home' },
-  Chat: { icon: '💬', label: 'Guide' },
-  Prep: { icon: '🎒', label: 'Prep' },
-  Map: { icon: '🗺️', label: 'Map' },
-  Profile: { icon: '👤', label: 'Profile' },
+  Home: { icon: 'home', label: 'Home' },
+  Chat: { icon: 'robot', label: 'Guide' },
+  Prep: { icon: 'bag-personal', label: 'Prep' },
+  Map: { icon: 'map', label: 'Map' },
+  Profile: { icon: 'account', label: 'Profile' },
 };
 
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
-  const cfg = TAB_CONFIG[name] ?? { icon: '●', label: name };
+  const cfg = TAB_CONFIG[name] ?? { icon: 'circle-medium', label: name };
   return (
     <View
       style={[tabStyles.iconWrapper, focused && tabStyles.iconWrapperActive]}
     >
-      <Text style={tabStyles.iconEmoji}>{cfg.icon}</Text>
+      <Icon 
+        name={cfg.icon} 
+        size={24} 
+        color={focused ? COLORS.primaryGreen : COLORS.darkGreen} 
+      />
       <Text style={[tabStyles.iconLabel, focused && tabStyles.iconLabelActive]}>
         {cfg.label}
       </Text>
@@ -70,10 +75,6 @@ const tabStyles = StyleSheet.create({
   },
   iconWrapperActive: {
     backgroundColor: COLORS.lightGreen,
-  },
-  iconEmoji: {
-    fontSize: 24,
-    lineHeight: 30,
   },
   iconLabel: {
     fontFamily: FONTS.primarySemiBold,

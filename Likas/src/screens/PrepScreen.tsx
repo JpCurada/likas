@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, FONTS, SIZES } from '../theme';
+import { Icon } from '../components/Icon';
 import { loadPrepChecklist, savePrepChecklist } from '../database/storage';
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -21,7 +22,7 @@ interface CheckItem {
 }
 interface CheckSection {
   id: string;
-  emoji: string;
+  icon: string;
   title: string;
   items: CheckItem[];
 }
@@ -29,7 +30,7 @@ interface CheckSection {
 const CHECKLISTS: CheckSection[] = [
   {
     id: 'gobag',
-    emoji: '🎒',
+    icon: 'bag-personal',
     title: 'Go-Bag Essentials',
     items: [
       {
@@ -92,7 +93,7 @@ const CHECKLISTS: CheckSection[] = [
   },
   {
     id: 'homeprep',
-    emoji: '🏠',
+    icon: 'home',
     title: 'Home Preparation',
     items: [
       {
@@ -133,7 +134,7 @@ const CHECKLISTS: CheckSection[] = [
   },
   {
     id: 'pets',
-    emoji: '🐾',
+    icon: 'paw',
     title: 'Pet Needs',
     items: [
       {
@@ -168,7 +169,7 @@ const CHECKLISTS: CheckSection[] = [
   },
   {
     id: 'seniors',
-    emoji: '👴',
+    icon: 'human-cane',
     title: 'For Elderly & PWD',
     items: [
       { id: 'walkaid', label: 'Walker / wheelchair / cane packed' },
@@ -193,7 +194,7 @@ const CHECKLISTS: CheckSection[] = [
 
 interface FirstAidGuide {
   id: string;
-  emoji: string;
+  icon: string;
   title: string;
   steps: string[];
   warning?: string;
@@ -202,7 +203,7 @@ interface FirstAidGuide {
 const FIRST_AID: FirstAidGuide[] = [
   {
     id: 'cpr',
-    emoji: '❤️',
+    icon: 'heart-pulse',
     title: 'CPR (Adult)',
     warning:
       'Only perform if person is unresponsive and not breathing normally.',
@@ -217,7 +218,7 @@ const FIRST_AID: FirstAidGuide[] = [
   },
   {
     id: 'bleeding',
-    emoji: '🩸',
+    icon: 'water-alert',
     title: 'Severe Bleeding',
     steps: [
       'Press firmly on the wound with a clean cloth or bandage.',
@@ -230,7 +231,7 @@ const FIRST_AID: FirstAidGuide[] = [
   },
   {
     id: 'burns',
-    emoji: '🔥',
+    icon: 'fire',
     title: 'Burns',
     steps: [
       'Cool the burn with cool (not cold/icy) running water for 10–20 minutes.',
@@ -243,7 +244,7 @@ const FIRST_AID: FirstAidGuide[] = [
   },
   {
     id: 'fracture',
-    emoji: '🦴',
+    icon: 'bone',
     title: 'Suspected Fracture',
     steps: [
       'Do NOT move the injured area. Immobilize it in the position found.',
@@ -256,7 +257,7 @@ const FIRST_AID: FirstAidGuide[] = [
   },
   {
     id: 'choking',
-    emoji: '😮',
+    icon: 'account-alert',
     title: 'Choking (Adult)',
     warning: 'If person can cough forcefully, encourage them to keep coughing.',
     steps: [
@@ -270,7 +271,7 @@ const FIRST_AID: FirstAidGuide[] = [
   },
   {
     id: 'heatstroke',
-    emoji: '🌡️',
+    icon: 'thermometer-alert',
     title: 'Heat Stroke',
     warning: 'Life-threatening emergency. Call for help immediately.',
     steps: [
@@ -333,7 +334,7 @@ export const PrepScreen: React.FC = () => {
     <SafeAreaView style={st.safe} edges={['top']}>
       {/* Header */}
       <View style={st.header}>
-        <Text style={st.headerTitle}>Prep Zone 🎒</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Icon name="bag-personal" size={28} color={COLORS.darkGreen} /><Text style={st.headerTitle}>Prep Zone</Text></View>
         <Text style={st.headerSub}>Be ready before disaster strikes</Text>
       </View>
 
@@ -346,7 +347,7 @@ export const PrepScreen: React.FC = () => {
           <Text
             style={[st.tabTxt, activeTab === 'checklist' && st.tabTxtActive]}
           >
-            ✅ Checklists
+            Checklists
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -356,7 +357,7 @@ export const PrepScreen: React.FC = () => {
           <Text
             style={[st.tabTxt, activeTab === 'firstaid' && st.tabTxtActive]}
           >
-            🩺 First Aid
+            First Aid
           </Text>
         </TouchableOpacity>
       </View>
@@ -393,7 +394,7 @@ export const PrepScreen: React.FC = () => {
                   onPress={() => setExpandedSection(isOpen ? null : section.id)}
                   activeOpacity={0.7}
                 >
-                  <Text style={st.sectionEmoji}>{section.emoji}</Text>
+                  <Icon name={section.icon} size={28} color={COLORS.primaryGreen} />
                   <View style={{ flex: 1 }}>
                     <Text style={st.sectionTitle}>{section.title}</Text>
                     <View style={st.sectionProgress}>
@@ -474,7 +475,7 @@ export const PrepScreen: React.FC = () => {
         >
           <TextInput
             style={st.faSearch}
-            placeholder="🔍 Search first aid topics..."
+            placeholder="Search first aid topics..."
             placeholderTextColor={COLORS.gray}
             value={searchFA}
             onChangeText={setSearchFA}
@@ -492,7 +493,7 @@ export const PrepScreen: React.FC = () => {
                   onPress={() => setExpandedGuide(isOpen ? null : guide.id)}
                   activeOpacity={0.7}
                 >
-                  <Text style={st.guideEmoji}>{guide.emoji}</Text>
+                  <Icon name={guide.icon} size={32} color={COLORS.error} />
                   <Text style={st.guideTitle}>{guide.title}</Text>
                   <Text style={[st.sectionChevron, isOpen && st.chevronOpen]}>
                     ›
@@ -503,7 +504,7 @@ export const PrepScreen: React.FC = () => {
                   <View style={st.guideBody}>
                     {guide.warning && (
                       <View style={st.warningBox}>
-                        <Text style={st.warningTxt}>⚠️ {guide.warning}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Icon name="alert" size={16} color="#92400e" /><Text style={st.warningTxt}>{guide.warning}</Text></View>
                       </View>
                     )}
                     {guide.steps.map((step, i) => (

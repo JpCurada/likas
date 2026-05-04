@@ -3,11 +3,12 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, SIZES } from '../theme';
+import { Icon } from '../components/Icon';
 
 export const ChatScreen: React.FC = () => (
   <SafeAreaView style={styles.safe} edges={['top']}>
     <View style={styles.container}>
-      <Text style={styles.emoji}>🤖</Text>
+      <Icon name="robot-outline" size={56} color={COLORS.primaryGreen} style={{ marginBottom: 8 }} />
       <Text style={styles.title}>Disaster Guide</Text>
       <Text style={styles.subtitle}>
         Tap "Earthquake" or "Typhoon" on the Home screen to start an emergency
