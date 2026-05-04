@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { COLORS, FONTS, SIZES } from '../../theme';
+import { Icon } from '../Icon';
 
 interface Props {
   label: string;
@@ -63,10 +64,11 @@ export const EditableField: React.FC<Props> = ({
           />
           <View style={styles.editButtons}>
             <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-              <Text style={styles.cancelText}>✕</Text>
+              <Icon name="close" size={16} color={COLORS.gray} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-              <Text style={styles.saveText}>✓ Save</Text>
+              <Icon name="check" size={16} color={COLORS.white} style={{ marginRight: 4 }} />
+              <Text style={styles.saveText}>Save</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -79,7 +81,7 @@ export const EditableField: React.FC<Props> = ({
           <Text style={[styles.displayValue, !value && styles.displayEmpty]}>
             {value || placeholder || 'Tap to edit'}
           </Text>
-          <Text style={styles.editIcon}>✏️</Text>
+          <Icon name="pencil" size={16} color={COLORS.primaryGreen} style={styles.editIcon} />
         </TouchableOpacity>
       )}
     </View>
@@ -117,7 +119,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   editIcon: {
-    fontSize: 14,
     marginLeft: 8,
   },
   editingRow: {
@@ -148,6 +149,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: COLORS.lightGreen,
     borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cancelText: {
     fontFamily: FONTS.primarySemiBold,
@@ -155,6 +158,8 @@ const styles = StyleSheet.create({
     color: COLORS.gray,
   },
   saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 16,
     backgroundColor: COLORS.primaryGreen,

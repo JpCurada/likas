@@ -9,11 +9,13 @@ import {
   Platform,
 } from 'react-native';
 import { COLORS, FONTS, SIZES } from '../../theme';
+import { Icon } from '../Icon';
 
 interface Props {
   title: string;
   subtitle?: string;
-  emoji?: string;
+  iconName?: string;
+  iconType?: 'material-community' | 'ionicons';
   children: React.ReactNode;
   onNext: () => void;
   onBack?: () => void;
@@ -25,7 +27,8 @@ interface Props {
 export const StepWrapper: React.FC<Props> = ({
   title,
   subtitle,
-  emoji,
+  iconName,
+  iconType,
   children,
   onNext,
   onBack,
@@ -43,7 +46,7 @@ export const StepWrapper: React.FC<Props> = ({
       showsVerticalScrollIndicator={false}
     >
       <View style={s.header}>
-        {emoji ? <Text style={s.emoji}>{emoji}</Text> : null}
+        {iconName ? <Icon name={iconName} type={iconType} size={40} style={s.iconContainer} color={COLORS.primaryGreen} /> : null}
         <Text style={s.title}>{title}</Text>
         {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
       </View>
@@ -51,7 +54,8 @@ export const StepWrapper: React.FC<Props> = ({
       <View style={s.footer}>
         {onBack && (
           <TouchableOpacity style={s.backBtn} onPress={onBack}>
-            <Text style={s.backTxt}>← Back</Text>
+            <Icon name="arrow-left" size={20} color={COLORS.primaryGreen} style={{ marginRight: 4 }} />
+            <Text style={s.backTxt}>Back</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
@@ -66,7 +70,7 @@ export const StepWrapper: React.FC<Props> = ({
           activeOpacity={0.8}
         >
           <Text style={[s.nextTxt, nextDisabled && s.nextTxtOff]}>
-            {isLastStep ? "🌿 Let's Go!" : nextLabel}
+            {isLastStep ? "Let's Go!" : nextLabel}
           </Text>
         </TouchableOpacity>
       </View>
@@ -77,7 +81,7 @@ export const StepWrapper: React.FC<Props> = ({
 const s = StyleSheet.create({
   scroll: { flexGrow: 1, paddingHorizontal: SIZES.padding, paddingBottom: 32 },
   header: { paddingTop: 8, paddingBottom: 24 },
-  emoji: { fontSize: 40, marginBottom: 12 },
+  iconContainer: { marginBottom: 12 },
   title: {
     fontFamily: FONTS.primaryExtraBold,
     fontSize: SIZES.h2,
@@ -94,6 +98,7 @@ const s = StyleSheet.create({
   content: { flex: 1, gap: 16 },
   footer: { flexDirection: 'row', gap: 12, marginTop: 32 },
   backBtn: {
+    flexDirection: 'row',
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: SIZES.radius,

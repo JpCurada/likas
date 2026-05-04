@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS, FONTS } from '../../theme';
+import { Icon } from '../Icon';
 
 interface Props {
   currentStep: number;
@@ -33,7 +34,7 @@ export const ProgressBar: React.FC<Props> = ({
               ]}
             >
               {done ? (
-                <Text style={s.check}>✓</Text>
+                <Icon name="check" size={18} color={COLORS.darkGreen} />
               ) : (
                 <Text style={[s.num, active && s.numActive]}>{n}</Text>
               )}

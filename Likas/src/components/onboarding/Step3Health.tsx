@@ -9,6 +9,7 @@ import {
 import { StepWrapper } from './StepWrapper';
 import { COLORS, FONTS, SIZES } from '../../theme';
 import { UserProfile, MedicalCondition } from '../../database/storage';
+import { Icon } from '../Icon';
 
 interface Props {
   profile: UserProfile;
@@ -19,42 +20,42 @@ interface Props {
 
 const CONDITIONS: {
   key: keyof Omit<MedicalCondition, 'other'>;
-  emoji: string;
+  iconName: string;
   label: string;
   note?: string;
 }[] = [
-  { key: 'asthma', emoji: '🫁', label: 'Asthma', note: 'Inhaler in go-bag' },
+  { key: 'asthma', iconName: 'lungs', label: 'Asthma', note: 'Inhaler in go-bag' },
   {
     key: 'diabetes',
-    emoji: '💉',
+    iconName: 'needle',
     label: 'Diabetes',
     note: 'Insulin / glucose meds',
   },
   {
     key: 'heartCondition',
-    emoji: '❤️',
+    iconName: 'heart-pulse',
     label: 'Heart Condition',
     note: 'Heart medications',
   },
   {
     key: 'hypertension',
-    emoji: '🩺',
+    iconName: 'stethoscope',
     label: 'Hypertension',
     note: 'Blood pressure meds',
   },
   {
     key: 'epilepsy',
-    emoji: '⚡',
+    iconName: 'lightning-bolt',
     label: 'Epilepsy',
     note: 'Anti-seizure medication',
   },
   {
     key: 'kidneydisease',
-    emoji: '🫘',
+    iconName: 'kidney',
     label: 'Kidney Disease',
     note: 'Dialysis schedule',
   },
-  { key: 'none', emoji: '✅', label: 'None / All Healthy' },
+  { key: 'none', iconName: 'check-circle-outline', label: 'None / All Healthy' },
 ];
 
 export const Step3Health: React.FC<Props> = ({
@@ -92,7 +93,7 @@ export const Step3Health: React.FC<Props> = ({
     mc.kidneydisease;
   return (
     <StepWrapper
-      emoji="🏥"
+      iconName="hospital-box"
       title="Health & Medical Needs"
       subtitle="Critical conditions shape your emergency supply checklist."
       onNext={onNext}
@@ -100,8 +101,9 @@ export const Step3Health: React.FC<Props> = ({
       nextDisabled={!hasSelection}
     >
       <View style={s.info}>
+        <Icon name="lightbulb-on" size={18} color="#0c4a6e" style={{ marginRight: 6 }} />
         <Text style={s.infoTxt}>
-          💡 Select all that apply. You must pick at least one.
+          Select all that apply. You must pick at least one.
         </Text>
       </View>
       {CONDITIONS.map(c => {
@@ -114,14 +116,14 @@ export const Step3Health: React.FC<Props> = ({
             activeOpacity={0.7}
           >
             <View style={s.cardL}>
-              <Text style={s.cEmoji}>{c.emoji}</Text>
+              <Icon name={c.iconName} size={26} color={on ? COLORS.primaryGreen : COLORS.darkGreen} style={s.cIcon} />
               <View>
                 <Text style={[s.cLabel, on && s.cLabelOn]}>{c.label}</Text>
                 {c.note && <Text style={s.cNote}>{c.note}</Text>}
               </View>
             </View>
             <View style={[s.check, on && s.checkOn]}>
-              {on && <Text style={s.checkMark}>✓</Text>}
+              {on && <Icon name="check" size={16} color={COLORS.white} />}
             </View>
           </TouchableOpacity>
         );
@@ -142,8 +144,9 @@ export const Step3Health: React.FC<Props> = ({
       )}
       {!hasSelection && (
         <View style={s.reminder}>
+          <Icon name="alert-circle" size={16} color="#92400e" style={{ marginRight: 6 }} />
           <Text style={s.reminderTxt}>
-            ⚠️ Please select at least one option.
+            Please select at least one option.
           </Text>
         </View>
       )}
@@ -153,6 +156,8 @@ export const Step3Health: React.FC<Props> = ({
 
 const s = StyleSheet.create({
   info: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#e0f2fe',
     borderRadius: SIZES.radius,
     padding: 12,
@@ -164,6 +169,7 @@ const s = StyleSheet.create({
     fontSize: SIZES.small,
     color: '#0c4a6e',
     lineHeight: 20,
+    flex: 1,
   },
   card: {
     flexDirection: 'row',
@@ -180,7 +186,7 @@ const s = StyleSheet.create({
     borderColor: COLORS.primaryGreen,
   },
   cardL: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  cEmoji: { fontSize: 24 },
+  cIcon: { width: 30, textAlign: 'center' },
   cLabel: {
     fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.small,
@@ -206,11 +212,6 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.primaryGreen,
     borderColor: COLORS.primaryGreen,
   },
-  checkMark: {
-    color: COLORS.white,
-    fontSize: 13,
-    fontFamily: FONTS.primaryBold,
-  },
   field: { gap: 6 },
   label: {
     fontFamily: FONTS.primarySemiBold,
@@ -229,6 +230,8 @@ const s = StyleSheet.create({
     color: COLORS.darkGreen,
   },
   reminder: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#fff8e1',
     borderRadius: SIZES.radius,
     padding: 12,

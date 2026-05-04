@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { StepWrapper } from './StepWrapper';
 import { COLORS, FONTS, SIZES } from '../../theme';
+import { Icon } from '../Icon';
 import {
   UserProfile,
   Companion,
@@ -19,22 +20,22 @@ interface Props {
 
 interface CompanionRow {
   key: keyof Companion;
-  emoji: string;
+  iconName: string;
   label: string;
   sublabel: string;
 }
 const COMPANION_ROWS: CompanionRow[] = [
   {
     key: 'infants',
-    emoji: '👶',
+    iconName: 'baby-carriage',
     label: 'Infants / Toddlers',
     sublabel: '0–3 years',
   },
-  { key: 'children', emoji: '🧒', label: 'Children', sublabel: '4–12 years' },
-  { key: 'elderly', emoji: '👴', label: 'Elderly', sublabel: '60+ years' },
+  { key: 'children', iconName: 'human-child', label: 'Children', sublabel: '4–12 years' },
+  { key: 'elderly', iconName: 'human-cane', label: 'Elderly', sublabel: '60+ years' },
   {
     key: 'pwd',
-    emoji: '♿',
+    iconName: 'wheelchair-accessibility',
     label: 'PWD / Mobility Issues',
     sublabel: 'Persons with Disabilities',
   },
@@ -43,16 +44,16 @@ const COMPANION_ROWS: CompanionRow[] = [
 type PetKey = keyof Omit<Pet, 'hasPets'>;
 interface PetRow {
   key: PetKey;
-  emoji: string;
+  iconName: string;
   label: string;
 }
 const PET_ROWS: PetRow[] = [
-  { key: 'dogs', emoji: '🐕', label: 'Dogs' },
-  { key: 'cats', emoji: '🐈', label: 'Cats' },
-  { key: 'birds', emoji: '🐦', label: 'Birds' },
-  { key: 'rabbits', emoji: '🐇', label: 'Rabbits' },
-  { key: 'reptiles', emoji: '🦎', label: 'Reptiles' },
-  { key: 'others', emoji: '🐾', label: 'Others' },
+  { key: 'dogs', iconName: 'dog', label: 'Dogs' },
+  { key: 'cats', iconName: 'cat', label: 'Cats' },
+  { key: 'birds', iconName: 'bird', label: 'Birds' },
+  { key: 'rabbits', iconName: 'rabbit', label: 'Rabbits' },
+  { key: 'reptiles', iconName: 'snake', label: 'Reptiles' },
+  { key: 'others', iconName: 'paw', label: 'Others' },
 ];
 
 const PET_SIZES: PetSize[] = ['Small', 'Medium', 'Large'];
@@ -124,7 +125,7 @@ export const Step2Companions: React.FC<Props> = ({
 
   return (
     <StepWrapper
-      emoji="👨‍👩‍👧‍👦"
+      iconName="account-group"
       title="Who's with you?"
       subtitle="Helps Likas prioritize advice for vulnerable members in your group."
       onNext={onNext}
@@ -137,7 +138,7 @@ export const Step2Companions: React.FC<Props> = ({
         {COMPANION_ROWS.map(row => (
           <View key={row.key} style={s.row}>
             <View style={s.rowL}>
-              <Text style={s.emoji}>{row.emoji}</Text>
+              <Icon name={row.iconName} size={24} color={COLORS.primaryGreen} style={s.icon} />
               <View>
                 <Text style={s.rowLabel}>{row.label}</Text>
                 <Text style={s.rowSub}>{row.sublabel}</Text>
@@ -168,9 +169,12 @@ export const Step2Companions: React.FC<Props> = ({
             style={[s.tBtn, profile.pets.hasPets && s.tBtnYes]}
             onPress={() => toggleHasPets(true)}
           >
-            <Text style={[s.tTxt, profile.pets.hasPets && s.tTxtActive]}>
-              Yes 🐾
-            </Text>
+            <View style={s.yesBtnContent}>
+              <Text style={[s.tTxt, profile.pets.hasPets && s.tTxtActive]}>
+                Yes
+              </Text>
+              <Icon name="paw" size={16} color={profile.pets.hasPets ? COLORS.darkGreen : COLORS.primaryGreen} style={{ marginLeft: 6 }} />
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -183,7 +187,7 @@ export const Step2Companions: React.FC<Props> = ({
                 <View key={row.key} style={s.petBlock}>
                   <View style={s.row}>
                     <View style={s.rowL}>
-                      <Text style={s.emoji}>{row.emoji}</Text>
+                      <Icon name={row.iconName} size={24} color={COLORS.primaryGreen} style={s.icon} />
                       <Text style={s.rowLabel}>{row.label}</Text>
                     </View>
                     <Counter
@@ -264,7 +268,7 @@ const s = StyleSheet.create({
     paddingVertical: 2,
   },
   rowL: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  emoji: { fontSize: 22 },
+  icon: { width: 28, textAlign: 'center' },
   rowLabel: {
     fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.small,
@@ -308,6 +312,7 @@ const s = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'transparent',
   },
+  yesBtnContent: { flexDirection: 'row', alignItems: 'center' },
   tBtnActive: { borderColor: COLORS.primaryGreen },
   tBtnYes: { backgroundColor: COLORS.primaryGreen },
   tTxt: {
@@ -332,7 +337,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingLeft: 32,
+    paddingLeft: 38,
   },
   sizeLabel: {
     fontFamily: FONTS.primaryRegular,

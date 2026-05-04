@@ -10,6 +10,7 @@ import {
 import { StepWrapper } from './StepWrapper';
 import { COLORS, FONTS, SIZES } from '../../theme';
 import { UserProfile, EmergencyContact } from '../../database/storage';
+import { Icon } from '../Icon';
 
 interface Props {
   profile: UserProfile;
@@ -48,7 +49,7 @@ export const Step5Contacts: React.FC<Props> = ({
 
   return (
     <StepWrapper
-      emoji="📞"
+      iconName="phone-in-talk"
       title="Emergency Contacts"
       subtitle="We'll draft emergency SMS messages for you when there's no internet. One contact is required."
       onNext={onNext}
@@ -57,7 +58,10 @@ export const Step5Contacts: React.FC<Props> = ({
       isLastStep
     >
       <View style={s.info}>
-        <Text style={s.infoTxt}>📱 Likas will pre-fill:</Text>
+        <View style={s.infoHeader}>
+          <Icon name="cellphone-message" size={18} color="#0c4a6e" style={{ marginRight: 6 }} />
+          <Text style={s.infoTxt}>Likas will pre-fill:</Text>
+        </View>
         <Text style={s.infoSample}>
           "Hi, I'm safe. My location: [Barangay]. Going to [Meeting Point]. —
           [Your Name]"
@@ -68,10 +72,13 @@ export const Step5Contacts: React.FC<Props> = ({
         const required = i === 0;
         return (
           <View key={i} style={s.card}>
-            <Text style={s.cardTitle}>
-              {i === 0 ? '⭐ Primary' : i === 1 ? '👤 Second' : '👤 Third'}{' '}
-              Contact{required && <Text style={s.req}> *</Text>}
-            </Text>
+            <View style={s.cardTitleRow}>
+              <Icon name={i === 0 ? "star" : "account"} size={16} color={COLORS.primaryGreen} style={{ marginRight: 6 }} />
+              <Text style={s.cardTitle}>
+                {i === 0 ? 'Primary' : i === 1 ? 'Second' : 'Third'}{' '}
+                Contact{required && <Text style={s.req}> *</Text>}
+              </Text>
+            </View>
             <TextInput
               style={s.input}
               placeholder="Full name"
@@ -117,8 +124,9 @@ export const Step5Contacts: React.FC<Props> = ({
       })}
       {!isValid && (
         <View style={s.reminder}>
+          <Icon name="alert-circle" size={16} color="#92400e" style={{ marginRight: 6 }} />
           <Text style={s.reminderTxt}>
-            ⚠️ Primary contact name + phone required.
+            Primary contact name + phone required.
           </Text>
         </View>
       )}
@@ -134,6 +142,10 @@ const s = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: COLORS.cyan,
     gap: 4,
+  },
+  infoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   infoTxt: {
     fontFamily: FONTS.primarySemiBold,
@@ -155,6 +167,7 @@ const s = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.lightGreen,
   },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center' },
   cardTitle: {
     fontFamily: FONTS.primaryBold,
     fontSize: SIZES.small,
@@ -204,6 +217,8 @@ const s = StyleSheet.create({
   },
   relTxtOn: { color: COLORS.white },
   reminder: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#fff8e1',
     borderRadius: SIZES.radius,
     padding: 12,

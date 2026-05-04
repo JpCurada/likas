@@ -9,6 +9,7 @@ import {
 import { StepWrapper } from './StepWrapper';
 import { COLORS, FONTS, SIZES } from '../../theme';
 import { UserProfile } from '../../database/storage';
+import { Icon } from '../Icon';
 
 interface Props {
   profile: UserProfile;
@@ -31,7 +32,7 @@ export const Step1Identity: React.FC<Props> = ({
   const isValid = profile.name.trim().length >= 2 && profile.ageGroup !== '';
   return (
     <StepWrapper
-      emoji="🌿"
+      iconName="leaf"
       title="Mabuhay! I'm Likas."
       subtitle="Your offline disaster readiness companion. Let's get to know each other."
       onNext={onNext}
@@ -72,8 +73,9 @@ export const Step1Identity: React.FC<Props> = ({
       </View>
       {!isValid && (
         <View style={s.reminder}>
+          <Icon name="alert-circle" size={16} color="#92400e" style={{ marginRight: 6 }} />
           <Text style={s.reminderTxt}>
-            ⚠️ Both fields required to continue.
+            Both fields required to continue.
           </Text>
         </View>
       )}
@@ -130,6 +132,8 @@ const s = StyleSheet.create({
   },
   chipTxtOn: { color: COLORS.white },
   reminder: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#fff8e1',
     borderRadius: SIZES.radius,
     padding: 12,

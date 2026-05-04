@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, SIZES } from '../theme';
+import { Icon } from '../components/Icon';
 import {
   loadProfile,
   saveProfile,
@@ -36,10 +37,10 @@ import {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const SectionCard: React.FC<{
-  emoji: string;
+  iconName: string;
   title: string;
   children: React.ReactNode;
-}> = ({ emoji, title, children }) => {
+}> = ({ iconName, title, children }) => {
   const [open, setOpen] = useState(true);
   return (
     <View style={ps.card}>
@@ -49,10 +50,10 @@ const SectionCard: React.FC<{
         activeOpacity={0.7}
       >
         <View style={ps.cardHeaderL}>
-          <Text style={ps.cardEmoji}>{emoji}</Text>
+          <Icon name={iconName} size={20} color={COLORS.primaryGreen} />
           <Text style={ps.cardTitle}>{title}</Text>
         </View>
-        <Text style={[ps.chevron, open && ps.chevronOpen]}>›</Text>
+        <Icon name="chevron-right" size={22} color={COLORS.gray} style={[ps.chevron, open && ps.chevronOpen]} />
       </TouchableOpacity>
       {open && <View style={ps.cardBody}>{children}</View>}
     </View>
@@ -102,10 +103,12 @@ const FieldRow: React.FC<{
           />
           <View style={ps.fieldBtns}>
             <TouchableOpacity style={ps.cancelBtn} onPress={cancel}>
+              <Icon name="close" size={14} color={COLORS.gray} />
               <Text style={ps.cancelTxt}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity style={ps.saveBtn} onPress={commit}>
-              <Text style={ps.saveTxt}>✓ Save</Text>
+              <Icon name="check" size={14} color={COLORS.white} />
+              <Text style={ps.saveTxt}>Save</Text>
             </TouchableOpacity>
           </View>
         </>
@@ -121,7 +124,7 @@ const FieldRow: React.FC<{
           <Text style={[ps.fieldVal, !value && ps.fieldEmpty]}>
             {value || placeholder || 'Tap to edit'}
           </Text>
-          <Text style={ps.editIcon}>✏️</Text>
+          <Icon name="pencil" size={16} color={COLORS.primaryGreen} style={ps.editIcon} />
         </TouchableOpacity>
       )}
     </View>
@@ -154,31 +157,31 @@ const PET_SIZES: PetSize[] = ['Small', 'Medium', 'Large'];
 type PetKey = keyof Omit<Pet, 'hasPets'>;
 const PET_ROWS: {
   key: PetKey;
-  emoji: string;
+  iconName: string;
   label: string;
   hasSize: boolean;
 }[] = [
-  { key: 'dogs', emoji: '🐕', label: 'Dogs', hasSize: true },
-  { key: 'cats', emoji: '🐈', label: 'Cats', hasSize: true },
-  { key: 'birds', emoji: '🐦', label: 'Birds', hasSize: false },
-  { key: 'rabbits', emoji: '🐇', label: 'Rabbits', hasSize: true },
-  { key: 'reptiles', emoji: '🦎', label: 'Reptiles', hasSize: false },
-  { key: 'others', emoji: '🐾', label: 'Others', hasSize: true },
+  { key: 'dogs', iconName: 'dog', label: 'Dogs', hasSize: true },
+  { key: 'cats', iconName: 'cat', label: 'Cats', hasSize: true },
+  { key: 'birds', iconName: 'bird', label: 'Birds', hasSize: false },
+  { key: 'rabbits', iconName: 'rabbit', label: 'Rabbits', hasSize: true },
+  { key: 'reptiles', iconName: 'snake', label: 'Reptiles', hasSize: false },
+  { key: 'others', iconName: 'paw', label: 'Others', hasSize: true },
 ];
 
 const AGE_GROUPS = ['Under 18', '18-35', '36-55', '56+'];
 const CONDITIONS: {
   key: keyof Omit<MedicalCondition, 'other'>;
-  emoji: string;
+  iconName: string;
   label: string;
 }[] = [
-  { key: 'asthma', emoji: '🫁', label: 'Asthma' },
-  { key: 'diabetes', emoji: '💉', label: 'Diabetes' },
-  { key: 'heartCondition', emoji: '❤️', label: 'Heart Condition' },
-  { key: 'hypertension', emoji: '🩺', label: 'Hypertension' },
-  { key: 'epilepsy', emoji: '⚡', label: 'Epilepsy' },
-  { key: 'kidneydisease', emoji: '🫘', label: 'Kidney Disease' },
-  { key: 'none', emoji: '✅', label: 'None / All Healthy' },
+  { key: 'asthma', iconName: 'lungs', label: 'Asthma' },
+  { key: 'diabetes', iconName: 'needle', label: 'Diabetes' },
+  { key: 'heartCondition', iconName: 'heart-pulse', label: 'Heart Condition' },
+  { key: 'hypertension', iconName: 'stethoscope', label: 'Hypertension' },
+  { key: 'epilepsy', iconName: 'lightning-bolt', label: 'Epilepsy' },
+  { key: 'kidneydisease', iconName: 'kidney', label: 'Kidney Disease' },
+  { key: 'none', iconName: 'check-circle-outline', label: 'None / All Healthy' },
 ];
 const RELATIONSHIPS = [
   'Spouse/Partner',
@@ -306,7 +309,7 @@ export const ProfileScreen: React.FC = () => {
       >
         {/* Identity Banner */}
         <View style={ps.banner}>
-          <Text style={ps.bannerEmoji}>🌿</Text>
+          <Icon name="leaf" size={36} color={COLORS.white} style={ps.bannerIcon} />
           <View>
             <Text style={ps.bannerName}>{profile.name || 'Your Name'}</Text>
             <Text style={ps.bannerAge}>
@@ -316,7 +319,7 @@ export const ProfileScreen: React.FC = () => {
         </View>
 
         {/* ── IDENTITY ── */}
-        <SectionCard emoji="👤" title="Identity">
+        <SectionCard iconName="account" title="Identity">
           <FieldRow
             label="Name / Nickname"
             value={profile.name}
@@ -347,25 +350,25 @@ export const ProfileScreen: React.FC = () => {
         </SectionCard>
 
         {/* ── HOUSEHOLD ── */}
-        <SectionCard emoji="👨‍👩‍👧‍👦" title="Household Members">
+        <SectionCard iconName="account-group" title="Household Members">
           {(
             [
               {
                 key: 'infants',
-                emoji: '👶',
+                iconName: 'baby-carriage',
                 label: 'Infants / Toddlers',
                 sub: '0–3 yrs',
               },
               {
                 key: 'children',
-                emoji: '🧒',
+                iconName: 'human-child',
                 label: 'Children',
                 sub: '4–12 yrs',
               },
-              { key: 'elderly', emoji: '👴', label: 'Elderly', sub: '60+ yrs' },
+              { key: 'elderly', iconName: 'human-cane', label: 'Elderly', sub: '60+ yrs' },
               {
                 key: 'pwd',
-                emoji: '♿',
+                iconName: 'wheelchair-accessibility',
                 label: 'PWD / Mobility',
                 sub: 'Disabilities',
               },
@@ -373,7 +376,7 @@ export const ProfileScreen: React.FC = () => {
           ).map(row => (
             <View key={row.key} style={ps.counterRow}>
               <View style={ps.counterRowL}>
-                <Text style={ps.rEmoji}>{row.emoji}</Text>
+                <Icon name={row.iconName} size={24} color={COLORS.primaryGreen} style={ps.rIcon} />
                 <View>
                   <Text style={ps.rLabel}>{row.label}</Text>
                   <Text style={ps.rSub}>{row.sub}</Text>
@@ -389,7 +392,7 @@ export const ProfileScreen: React.FC = () => {
         </SectionCard>
 
         {/* ── PETS ── */}
-        <SectionCard emoji="🐾" title="Pets">
+        <SectionCard iconName="paw" title="Pets">
           <View style={ps.toggleRow}>
             <TouchableOpacity
               style={[ps.tBtn, !profile.pets.hasPets && ps.tBtnOn]}
@@ -407,9 +410,12 @@ export const ProfileScreen: React.FC = () => {
                 commit({ pets: { ...profile.pets, hasPets: true } })
               }
             >
-              <Text style={[ps.tTxt, profile.pets.hasPets && ps.tTxtOn]}>
-                Has Pets 🐾
-              </Text>
+              <View style={ps.yesBtnContent}>
+                <Text style={[ps.tTxt, profile.pets.hasPets && ps.tTxtOn]}>
+                  Has Pets
+                </Text>
+                <Icon name="paw" size={16} color={profile.pets.hasPets ? COLORS.darkGreen : COLORS.primaryGreen} style={{ marginLeft: 6 }} />
+              </View>
             </TouchableOpacity>
           </View>
           {profile.pets.hasPets &&
@@ -419,7 +425,7 @@ export const ProfileScreen: React.FC = () => {
                 <View key={row.key} style={ps.petBlock}>
                   <View style={ps.counterRow}>
                     <View style={ps.counterRowL}>
-                      <Text style={ps.rEmoji}>{row.emoji}</Text>
+                      <Icon name={row.iconName} size={24} color={COLORS.primaryGreen} style={ps.rIcon} />
                       <Text style={ps.rLabel}>{row.label}</Text>
                     </View>
                     <Counter
@@ -452,7 +458,7 @@ export const ProfileScreen: React.FC = () => {
         </SectionCard>
 
         {/* ── HEALTH ── */}
-        <SectionCard emoji="🏥" title="Medical Conditions">
+        <SectionCard iconName="hospital-box" title="Medical Conditions">
           <View style={ps.condGrid}>
             {CONDITIONS.map(c => {
               const on =
@@ -465,7 +471,7 @@ export const ProfileScreen: React.FC = () => {
                   style={[ps.condChip, on && ps.condChipOn]}
                   onPress={() => toggleCondition(c.key)}
                 >
-                  <Text style={ps.condEmoji}>{c.emoji}</Text>
+                  <Icon name={c.iconName} size={14} color={on ? COLORS.darkGreen : COLORS.gray} style={ps.condIcon} />
                   <Text style={[ps.condLabel, on && ps.condLabelOn]}>
                     {c.label}
                   </Text>
@@ -486,7 +492,7 @@ export const ProfileScreen: React.FC = () => {
         </SectionCard>
 
         {/* ── LOCATION ── */}
-        <SectionCard emoji="📍" title="Location">
+        <SectionCard iconName="map-marker" title="Location">
           {/* City */}
           <View style={ps.fieldRow}>
             <Text style={ps.fieldLabel}>City / Municipality</Text>
@@ -502,7 +508,7 @@ export const ProfileScreen: React.FC = () => {
               >
                 {profile.location.city || 'Select city...'}
               </Text>
-              <Text style={ps.chevron}>▼</Text>
+              <Icon name="chevron-down" size={20} color={COLORS.gray} />
             </TouchableOpacity>
           </View>
           {/* Barangay */}
@@ -529,7 +535,7 @@ export const ProfileScreen: React.FC = () => {
               >
                 {profile.location.barangay || 'Select barangay...'}
               </Text>
-              <Text style={ps.chevron}>▼</Text>
+              <Icon name="chevron-down" size={20} color={COLORS.gray} />
             </TouchableOpacity>
           </View>
           <FieldRow
@@ -539,7 +545,10 @@ export const ProfileScreen: React.FC = () => {
             onSave={v => updLoc({ streetAddress: v })}
           />
 
-          <Text style={ps.meetingTitle}>⭐ Primary Meeting Place</Text>
+          <View style={ps.meetingHeader}>
+            <Icon name="star" size={16} color={COLORS.darkGreen} />
+            <Text style={ps.meetingTitle}>Primary Meeting Place</Text>
+          </View>
           <FieldRow
             label="Landmark"
             value={profile.location.primaryMeeting.landmark}
@@ -560,7 +569,10 @@ export const ProfileScreen: React.FC = () => {
             multiline
           />
 
-          <Text style={ps.meetingTitle}>📍 Secondary Meeting Place</Text>
+          <View style={ps.meetingHeader}>
+            <Icon name="map-marker-outline" size={16} color={COLORS.darkGreen} />
+            <Text style={ps.meetingTitle}>Secondary Meeting Place</Text>
+          </View>
           <FieldRow
             label="Landmark"
             value={profile.location.secondaryMeeting.landmark}
@@ -583,12 +595,15 @@ export const ProfileScreen: React.FC = () => {
         </SectionCard>
 
         {/* ── CONTACTS ── */}
-        <SectionCard emoji="📞" title="Emergency Contacts">
+        <SectionCard iconName="phone-in-talk" title="Emergency Contacts">
           {profile.emergencyContacts.map((c, i) => (
             <View key={i} style={ps.contactBlock}>
-              <Text style={ps.contactTitle}>
-                {i === 0 ? '⭐ Primary' : i === 1 ? '2nd' : '3rd'} Contact
-              </Text>
+              <View style={ps.contactHeader}>
+                <Icon name={i === 0 ? "star" : "account"} size={16} color={COLORS.darkGreen} />
+                <Text style={ps.contactTitle}>
+                  {i === 0 ? 'Primary' : i === 1 ? '2nd' : '3rd'} Contact
+                </Text>
+              </View>
               <FieldRow
                 label="Name"
                 value={c.name}
@@ -641,7 +656,8 @@ export const ProfileScreen: React.FC = () => {
             )
           }
         >
-          <Text style={ps.resetTxt}>🔄 Reset & Redo Onboarding</Text>
+          <Icon name="refresh" size={18} color={COLORS.error} style={{ marginRight: 8 }} />
+          <Text style={ps.resetTxt}>Reset & Redo Onboarding</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
@@ -791,7 +807,7 @@ const ps = StyleSheet.create({
     borderRadius: SIZES.radius + 4,
     padding: 20,
   },
-  bannerEmoji: { fontSize: 36 },
+  bannerIcon: { marginRight: 4 },
   bannerName: {
     fontFamily: FONTS.primaryExtraBold,
     fontSize: SIZES.h2,
@@ -817,13 +833,12 @@ const ps = StyleSheet.create({
     padding: 16,
   },
   cardHeaderL: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  cardEmoji: { fontSize: 20 },
   cardTitle: {
     fontFamily: FONTS.primaryBold,
     fontSize: SIZES.body,
     color: COLORS.darkGreen,
   },
-  chevron: { fontSize: 22, color: COLORS.gray },
+  chevron: { transform: [{ rotate: '0deg' }] },
   chevronOpen: { transform: [{ rotate: '90deg' }] },
   cardBody: {
     paddingHorizontal: 16,
@@ -857,7 +872,7 @@ const ps = StyleSheet.create({
     flex: 1,
   },
   fieldEmpty: { color: COLORS.gray, fontStyle: 'italic' },
-  editIcon: { fontSize: 14, marginLeft: 8 },
+  editIcon: { marginLeft: 8 },
   fieldInput: {
     backgroundColor: COLORS.white,
     borderRadius: 8,
@@ -872,6 +887,8 @@ const ps = StyleSheet.create({
   fieldInputMulti: { minHeight: 72, textAlignVertical: 'top' },
   fieldBtns: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
   cancelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 14,
     backgroundColor: COLORS.lightGreen,
@@ -881,8 +898,11 @@ const ps = StyleSheet.create({
     fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.small,
     color: COLORS.gray,
+    marginLeft: 4,
   },
   saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 14,
     backgroundColor: COLORS.primaryGreen,
@@ -892,6 +912,7 @@ const ps = StyleSheet.create({
     fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.small,
     color: COLORS.white,
+    marginLeft: 4,
   },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
@@ -918,7 +939,7 @@ const ps = StyleSheet.create({
     justifyContent: 'space-between',
   },
   counterRowL: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  rEmoji: { fontSize: 22 },
+  rIcon: { width: 28, textAlign: 'center' },
   rLabel: {
     fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.small,
@@ -959,6 +980,7 @@ const ps = StyleSheet.create({
     borderColor: 'transparent',
   },
   tBtnOn: { borderColor: COLORS.primaryGreen },
+  yesBtnContent: { flexDirection: 'row', alignItems: 'center' },
   tBtnYes: { backgroundColor: COLORS.primaryGreen },
   tTxt: {
     fontFamily: FONTS.primarySemiBold,
@@ -976,7 +998,7 @@ const ps = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingLeft: 32,
+    paddingLeft: 38,
   },
   sizeLabel: {
     fontFamily: FONTS.primaryRegular,
@@ -1014,7 +1036,7 @@ const ps = StyleSheet.create({
     borderColor: 'transparent',
   },
   condChipOn: { backgroundColor: '#dcfce7', borderColor: COLORS.primaryGreen },
-  condEmoji: { fontSize: 14 },
+  condIcon: {},
   condLabel: {
     fontFamily: FONTS.primarySemiBold,
     fontSize: 12,
@@ -1041,11 +1063,11 @@ const ps = StyleSheet.create({
     flex: 1,
   },
   selPlaceholder: { color: COLORS.gray, fontStyle: 'italic' },
+  meetingHeader: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 },
   meetingTitle: {
     fontFamily: FONTS.primaryBold,
     fontSize: SIZES.small,
     color: COLORS.darkGreen,
-    marginTop: 4,
   },
   contactBlock: {
     gap: 8,
@@ -1053,6 +1075,7 @@ const ps = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.lightGreen,
   },
+  contactHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   contactTitle: {
     fontFamily: FONTS.primaryBold,
     fontSize: SIZES.small,
@@ -1078,12 +1101,14 @@ const ps = StyleSheet.create({
   },
   relTxtOn: { color: COLORS.white },
   resetBtn: {
+    flexDirection: 'row',
     backgroundColor: COLORS.white,
     borderRadius: SIZES.radius,
     padding: 16,
     borderWidth: 1.5,
     borderColor: '#fecaca',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   resetTxt: {
     fontFamily: FONTS.primarySemiBold,
@@ -1146,7 +1171,6 @@ const ps = StyleSheet.create({
     fontSize: SIZES.body,
     color: COLORS.primaryGreen,
   },
-  chevronField: { color: COLORS.gray, fontSize: 12 },
 });
 
 export default ProfileScreen;

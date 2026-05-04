@@ -12,6 +12,7 @@ import {
 import { StepWrapper } from './StepWrapper';
 import { COLORS, FONTS, SIZES } from '../../theme';
 import { UserProfile, MeetingPoint } from '../../database/storage';
+import { Icon } from '../Icon';
 import {
   CITIES,
   METRO_MANILA,
@@ -29,13 +30,13 @@ type ModalType = 'city' | 'barangay' | null;
 
 const MeetingPointForm = ({
   label,
-  emoji,
+  iconName,
   required,
   value,
   onChange,
 }: {
   label: string;
-  emoji: string;
+  iconName: string;
   required?: boolean;
   value: MeetingPoint;
   onChange: (v: MeetingPoint) => void;
@@ -51,10 +52,13 @@ const MeetingPointForm = ({
 
   return (
     <View style={ms.container}>
-      <Text style={ms.heading}>
-        {emoji} {label}
-        {required && <Text style={ms.req}> *</Text>}
-      </Text>
+      <View style={ms.headingRow}>
+        <Icon name={iconName} size={16} color={COLORS.primaryGreen} style={{ marginRight: 6 }} />
+        <Text style={ms.heading}>
+          {label}
+          {required && <Text style={ms.req}> *</Text>}
+        </Text>
+      </View>
 
       {/* Landmark */}
       <View style={ms.field}>
@@ -126,6 +130,10 @@ const ms = StyleSheet.create({
     gap: 10,
     borderWidth: 1,
     borderColor: COLORS.lightGreen,
+  },
+  headingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   heading: {
     fontFamily: FONTS.primaryBold,
@@ -208,7 +216,7 @@ export const Step4Location: React.FC<Props> = ({
 
   return (
     <StepWrapper
-      emoji="📍"
+      iconName="map-marker"
       title="Your Location"
       subtitle="Helps pre-load offline maps and find the nearest evacuation centers for your area."
       onNext={onNext}
@@ -230,7 +238,7 @@ export const Step4Location: React.FC<Props> = ({
           <Text style={[s.selTxt, !loc.city && s.selPlaceholder]}>
             {loc.city || 'Select city...'}
           </Text>
-          <Text style={s.chevron}>▼</Text>
+          <Icon name="chevron-down" size={20} color={COLORS.gray} />
         </TouchableOpacity>
       </View>
 
@@ -256,7 +264,7 @@ export const Step4Location: React.FC<Props> = ({
             {loc.barangay ||
               (loc.city ? 'Select barangay...' : 'Select city first')}
           </Text>
-          <Text style={s.chevron}>▼</Text>
+          <Icon name="chevron-down" size={20} color={COLORS.gray} />
         </TouchableOpacity>
         {loc.city && (
           <Text style={s.count}>{barangays.length} barangays available</Text>
@@ -278,7 +286,10 @@ export const Step4Location: React.FC<Props> = ({
       </View>
 
       <View style={s.divider} />
-      <Text style={s.sectionTitle}>📌 Family Meeting Points</Text>
+      <View style={s.sectionHeader}>
+        <Icon name="pin" size={20} color={COLORS.darkGreen} style={{ marginRight: 8 }} />
+        <Text style={s.sectionTitle}>Family Meeting Points</Text>
+      </View>
       <Text style={s.sectionHint}>
         Where does your family go if you get separated? Be as specific as
         possible so anyone can find it.
@@ -286,7 +297,7 @@ export const Step4Location: React.FC<Props> = ({
 
       <MeetingPointForm
         label="Primary Meeting Place"
-        emoji="⭐"
+        iconName="star"
         required
         value={loc.primaryMeeting}
         onChange={v => onChange({ location: { ...loc, primaryMeeting: v } })}
@@ -294,7 +305,7 @@ export const Step4Location: React.FC<Props> = ({
 
       <MeetingPointForm
         label="Secondary Meeting Place"
-        emoji="📍"
+        iconName="map-marker-outline"
         value={loc.secondaryMeeting}
         onChange={v => onChange({ location: { ...loc, secondaryMeeting: v } })}
       />
@@ -411,7 +422,6 @@ const s = StyleSheet.create({
     flex: 1,
   },
   selPlaceholder: { color: COLORS.gray },
-  chevron: { color: COLORS.gray, fontSize: 12 },
   count: {
     fontFamily: FONTS.primaryRegular,
     fontSize: 11,
@@ -430,6 +440,7 @@ const s = StyleSheet.create({
     color: COLORS.darkGreen,
   },
   divider: { height: 1, backgroundColor: COLORS.lightGreen },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center' },
   sectionTitle: {
     fontFamily: FONTS.primaryBold,
     fontSize: SIZES.body,

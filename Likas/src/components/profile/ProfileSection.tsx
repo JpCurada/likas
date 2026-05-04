@@ -9,6 +9,7 @@ import {
   UIManager,
 } from 'react-native';
 import { COLORS, FONTS, SIZES } from '../../theme';
+import { Icon } from '../Icon';
 
 // Enable LayoutAnimation on Android
 if (
@@ -20,14 +21,14 @@ if (
 
 interface Props {
   title: string;
-  emoji: string;
+  iconName: string;
   children: React.ReactNode;
   defaultOpen?: boolean;
 }
 
 export const ProfileSection: React.FC<Props> = ({
   title,
-  emoji,
+  iconName,
   children,
   defaultOpen = false,
 }) => {
@@ -46,10 +47,10 @@ export const ProfileSection: React.FC<Props> = ({
         activeOpacity={0.7}
       >
         <View style={styles.headerLeft}>
-          <Text style={styles.emoji}>{emoji}</Text>
+          <Icon name={iconName} size={20} color={COLORS.primaryGreen} style={styles.icon} />
           <Text style={styles.title}>{title}</Text>
         </View>
-        <Text style={[styles.chevron, isOpen && styles.chevronOpen]}>›</Text>
+        <Icon name="chevron-right" size={22} color={COLORS.gray} style={[styles.chevron, isOpen && styles.chevronOpen]} />
       </TouchableOpacity>
 
       {isOpen && <View style={styles.content}>{children}</View>}
@@ -76,8 +77,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  emoji: {
-    fontSize: 20,
+  icon: {
   },
   title: {
     fontFamily: FONTS.primaryBold,
@@ -85,8 +85,6 @@ const styles = StyleSheet.create({
     color: COLORS.darkGreen,
   },
   chevron: {
-    fontSize: 22,
-    color: COLORS.gray,
     transform: [{ rotate: '0deg' }],
   },
   chevronOpen: {
