@@ -32,73 +32,52 @@ export const StepWrapper: React.FC<Props> = ({
   nextLabel = 'Continue',
   nextDisabled = false,
   isLastStep = false,
-}) => {
-  return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+}) => (
+  <KeyboardAvoidingView
+    style={{ flex: 1 }}
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+  >
+    <ScrollView
+      contentContainerStyle={s.scroll}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          {emoji ? <Text style={styles.emoji}>{emoji}</Text> : null}
-          <Text style={styles.title}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-        </View>
-
-        {/* Content */}
-        <View style={styles.content}>{children}</View>
-
-        {/* Footer Buttons */}
-        <View style={styles.footer}>
-          {onBack && (
-            <TouchableOpacity style={styles.backButton} onPress={onBack}>
-              <Text style={styles.backText}>← Back</Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={[
-              styles.nextButton,
-              nextDisabled && styles.nextButtonDisabled,
-              isLastStep && styles.finishButton,
-              onBack ? styles.nextButtonWithBack : styles.nextButtonFull,
-            ]}
-            onPress={onNext}
-            disabled={nextDisabled}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[styles.nextText, nextDisabled && styles.nextTextDisabled]}
-            >
-              {isLastStep ? "🌿 Let's Go!" : nextLabel}
-            </Text>
+      <View style={s.header}>
+        {emoji ? <Text style={s.emoji}>{emoji}</Text> : null}
+        <Text style={s.title}>{title}</Text>
+        {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
+      </View>
+      <View style={s.content}>{children}</View>
+      <View style={s.footer}>
+        {onBack && (
+          <TouchableOpacity style={s.backBtn} onPress={onBack}>
+            <Text style={s.backTxt}>← Back</Text>
           </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
-};
+        )}
+        <TouchableOpacity
+          style={[
+            s.nextBtn,
+            nextDisabled && s.nextOff,
+            isLastStep && s.finishBtn,
+            onBack ? s.nextWithBack : s.nextFull,
+          ]}
+          onPress={onNext}
+          disabled={nextDisabled}
+          activeOpacity={0.8}
+        >
+          <Text style={[s.nextTxt, nextDisabled && s.nextTxtOff]}>
+            {isLastStep ? "🌿 Let's Go!" : nextLabel}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  </KeyboardAvoidingView>
+);
 
-const styles = StyleSheet.create({
-  scroll: {
-    flexGrow: 1,
-    paddingHorizontal: SIZES.padding,
-    paddingBottom: 32,
-  },
-  header: {
-    paddingTop: 8,
-    paddingBottom: 24,
-    alignItems: 'flex-start',
-  },
-  emoji: {
-    fontSize: 40,
-    marginBottom: 12,
-  },
+const s = StyleSheet.create({
+  scroll: { flexGrow: 1, paddingHorizontal: SIZES.padding, paddingBottom: 32 },
+  header: { paddingTop: 8, paddingBottom: 24 },
+  emoji: { fontSize: 40, marginBottom: 12 },
   title: {
     fontFamily: FONTS.primaryExtraBold,
     fontSize: SIZES.h2,
@@ -112,16 +91,9 @@ const styles = StyleSheet.create({
     color: COLORS.gray,
     lineHeight: 22,
   },
-  content: {
-    flex: 1,
-    gap: 16,
-  },
-  footer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 32,
-  },
-  backButton: {
+  content: { flex: 1, gap: 16 },
+  footer: { flexDirection: 'row', gap: 12, marginTop: 32 },
+  backBtn: {
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: SIZES.radius,
@@ -129,39 +101,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backText: {
+  backTxt: {
     fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.body,
     color: COLORS.primaryGreen,
   },
-  nextButton: {
+  nextBtn: {
     paddingVertical: 16,
     borderRadius: SIZES.radius,
     backgroundColor: COLORS.primaryGreen,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  nextButtonFull: {
-    flex: 1,
-  },
-  nextButtonWithBack: {
-    flex: 1,
-  },
-  nextButtonDisabled: {
-    backgroundColor: COLORS.lightGreen,
-  },
-  finishButton: {
-    backgroundColor: COLORS.darkGreen,
-  },
-  nextText: {
+  nextFull: { flex: 1 },
+  nextWithBack: { flex: 1 },
+  nextOff: { backgroundColor: COLORS.lightGreen },
+  finishBtn: { backgroundColor: COLORS.darkGreen },
+  nextTxt: {
     fontFamily: FONTS.primaryBold,
     fontSize: SIZES.body,
     color: COLORS.white,
     letterSpacing: 0.5,
   },
-  nextTextDisabled: {
-    color: COLORS.gray,
-  },
+  nextTxtOff: { color: COLORS.gray },
 });
 
 export default StepWrapper;

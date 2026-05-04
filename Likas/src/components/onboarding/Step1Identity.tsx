@@ -12,7 +12,7 @@ import { UserProfile } from '../../database/storage';
 
 interface Props {
   profile: UserProfile;
-  onChange: (updates: Partial<UserProfile>) => void;
+  onChange: (u: Partial<UserProfile>) => void;
   onNext: () => void;
 }
 
@@ -29,70 +29,51 @@ export const Step1Identity: React.FC<Props> = ({
   onNext,
 }) => {
   const isValid = profile.name.trim().length >= 2 && profile.ageGroup !== '';
-
   return (
     <StepWrapper
       emoji="🌿"
-      title={`Mabuhay! I'm Likas.`}
+      title="Mabuhay! I'm Likas."
       subtitle="Your offline disaster readiness companion. Let's get to know each other."
       onNext={onNext}
       nextDisabled={!isValid}
     >
-      {/* Name Input */}
-      <View style={styles.field}>
-        <Text style={styles.label}>What should I call you?</Text>
+      <View style={s.field}>
+        <Text style={s.label}>What should I call you?</Text>
         <TextInput
-          style={styles.input}
+          style={s.input}
           placeholder="Your name or nickname"
           placeholderTextColor={COLORS.gray}
           value={profile.name}
-          onChangeText={text => onChange({ name: text })}
+          onChangeText={t => onChange({ name: t })}
           maxLength={30}
           autoFocus
-          returnKeyType="done"
         />
         {profile.name.trim().length > 0 && profile.name.trim().length < 2 && (
-          <Text style={styles.errorText}>
-            Name must be at least 2 characters.
-          </Text>
+          <Text style={s.error}>At least 2 characters required.</Text>
         )}
       </View>
-
-      {/* Age Group */}
-      <View style={styles.field}>
-        <Text style={styles.label}>What is your age group?</Text>
-        <Text style={styles.hint}>This helps us give you the best advice.</Text>
-
-        <View style={styles.ageGrid}>
-          {AGE_GROUPS.map(group => {
-            const isSelected = profile.ageGroup === group;
-            return (
-              <TouchableOpacity
-                key={group}
-                style={[styles.ageChip, isSelected && styles.ageChipSelected]}
-                onPress={() => onChange({ ageGroup: group })}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.ageChipText,
-                    isSelected && styles.ageChipTextSelected,
-                  ]}
-                >
-                  {group}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+      <View style={s.field}>
+        <Text style={s.label}>What is your age group?</Text>
+        <Text style={s.hint}>This helps us give the best advice.</Text>
+        <View style={s.grid}>
+          {AGE_GROUPS.map(ag => (
+            <TouchableOpacity
+              key={ag}
+              style={[s.chip, profile.ageGroup === ag && s.chipOn]}
+              onPress={() => onChange({ ageGroup: ag })}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.chipTxt, profile.ageGroup === ag && s.chipTxtOn]}>
+                {ag}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
-
-      {/* Validation reminder */}
       {!isValid && (
-        <View style={styles.reminderBox}>
-          <Text style={styles.reminderText}>
-            ⚠️ Please fill in both fields to continue. This helps Likas
-            personalize emergency advice for you.
+        <View style={s.reminder}>
+          <Text style={s.reminderTxt}>
+            ⚠️ Both fields required to continue.
           </Text>
         </View>
       )}
@@ -100,10 +81,8 @@ export const Step1Identity: React.FC<Props> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  field: {
-    gap: 8,
-  },
+const s = StyleSheet.create({
+  field: { gap: 8 },
   label: {
     fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.body,
@@ -126,17 +105,13 @@ const styles = StyleSheet.create({
     fontSize: SIZES.body,
     color: COLORS.darkGreen,
   },
-  errorText: {
+  error: {
     fontFamily: FONTS.primaryRegular,
     fontSize: 12,
     color: COLORS.error,
   },
-  ageGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  ageChip: {
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  chip: {
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 100,
@@ -144,30 +119,27 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'transparent',
   },
-  ageChipSelected: {
+  chipOn: {
     backgroundColor: COLORS.primaryGreen,
     borderColor: COLORS.darkGreen,
   },
-  ageChipText: {
+  chipTxt: {
     fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.small,
     color: COLORS.primaryGreen,
   },
-  ageChipTextSelected: {
-    color: COLORS.white,
-  },
-  reminderBox: {
+  chipTxtOn: { color: COLORS.white },
+  reminder: {
     backgroundColor: '#fff8e1',
     borderRadius: SIZES.radius,
     padding: 12,
     borderLeftWidth: 3,
     borderLeftColor: '#f59e0b',
   },
-  reminderText: {
+  reminderTxt: {
     fontFamily: FONTS.primaryRegular,
     fontSize: SIZES.small,
     color: '#92400e',
-    lineHeight: 20,
   },
 });
 

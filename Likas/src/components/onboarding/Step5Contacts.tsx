@@ -1,20 +1,31 @@
 import React from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+} from 'react-native';
 import { StepWrapper } from './StepWrapper';
 import { COLORS, FONTS, SIZES } from '../../theme';
 import { UserProfile, EmergencyContact } from '../../database/storage';
 
 interface Props {
   profile: UserProfile;
-  onChange: (updates: Partial<UserProfile>) => void;
+  onChange: (u: Partial<UserProfile>) => void;
   onNext: () => void;
   onBack: () => void;
 }
 
-const CONTACT_LABELS = [
-  { num: 1, emoji: '⭐', label: 'Primary Contact', required: true },
-  { num: 2, emoji: '👤', label: 'Secondary Contact', required: false },
-  { num: 3, emoji: '👤', label: 'Third Contact', required: false },
+const RELATIONSHIPS = [
+  'Spouse/Partner',
+  'Parent',
+  'Sibling',
+  'Child',
+  'Relative',
+  'Friend',
+  'Neighbor',
 ];
 
 export const Step5Contacts: React.FC<Props> = ({
@@ -23,95 +34,91 @@ export const Step5Contacts: React.FC<Props> = ({
   onNext,
   onBack,
 }) => {
-  const updateContact = (index: number, updates: Partial<EmergencyContact>) => {
-    const updated = profile.emergencyContacts.map((c, i) =>
-      i === index ? { ...c, ...updates } : c,
+  const upd = (i: number, patch: Partial<EmergencyContact>) => {
+    const updated = profile.emergencyContacts.map((c, idx) =>
+      idx === i ? { ...c, ...patch } : c,
     );
     onChange({ emergencyContacts: updated });
   };
-
-  const primaryContact = profile.emergencyContacts[0];
+  const primary = profile.emergencyContacts[0];
   const isValid =
-    primaryContact.name.trim().length >= 2 &&
-    primaryContact.phone.trim().length >= 7;
-
-  const isPhoneValid = (phone: string) => {
-    if (!phone) return true; // Optional contacts don't need to be validated if empty
-    // PH mobile: 09XXXXXXXXX or +639XXXXXXXXX
-    return /^(09|\+639)\d{9}$/.test(phone.replace(/\s/g, ''));
-  };
+    primary.name.trim().length >= 2 && primary.phone.trim().length >= 7;
+  const phoneInvalid = (p: string) =>
+    p.length > 0 && !/^(09|\+639)\d{9}$/.test(p.replace(/\s/g, ''));
 
   return (
     <StepWrapper
       emoji="📞"
       title="Emergency Contacts"
-      subtitle="We'll use these to draft an emergency SMS if there's no internet. At least one contact is required."
+      subtitle="We'll draft emergency SMS messages for you when there's no internet. One contact is required."
       onNext={onNext}
       onBack={onBack}
       nextDisabled={!isValid}
       isLastStep
     >
-      <View style={styles.infoBox}>
-        <Text style={styles.infoText}>
-          📱 In an emergency, Likas will pre-format a text message like:{'\n'}
-          <Text style={styles.infoSample}>
-            "Hi, I'm safe. My location is [Barangay]. Going to [Meeting Point].
-            — [Your Name]"
-          </Text>
+      <View style={s.info}>
+        <Text style={s.infoTxt}>📱 Likas will pre-fill:</Text>
+        <Text style={s.infoSample}>
+          "Hi, I'm safe. My location: [Barangay]. Going to [Meeting Point]. —
+          [Your Name]"
         </Text>
       </View>
-
-      {CONTACT_LABELS.map(({ num, emoji, label, required }, index) => {
-        const contact = profile.emergencyContacts[index];
-        const phoneInvalid =
-          contact.phone.length > 0 && !isPhoneValid(contact.phone);
-
+      {[0, 1, 2].map(i => {
+        const c = profile.emergencyContacts[i];
+        const required = i === 0;
         return (
-          <View key={index} style={styles.contactCard}>
-            <View style={styles.contactHeader}>
-              <Text style={styles.contactEmoji}>{emoji}</Text>
-              <View>
-                <Text style={styles.contactLabel}>
-                  {label}
-                  {required && <Text style={styles.required}> *</Text>}
-                </Text>
-                {!required && (
-                  <Text style={styles.contactOptional}>Optional</Text>
-                )}
-              </View>
-            </View>
-
+          <View key={i} style={s.card}>
+            <Text style={s.cardTitle}>
+              {i === 0 ? '⭐ Primary' : i === 1 ? '👤 Second' : '👤 Third'}{' '}
+              Contact{required && <Text style={s.req}> *</Text>}
+            </Text>
             <TextInput
-              style={styles.input}
+              style={s.input}
               placeholder="Full name"
               placeholderTextColor={COLORS.gray}
-              value={contact.name}
-              onChangeText={text => updateContact(index, { name: text })}
+              value={c.name}
+              onChangeText={t => upd(i, { name: t })}
             />
-
             <TextInput
-              style={[styles.input, phoneInvalid && styles.inputError]}
-              placeholder="Phone number (e.g., 09XX-XXX-XXXX)"
+              style={[s.input, phoneInvalid(c.phone) && s.inputErr]}
+              placeholder="Phone (09XX-XXX-XXXX)"
               placeholderTextColor={COLORS.gray}
-              value={contact.phone}
-              onChangeText={text => updateContact(index, { phone: text })}
+              value={c.phone}
+              onChangeText={t => upd(i, { phone: t })}
               keyboardType="phone-pad"
               maxLength={13}
             />
-
-            {phoneInvalid && (
-              <Text style={styles.errorText}>
-                Please enter a valid Philippine mobile number.
+            {phoneInvalid(c.phone) && (
+              <Text style={s.errTxt}>
+                Enter a valid Philippine mobile number.
               </Text>
             )}
+            {/* Relationship */}
+            <Text style={s.relLabel}>Relationship</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.relRow}
+            >
+              {RELATIONSHIPS.map(r => (
+                <TouchableOpacity
+                  key={r}
+                  style={[s.relChip, c.relationship === r && s.relChipOn]}
+                  onPress={() => upd(i, { relationship: r })}
+                >
+                  <Text style={[s.relTxt, c.relationship === r && s.relTxtOn]}>
+                    {r}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         );
       })}
-
       {!isValid && (
-        <View style={styles.reminderBox}>
-          <Text style={styles.reminderText}>
-            ⚠️ At least one contact with name and phone number is required.
+        <View style={s.reminder}>
+          <Text style={s.reminderTxt}>
+            ⚠️ Primary contact name + phone required.
           </Text>
         </View>
       )}
@@ -119,26 +126,28 @@ export const Step5Contacts: React.FC<Props> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  infoBox: {
+const s = StyleSheet.create({
+  info: {
     backgroundColor: '#e0f2fe',
     borderRadius: SIZES.radius,
     padding: 14,
     borderLeftWidth: 3,
     borderLeftColor: COLORS.cyan,
+    gap: 4,
   },
-  infoText: {
-    fontFamily: FONTS.primaryRegular,
+  infoTxt: {
+    fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.small,
     color: '#0c4a6e',
-    lineHeight: 20,
   },
   infoSample: {
-    fontFamily: FONTS.primaryMedium,
-    fontStyle: 'italic',
+    fontFamily: FONTS.primaryRegular,
+    fontSize: SIZES.small,
     color: '#0369a1',
+    fontStyle: 'italic',
+    lineHeight: 20,
   },
-  contactCard: {
+  card: {
     backgroundColor: COLORS.white,
     borderRadius: SIZES.radius,
     padding: 14,
@@ -146,28 +155,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.lightGreen,
   },
-  contactHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 2,
-  },
-  contactEmoji: {
-    fontSize: 20,
-  },
-  contactLabel: {
+  cardTitle: {
     fontFamily: FONTS.primaryBold,
     fontSize: SIZES.small,
     color: COLORS.darkGreen,
   },
-  contactOptional: {
-    fontFamily: FONTS.primaryRegular,
-    fontSize: 12,
-    color: COLORS.gray,
-  },
-  required: {
-    color: COLORS.error,
-  },
+  req: { color: COLORS.error },
   input: {
     backgroundColor: COLORS.lightGreen,
     borderRadius: 8,
@@ -179,24 +172,45 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  inputError: {
-    borderColor: COLORS.error,
-    backgroundColor: '#fff1f2',
-  },
-  errorText: {
+  inputErr: { borderColor: COLORS.error, backgroundColor: '#fff1f2' },
+  errTxt: {
     fontFamily: FONTS.primaryRegular,
     fontSize: 12,
     color: COLORS.error,
-    marginTop: -4,
+    marginTop: -6,
   },
-  reminderBox: {
+  relLabel: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 12,
+    color: COLORS.gray,
+  },
+  relRow: { gap: 8, paddingVertical: 2 },
+  relChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 100,
+    backgroundColor: COLORS.lightGreen,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  relChipOn: {
+    backgroundColor: COLORS.primaryGreen,
+    borderColor: COLORS.darkGreen,
+  },
+  relTxt: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 12,
+    color: COLORS.primaryGreen,
+  },
+  relTxtOn: { color: COLORS.white },
+  reminder: {
     backgroundColor: '#fff8e1',
     borderRadius: SIZES.radius,
     padding: 12,
     borderLeftWidth: 3,
     borderLeftColor: '#f59e0b',
   },
-  reminderText: {
+  reminderTxt: {
     fontFamily: FONTS.primaryRegular,
     fontSize: SIZES.small,
     color: '#92400e',

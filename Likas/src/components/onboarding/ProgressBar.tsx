@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { COLORS, FONTS, SIZES } from '../../theme';
+import { COLORS, FONTS } from '../../theme';
 
 interface Props {
-  currentStep: number; // 1-based
+  currentStep: number;
   totalSteps: number;
   stepLabels?: string[];
 }
@@ -12,85 +12,51 @@ export const ProgressBar: React.FC<Props> = ({
   currentStep,
   totalSteps,
   stepLabels = [],
-}) => {
-  return (
-    <View style={styles.container}>
-      <View style={styles.stepsRow}>
-        {Array.from({ length: totalSteps }).map((_, i) => {
-          const stepNum = i + 1;
-          const isCompleted = stepNum < currentStep;
-          const isActive = stepNum === currentStep;
-
-          return (
-            <React.Fragment key={i}>
-              {/* Connector line (except before first step) */}
-              {i > 0 && (
-                <View
-                  style={[
-                    styles.connector,
-                    isCompleted || isActive
-                      ? styles.connectorActive
-                      : styles.connectorInactive,
-                  ]}
-                />
+}) => (
+  <View style={s.container}>
+    <View style={s.row}>
+      {Array.from({ length: totalSteps }).map((_, i) => {
+        const n = i + 1;
+        const done = n < currentStep;
+        const active = n === currentStep;
+        return (
+          <React.Fragment key={i}>
+            {i > 0 && (
+              <View style={[s.line, done || active ? s.lineOn : s.lineOff]} />
+            )}
+            <View
+              style={[
+                s.dot,
+                done && s.dotDone,
+                active && s.dotActive,
+                !done && !active && s.dotOff,
+              ]}
+            >
+              {done ? (
+                <Text style={s.check}>✓</Text>
+              ) : (
+                <Text style={[s.num, active && s.numActive]}>{n}</Text>
               )}
-              {/* Step dot */}
-              <View
-                style={[
-                  styles.dot,
-                  isCompleted && styles.dotCompleted,
-                  isActive && styles.dotActive,
-                  !isCompleted && !isActive && styles.dotInactive,
-                ]}
-              >
-                {isCompleted ? (
-                  <Text style={styles.checkmark}>✓</Text>
-                ) : (
-                  <Text
-                    style={[styles.dotText, isActive && styles.dotTextActive]}
-                  >
-                    {stepNum}
-                  </Text>
-                )}
-              </View>
-            </React.Fragment>
-          );
-        })}
-      </View>
-
-      {/* Step label */}
-      {stepLabels[currentStep - 1] && (
-        <Text style={styles.label}>{stepLabels[currentStep - 1]}</Text>
-      )}
-
-      {/* Progress text */}
-      <Text style={styles.progress}>
-        Step {currentStep} of {totalSteps}
-      </Text>
+            </View>
+          </React.Fragment>
+        );
+      })}
     </View>
-  );
-};
+    {stepLabels[currentStep - 1] && (
+      <Text style={s.label}>{stepLabels[currentStep - 1]}</Text>
+    )}
+    <Text style={s.sub}>
+      Step {currentStep} of {totalSteps}
+    </Text>
+  </View>
+);
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  stepsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  connector: {
-    height: 2,
-    width: 36,
-  },
-  connectorActive: {
-    backgroundColor: COLORS.primaryGreen,
-  },
-  connectorInactive: {
-    backgroundColor: COLORS.lightGreen,
-  },
+const s = StyleSheet.create({
+  container: { alignItems: 'center', paddingVertical: 14 },
+  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  line: { height: 2, width: 34 },
+  lineOn: { backgroundColor: COLORS.primaryGreen },
+  lineOff: { backgroundColor: COLORS.lightGreen },
   dot: {
     width: 32,
     height: 32,
@@ -100,44 +66,32 @@ const styles = StyleSheet.create({
   },
   dotActive: {
     backgroundColor: COLORS.primaryGreen,
+    elevation: 4,
     shadowColor: COLORS.primaryGreen,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
   },
-  dotCompleted: {
-    backgroundColor: COLORS.accentGreen,
-  },
-  dotInactive: {
+  dotDone: { backgroundColor: COLORS.accentGreen },
+  dotOff: {
     backgroundColor: COLORS.lightGreen,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: COLORS.accentGreen,
   },
-  dotText: {
-    fontFamily: FONTS.primaryBold,
-    fontSize: 13,
-    color: COLORS.gray,
-  },
-  dotTextActive: {
-    color: COLORS.white,
-  },
-  checkmark: {
+  check: {
     fontFamily: FONTS.primaryBold,
     fontSize: 13,
     color: COLORS.darkGreen,
   },
+  num: { fontFamily: FONTS.primaryBold, fontSize: 13, color: COLORS.gray },
+  numActive: { color: COLORS.white },
   label: {
     fontFamily: FONTS.primarySemiBold,
-    fontSize: SIZES.small,
-    color: COLORS.primaryGreen,
-    marginBottom: 2,
-  },
-  progress: {
-    fontFamily: FONTS.primaryRegular,
     fontSize: 12,
-    color: COLORS.gray,
+    color: COLORS.primaryGreen,
+    marginBottom: 1,
   },
+  sub: { fontFamily: FONTS.primaryRegular, fontSize: 11, color: COLORS.gray },
 });
 
 export default ProgressBar;

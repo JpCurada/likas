@@ -12,49 +12,49 @@ import { UserProfile, MedicalCondition } from '../../database/storage';
 
 interface Props {
   profile: UserProfile;
-  onChange: (updates: Partial<UserProfile>) => void;
+  onChange: (u: Partial<UserProfile>) => void;
   onNext: () => void;
   onBack: () => void;
 }
 
-interface ConditionItem {
+const CONDITIONS: {
   key: keyof Omit<MedicalCondition, 'other'>;
   emoji: string;
   label: string;
   note?: string;
-}
-
-const CONDITIONS: ConditionItem[] = [
-  {
-    key: 'asthma',
-    emoji: '🫁',
-    label: 'Asthma',
-    note: 'Needs inhaler in go-bag',
-  },
+}[] = [
+  { key: 'asthma', emoji: '🫁', label: 'Asthma', note: 'Inhaler in go-bag' },
   {
     key: 'diabetes',
     emoji: '💉',
     label: 'Diabetes',
-    note: 'Insulin / glucose monitoring',
+    note: 'Insulin / glucose meds',
   },
   {
     key: 'heartCondition',
     emoji: '❤️',
     label: 'Heart Condition',
-    note: 'Nitroglycerin or heart meds',
+    note: 'Heart medications',
   },
   {
     key: 'hypertension',
     emoji: '🩺',
     label: 'Hypertension',
-    note: 'Blood pressure medication',
+    note: 'Blood pressure meds',
   },
   {
-    key: 'none',
-    emoji: '✅',
-    label: 'None / No Conditions',
-    note: 'All healthy!',
+    key: 'epilepsy',
+    emoji: '⚡',
+    label: 'Epilepsy',
+    note: 'Anti-seizure medication',
   },
+  {
+    key: 'kidneydisease',
+    emoji: '🫘',
+    label: 'Kidney Disease',
+    note: 'Dialysis schedule',
+  },
+  { key: 'none', emoji: '✅', label: 'None / All Healthy' },
 ];
 
 export const Step3Health: React.FC<Props> = ({
@@ -63,10 +63,8 @@ export const Step3Health: React.FC<Props> = ({
   onNext,
   onBack,
 }) => {
-  const toggleCondition = (key: keyof Omit<MedicalCondition, 'other'>) => {
-    const current = profile.medicalConditions;
-
-    // If selecting "none", clear everything else
+  const mc = profile.medicalConditions;
+  const toggle = (key: keyof Omit<MedicalCondition, 'other'>) => {
     if (key === 'none') {
       onChange({
         medicalConditions: {
@@ -74,107 +72,78 @@ export const Step3Health: React.FC<Props> = ({
           diabetes: false,
           heartCondition: false,
           hypertension: false,
-          none: !current.none,
+          epilepsy: false,
+          kidneydisease: false,
+          none: !mc.none,
           other: '',
         },
       });
       return;
     }
-
-    // If selecting any condition, uncheck "none"
-    onChange({
-      medicalConditions: {
-        ...current,
-        [key]: !current[key],
-        none: false,
-      },
-    });
+    onChange({ medicalConditions: { ...mc, [key]: !mc[key], none: false } });
   };
-
   const hasSelection =
-    profile.medicalConditions.none ||
-    profile.medicalConditions.asthma ||
-    profile.medicalConditions.diabetes ||
-    profile.medicalConditions.heartCondition ||
-    profile.medicalConditions.hypertension;
-
+    mc.none ||
+    mc.asthma ||
+    mc.diabetes ||
+    mc.heartCondition ||
+    mc.hypertension ||
+    mc.epilepsy ||
+    mc.kidneydisease;
   return (
     <StepWrapper
       emoji="🏥"
       title="Health & Medical Needs"
-      subtitle="Are there critical medical conditions in your group? This shapes your emergency supply checklist."
+      subtitle="Critical conditions shape your emergency supply checklist."
       onNext={onNext}
       onBack={onBack}
       nextDisabled={!hasSelection}
     >
-      <View style={styles.infoBox}>
-        <Text style={styles.infoText}>
-          💡 Select all that apply. You can select multiple conditions.
+      <View style={s.info}>
+        <Text style={s.infoTxt}>
+          💡 Select all that apply. You must pick at least one.
         </Text>
       </View>
-
-      {CONDITIONS.map(item => {
-        const isSelected =
-          item.key === 'none'
-            ? profile.medicalConditions.none
-            : profile.medicalConditions[item.key];
-
+      {CONDITIONS.map(c => {
+        const on = c.key === 'none' ? mc.none : mc[c.key];
         return (
           <TouchableOpacity
-            key={item.key}
-            style={[styles.card, isSelected && styles.cardSelected]}
-            onPress={() => toggleCondition(item.key)}
+            key={c.key}
+            style={[s.card, on && s.cardOn]}
+            onPress={() => toggle(c.key)}
             activeOpacity={0.7}
           >
-            <View style={styles.cardLeft}>
-              <Text style={styles.cardEmoji}>{item.emoji}</Text>
+            <View style={s.cardL}>
+              <Text style={s.cEmoji}>{c.emoji}</Text>
               <View>
-                <Text
-                  style={[
-                    styles.cardLabel,
-                    isSelected && styles.cardLabelSelected,
-                  ]}
-                >
-                  {item.label}
-                </Text>
-                {item.note && <Text style={styles.cardNote}>{item.note}</Text>}
+                <Text style={[s.cLabel, on && s.cLabelOn]}>{c.label}</Text>
+                {c.note && <Text style={s.cNote}>{c.note}</Text>}
               </View>
             </View>
-
-            <View
-              style={[styles.checkbox, isSelected && styles.checkboxSelected]}
-            >
-              {isSelected && <Text style={styles.checkmark}>✓</Text>}
+            <View style={[s.check, on && s.checkOn]}>
+              {on && <Text style={s.checkMark}>✓</Text>}
             </View>
           </TouchableOpacity>
         );
       })}
-
-      {/* Other condition */}
-      {!profile.medicalConditions.none && (
-        <View style={styles.otherField}>
-          <Text style={styles.otherLabel}>Other condition (optional)</Text>
+      {!mc.none && (
+        <View style={s.field}>
+          <Text style={s.label}>Other condition (optional)</Text>
           <TextInput
-            style={styles.otherInput}
+            style={s.input}
             placeholder="e.g., Epilepsy, Kidney disease..."
             placeholderTextColor={COLORS.gray}
-            value={profile.medicalConditions.other}
-            onChangeText={text =>
-              onChange({
-                medicalConditions: {
-                  ...profile.medicalConditions,
-                  other: text,
-                },
-              })
+            value={mc.other}
+            onChangeText={t =>
+              onChange({ medicalConditions: { ...mc, other: t } })
             }
           />
         </View>
       )}
-
       {!hasSelection && (
-        <View style={styles.reminderBox}>
-          <Text style={styles.reminderText}>
-            ⚠️ Please select at least one option, even if it's "None."
+        <View style={s.reminder}>
+          <Text style={s.reminderTxt}>
+            ⚠️ Please select at least one option.
           </Text>
         </View>
       )}
@@ -182,15 +151,15 @@ export const Step3Health: React.FC<Props> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  infoBox: {
+const s = StyleSheet.create({
+  info: {
     backgroundColor: '#e0f2fe',
     borderRadius: SIZES.radius,
     padding: 12,
     borderLeftWidth: 3,
     borderLeftColor: COLORS.cyan,
   },
-  infoText: {
+  infoTxt: {
     fontFamily: FONTS.primaryRegular,
     fontSize: SIZES.small,
     color: '#0c4a6e',
@@ -206,34 +175,25 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: COLORS.lightGreen,
   },
-  cardSelected: {
+  cardOn: {
     backgroundColor: COLORS.lightGreen,
     borderColor: COLORS.primaryGreen,
   },
-  cardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  cardEmoji: {
-    fontSize: 24,
-  },
-  cardLabel: {
+  cardL: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  cEmoji: { fontSize: 24 },
+  cLabel: {
     fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.small,
     color: COLORS.darkGreen,
   },
-  cardLabelSelected: {
-    color: COLORS.darkGreen,
-  },
-  cardNote: {
+  cLabelOn: { color: COLORS.darkGreen },
+  cNote: {
     fontFamily: FONTS.primaryRegular,
     fontSize: 12,
     color: COLORS.gray,
     marginTop: 2,
   },
-  checkbox: {
+  check: {
     width: 24,
     height: 24,
     borderRadius: 6,
@@ -242,24 +202,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxSelected: {
+  checkOn: {
     backgroundColor: COLORS.primaryGreen,
     borderColor: COLORS.primaryGreen,
   },
-  checkmark: {
+  checkMark: {
     color: COLORS.white,
     fontSize: 13,
     fontFamily: FONTS.primaryBold,
   },
-  otherField: {
-    gap: 6,
-  },
-  otherLabel: {
+  field: { gap: 6 },
+  label: {
     fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.small,
     color: COLORS.darkGreen,
   },
-  otherInput: {
+  input: {
     backgroundColor: COLORS.white,
     borderRadius: SIZES.radius,
     borderWidth: 1.5,
@@ -270,14 +228,14 @@ const styles = StyleSheet.create({
     fontSize: SIZES.small,
     color: COLORS.darkGreen,
   },
-  reminderBox: {
+  reminder: {
     backgroundColor: '#fff8e1',
     borderRadius: SIZES.radius,
     padding: 12,
     borderLeftWidth: 3,
     borderLeftColor: '#f59e0b',
   },
-  reminderText: {
+  reminderTxt: {
     fontFamily: FONTS.primaryRegular,
     fontSize: SIZES.small,
     color: '#92400e',
