@@ -29,7 +29,9 @@ The project is currently in the **Design and Requirements phase**.
 - [x] PRD Finalized
 - [x] Requirements Specification
 - [x] Technical Design
-- [ ] React Native Project Initialization (TODO)
+- [x] React Native Project Initialization
 - [ ] Onboarding Implementation (TODO)
 - [ ] Dashboard Implementation (TODO)
 - [ ] LiteRT-LM JSI Integration (TODO)
+- [/] Offline Maps Integration (In Progress - see [roadmap_maps.md](file:///c:/Users/User/CODERIST/gemma/likas/docs/roadmap_maps.md))
+

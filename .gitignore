@@ -11,8 +11,12 @@ ios/.xcode.env.local
 
 # Models and large assets (placeholders)
 *.litertlm
-*.mbtiles
 *.bin
+data/
+planetiler.jar
+
+# Downloaded MapLibre glyph PBFs (regenerate via: node scripts/download-fonts.js)
+**/assets/fonts/Noto Sans*/
 
 # OS-specific
 .DS_Store
