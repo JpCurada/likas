@@ -1,5 +1,4 @@
 // src/theme.ts
-// Place this file at: Likas/src/theme.ts
 
 export const COLORS = {
   darkGreen: '#091610',
