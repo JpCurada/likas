@@ -47,6 +47,27 @@ Run the following command to download missing glyphs and link them to Android:
 npm run prepare-assets
 ```
 
+### Self-Generating Map Tiles (Free/Monetized Apps)
+
+If you intend to release LIKAS on the Play Store with monetization, you **cannot** use the commercial MapTiler downloads. You must generate your own tiles from raw OpenStreetMap data.
+
+We have automated this process using **Planetiler**:
+
+1.  Navigate to the `Likas/` directory.
+2.  Run the generation script:
+    ```bash
+    npm run generate-map
+    ```
+    *This will download the latest Philippines extract from Geofabrik, download the Planetiler tool, and generate a fresh `.mbtiles` file.*
+
+3.  The output will be saved as `Likas/assets/maps/philippines-extract.mbtiles`.
+4.  Link the new file to your native projects:
+    ```bash
+    npm run link-assets
+    ```
+
+**Note:** Generation requires Java (included with Android Studio) and approximately 4GB of free RAM.
+
 **For iOS Linking:**
 Because subdirectories must be preserved:
 1.  Open `Likas/ios/Likas.xcworkspace` in Xcode.
