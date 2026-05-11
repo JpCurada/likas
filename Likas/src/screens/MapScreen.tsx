@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
-import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Map, Camera, GeoJSONSource, Layer } from '@maplibre/maplibre-react-native';
 import type { CameraRef } from '@maplibre/maplibre-react-native';
@@ -75,8 +75,19 @@ export const MapScreen: React.FC = () => {
         const absoluteMbtilesUrl = await prepareOfflineMap();
         const newStyle = JSON.parse(JSON.stringify(baseOfflineStyle));
         newStyle.sources.openmaptiles.url = absoluteMbtilesUrl;
-        newStyle.glyphs = "asset://fonts/{fontstack}/{range}.pbf";
-        console.log('[MapScreen] Set style openmaptiles URL to:', absoluteMbtilesUrl);
+        
+        const glyphsPath = Platform.OS === 'android' 
+          ? "asset://glyphs/{fontstack}/{range}.pbf" 
+          : "glyphs/{fontstack}/{range}.pbf";
+        
+        newStyle.glyphs = glyphsPath;
+        
+        if (__DEV__) {
+          console.log('[MapScreen] 🗺️ Initializing Offline Map');
+          console.log('[MapScreen] 📦 MBTiles path:', absoluteMbtilesUrl);
+          console.log('[MapScreen] 🔤 Glyphs path:', glyphsPath);
+        }
+
         setBaseStyle(newStyle);
         setIsMapReady(true);
       } catch (error) {

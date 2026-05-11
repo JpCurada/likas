@@ -18,6 +18,7 @@ The project is currently in the **Design and Requirements phase**.
     - `PRD.md`: Product Requirement Document covering the vision, challenge, and solution overview.
     - `requirements.md`: Detailed functional/non-functional requirements and acceptance criteria.
     - `design.md`: Technical architecture, component interfaces, data models, and testing strategy.
+    - `assets.md`: Technical guide for managing maps, fonts, and glyphs (Linking workflow).
 
 ## Core Mandates
 1. **Zero Network Transmission:** All core features (AI, maps, routing) must function with zero network dependency.
@@ -30,8 +31,10 @@ The project is currently in the **Design and Requirements phase**.
 - [x] Requirements Specification
 - [x] Technical Design
 - [x] React Native Project Initialization
+- [x] Unified Asset Management (Source of Truth established)
+- [x] On-Demand Glyph Pipeline (Automated labels summoning)
 - [ ] Onboarding Implementation (TODO)
 - [ ] Dashboard Implementation (TODO)
 - [ ] LiteRT-LM JSI Integration (TODO)
-- [/] Offline Maps Integration (In Progress - see [roadmap_maps.md](file:///c:/Users/User/CODERIST/gemma/likas/docs/roadmap_maps.md))
+- [x] Offline Maps Foundation (Phase 1 & 2 completed - see [roadmap_maps.md](./docs/roadmap_maps.md))
 

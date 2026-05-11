@@ -82,6 +82,18 @@ You've successfully run and modified your React Native App. :partying_face:
 - If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
 - If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
 
+### Assets (Maps & Fonts)
+
+This project uses shared assets located in `Likas/assets/`. These are automatically linked to both Android and iOS projects. 
+
+If you add new fonts or map files (`.mbtiles`), you must run the following command to link them natively:
+
+```sh
+npx react-native-asset
+```
+
+Note: The generated native assets in `android/app/src/main/assets/` are ignored by Git to prevent repository bloat. Only the source files in `Likas/assets/` should be tracked.
+
 # Troubleshooting
 
 If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.

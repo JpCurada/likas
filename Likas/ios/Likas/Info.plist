@@ -56,6 +56,8 @@
 	<false/>
 	<key>UIAppFonts</key>
 	<array>
+		<string>MaterialCommunityIcons.ttf</string>
+		<string>Ionicons.ttf</string>
 		<string>Clinton-Bold.ttf</string>
 		<string>Clinton-BoldItalic.ttf</string>
 		<string>Clinton-ExtraBold.ttf</string>
@@ -68,8 +70,6 @@
 		<string>Sora-Regular.ttf</string>
 		<string>Sora-SemiBold.ttf</string>
 		<string>Sora-Thin.ttf</string>
-		<string>MaterialCommunityIcons.ttf</string>
-		<string>Ionicons.ttf</string>
 	</array>
 </dict>
 </plist>
