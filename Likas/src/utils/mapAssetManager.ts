@@ -7,6 +7,7 @@ import RNFS from 'react-native-fs';
  * @returns The absolute `mbtiles://` URI for MapLibre
  */
 export const prepareOfflineMap = async (): Promise<string> => {
+  const assetName = 'custom/philippines-extract.mbtiles';
   const fileName = 'philippines-extract.mbtiles';
   const destPath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
 
@@ -14,9 +15,9 @@ export const prepareOfflineMap = async (): Promise<string> => {
     const exists = await RNFS.exists(destPath);
 
     if (!exists) {
-      if (__DEV__) console.log(`[OfflineMap] Copying ${fileName} from assets to: ${destPath}`);
-      // Copy from Android assets folder into physical storage
-      await RNFS.copyFileAssets(fileName, destPath);
+      if (__DEV__) console.log(`[OfflineMap] Copying ${assetName} from assets to: ${destPath}`);
+      // Copy from Android assets/custom folder into physical storage
+      await RNFS.copyFileAssets(assetName, destPath);
       if (__DEV__) console.log('[OfflineMap] Copy successful!');
     } else {
       if (__DEV__) console.log(`[OfflineMap] Map already exists at: ${destPath}`);
