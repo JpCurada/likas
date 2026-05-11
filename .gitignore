@@ -14,6 +14,7 @@ ios/.xcode.env.local
 *.bin
 data/
 planetiler.jar
+*.osm.pbf
 
 # Downloaded MapLibre glyph PBFs (regenerate via: node scripts/download-fonts.js)
 **/assets/fonts/Noto Sans*/

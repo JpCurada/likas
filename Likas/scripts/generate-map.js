@@ -3,87 +3,90 @@ const path = require('path');
 const https = require('https');
 const { spawn } = require('child_process');
 
+// ─── Configuration ────────────────────────────────────────────────────────────
+
+// The tool that converts OSM data to MBTiles
 const PLANETILER_URL = 'https://github.com/onthegomap/planetiler/releases/latest/download/planetiler.jar';
 const PLANETILER_JAR = path.join(__dirname, 'planetiler.jar');
-const ASSETS_DIR = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'assets');
-const OUTPUT_MBTILES = path.join(ASSETS_DIR, 'metro-manila.mbtiles');
 
-// Default to the file you downloaded!
-const defaultPbf = 'c:\\Users\\User\\CODERIST\\gemma\\likas\\planet_120.718,14.412_121.209,14.721.osm.pbf';
-const pbfFile = process.argv[2] || defaultPbf;
+// Destination: Our shared assets folder (Source of Truth)
+const MAPS_DIR = path.join(__dirname, '..', 'assets', 'maps');
+const OUTPUT_MBTILES = path.join(MAPS_DIR, 'philippines-extract.mbtiles');
 
-if (!fs.existsSync(pbfFile)) {
-    console.error(`❌ Error: Could not find the pbf file at: ${pbfFile}`);
-    console.error('Usage: node scripts/generate-map.js [path-to-file.osm.pbf]');
-    process.exit(1);
-}
+// Geofabrik Philippines extract (approx 400MB)
+const OSM_EXTRACT_URL = 'https://download.geofabrik.de/asia/philippines-latest.osm.pbf';
+const DEFAULT_PBF = path.join(__dirname, 'philippines-latest.osm.pbf');
 
-// Ensure assets directory exists for the android app
-if (!fs.existsSync(ASSETS_DIR)) {
-    fs.mkdirSync(ASSETS_DIR, { recursive: true });
-}
+// ─── Logic ────────────────────────────────────────────────────────────────────
 
-// Ensure the old mbtiles file is deleted so planetiler doesn't fail
-if (fs.existsSync(OUTPUT_MBTILES)) {
-    fs.unlinkSync(OUTPUT_MBTILES);
-}
-
-async function downloadPlanetiler() {
-    if (fs.existsSync(PLANETILER_JAR)) {
-        console.log('✅ planetiler.jar already exists. Skipping download.');
+async function downloadFile(url, destPath, label) {
+    if (fs.existsSync(destPath)) {
+        console.log(`✅ ${label} already exists. Skipping download.`);
         return;
     }
 
-    console.log('⬇️ Downloading Planetiler (this will take a minute)...');
+    console.log(`⬇️ Downloading ${label} (this may take a few minutes)...`);
     return new Promise((resolve, reject) => {
-        const file = fs.createWriteStream(PLANETILER_JAR);
-        
-        // Handle redirect since github releases use redirects
-        const request = (url) => {
-            https.get(url, (response) => {
+        const file = fs.createWriteStream(destPath);
+        const request = (currentUrl) => {
+            https.get(currentUrl, (response) => {
                 if (response.statusCode === 301 || response.statusCode === 302) {
                     return request(response.headers.location);
                 }
-                
+                if (response.statusCode !== 200) {
+                    return reject(new Error(`Failed to download: ${response.statusCode}`));
+                }
                 response.pipe(file);
                 file.on('finish', () => {
                     file.close(resolve);
                 });
             }).on('error', (err) => {
-                fs.unlink(PLANETILER_JAR, () => {});
+                fs.unlink(destPath, () => {});
                 reject(err);
             });
         };
-        request(PLANETILER_URL);
+        request(url);
     });
 }
 
-async function runPlanetiler() {
-    console.log('🚀 Starting Planetiler to generate your offline map...');
-    console.log(`📂 Input: ${pbfFile}`);
-    console.log(`💾 Output: ${OUTPUT_MBTILES}`);
-    
+async function runPlanetiler(pbfFile) {
+    console.log('\n🚀 Starting Planetiler to generate your offline map...');
+    console.log(`📂 Input:  ${pbfFile}`);
+    console.log(`💾 Output: ${OUTPUT_MBTILES}\n`);
+
+    if (!fs.existsSync(MAPS_DIR)) {
+        fs.mkdirSync(MAPS_DIR, { recursive: true });
+    }
+
+    // Ensure output is clean
+    if (fs.existsSync(OUTPUT_MBTILES)) {
+        fs.unlinkSync(OUTPUT_MBTILES);
+    }
+
     return new Promise((resolve, reject) => {
-        // Use the Android Studio Java executable since it's guaranteed to be there for React Native Windows users
+        // Attempt to find Java
         const javaExe = fs.existsSync('C:\\Program Files\\Android\\Android Studio\\jbr\\bin\\java.exe') 
             ? 'C:\\Program Files\\Android\\Android Studio\\jbr\\bin\\java.exe' 
             : 'java';
 
-        const javaProcess = spawn(javaExe, [
-            '-Xmx4g', // Give it 4GB of RAM to process fast
-            '-jar',
-            PLANETILER_JAR,
-            '--download', // Tell Planetiler to download missing resources (water polygons, etc.)
+        const args = [
+            '-Xmx4g', // Recommended RAM
+            '-jar', PLANETILER_JAR,
+            '--download', // Downloads required water/boundary files
             `--osm-path=${pbfFile}`,
-            `--output=${OUTPUT_MBTILES}`
-        ], {
-            stdio: 'inherit' // Show output in terminal
-        });
+            `--output=${OUTPUT_MBTILES}`,
+            '--force'
+        ];
+
+        const javaProcess = spawn(javaExe, args, { stdio: 'inherit' });
 
         javaProcess.on('close', (code) => {
             if (code === 0) {
                 console.log('\n✨ SUCCESS! Your offline map has been created!');
-                console.log(`It is safely stored at: ${OUTPUT_MBTILES}`);
+                console.log(`📍 Location: ${OUTPUT_MBTILES}`);
+                console.log('\nNext steps:');
+                console.log('1. Run: npm run link-assets');
+                console.log('2. Rebuild your app.');
                 resolve();
             } else {
                 console.error(`\n❌ Planetiler process failed with code ${code}`);
@@ -94,11 +97,25 @@ async function runPlanetiler() {
 }
 
 async function main() {
+    const inputArg = process.argv[2];
+    const pbfFile = inputArg || DEFAULT_PBF;
+
     try {
-        await downloadPlanetiler();
-        await runPlanetiler();
+        await downloadFile(PLANETILER_URL, PLANETILER_JAR, 'Planetiler Tool');
+        
+        // Only download OSM data if no custom path was provided
+        if (!inputArg && !fs.existsSync(DEFAULT_PBF)) {
+            await downloadFile(OSM_EXTRACT_URL, DEFAULT_PBF, 'Philippines OSM Extract');
+        }
+
+        if (!fs.existsSync(pbfFile)) {
+            throw new Error(`Could not find OSM PBF file at: ${pbfFile}`);
+        }
+
+        await runPlanetiler(pbfFile);
     } catch (err) {
-        console.error('An error occurred:', err);
+        console.error('\n❌ An error occurred:', err.message);
+        process.exit(1);
     }
 }
 
