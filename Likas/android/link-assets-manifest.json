@@ -48,6 +48,22 @@
     {
       "path": "assets/fonts/Sora-Thin.ttf",
       "sha1": "ef1bbd232020073a8351b3151515c121c61622db"
+    },
+    {
+      "path": "assets/maps/metro-manila.mbtiles",
+      "sha1": "d0a0b5d3f830f1adf5356812f3b66fd3bbd00001"
+    },
+    {
+      "path": "assets/maps/osm-2020-02-10-v3.11_asia_philippines.mbtiles",
+      "sha1": "e1c5f3b9c7951708eb84910493b9da7727214e31"
+    },
+    {
+      "path": "assets/maps/README.md",
+      "sha1": "3de570af8b36ed39ac37e0d586a1880a5c8c56f6"
+    },
+    {
+      "path": "assets/maps/style.json",
+      "sha1": "312409594ec9f9652c8822d097a4a632920493c0"
     }
   ]
 }

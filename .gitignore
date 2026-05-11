@@ -36,6 +36,14 @@ Thumbs.db
 .env.test.local
 .env.production.local
 
+# Generated native assets (use npm run prepare-assets to regenerate)
+Likas/android/app/src/main/assets/custom/
+Likas/android/app/src/main/assets/fonts/
+Likas/android/app/src/main/assets/glyphs/
+
+# Source Assets (Summoned via script to prevent Git bloat)
+Likas/assets/glyphs/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
