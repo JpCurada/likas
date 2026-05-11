@@ -7,7 +7,7 @@ import RNFS from 'react-native-fs';
  * @returns The absolute `mbtiles://` URI for MapLibre
  */
 export const prepareOfflineMap = async (): Promise<string> => {
-  const fileName = 'osm-2020-02-10-v3.11_asia_philippines.mbtiles';
+  const fileName = 'philippines-extract.mbtiles';
   const destPath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
 
   try {
