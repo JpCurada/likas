@@ -25,9 +25,6 @@ export type TooltipData = {
   hazard?: string;
   operator?: string;
   emergency?: string;
-  contactNumber?: string;
-  hasPower?: boolean;
-  hasWater?: boolean;
   pointType: 'evacuation' | 'hospital' | 'gymnasium' | 'school' | 'multi_purpose';
   /** Decimal degrees — passed through from GeoJSON coordinates */
   latitude?: number;
@@ -290,29 +287,6 @@ export const MapTooltip: React.FC<Props> = ({ data, onClose }) => {
               iconName="alarm-light-outline"
               label="Emergency Services"
               value={formatType(snapshot.emergency)}
-            />
-          )}
-          {!!snapshot.contactNumber && (
-            <InfoRow
-              iconName="phone-outline"
-              label="Contact Number"
-              value={snapshot.contactNumber}
-            />
-          )}
-          {snapshot.hasPower !== undefined && (
-            <InfoRow
-              iconName={snapshot.hasPower ? 'lightning-bolt' : 'lightning-bolt-outline'}
-              label="Power Availability"
-              value={snapshot.hasPower ? 'Available' : 'Unavailable'}
-              accent={snapshot.hasPower ? '#FFC107' : COLORS.gray}
-            />
-          )}
-          {snapshot.hasWater !== undefined && (
-            <InfoRow
-              iconName={snapshot.hasWater ? 'water' : 'water-outline'}
-              label="Water Availability"
-              value={snapshot.hasWater ? 'Available' : 'Unavailable'}
-              accent={snapshot.hasWater ? '#2196F3' : COLORS.gray}
             />
           )}
         </ScrollView>

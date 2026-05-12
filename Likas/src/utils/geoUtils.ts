@@ -22,11 +22,6 @@ const buildAddress = (addr: any): string => {
 
 // ─── GeoJSON builders ─────────────────────────────────────────────────────────
 
-// ─── Mock Data Generators ──────────────────────────────────────────────────────
-
-const mockContactNumber = () => `09${Math.floor(Math.random() * 900000000 + 100000000)}`;
-const mockBoolean = (probability = 0.5) => Math.random() > probability;
-
 export const getEvacuationGeoJSON = () => {
   const features = (evacuationData as any[])
     .filter(item => item.lat && item.lon)
@@ -47,9 +42,6 @@ export const getEvacuationGeoJSON = () => {
         hazard: item.extratags?.['emergency:hazard_type'] || '',
         operator: item.extratags?.operator || '',
         pointType: 'evacuation',
-        contactNumber: mockContactNumber(),
-        hasPower: mockBoolean(0.2), // 80% chance of power
-        hasWater: mockBoolean(0.3), // 70% chance of water
       },
     }));
 
@@ -76,9 +68,6 @@ export const getHospitalGeoJSON = () => {
         operator: item.extratags?.operator || item.extratags?.['operator:type'] || '',
         emergency: item.extratags?.emergency || '',
         pointType: 'hospital',
-        contactNumber: mockContactNumber(),
-        hasPower: mockBoolean(0.05), // 95% chance of power
-        hasWater: mockBoolean(0.1), // 90% chance of water
       },
     }));
 
@@ -104,9 +93,6 @@ export const getGymnasiumGeoJSON = () => {
         city: item.address?.city || item.address?.town || item.address?.village || '',
         facility: item.extratags?.['emergency:social_facility'] || '',
         pointType: 'gymnasium',
-        contactNumber: mockContactNumber(),
-        hasPower: mockBoolean(0.4),
-        hasWater: mockBoolean(0.5),
       },
     }));
 
@@ -132,9 +118,6 @@ export const getSchoolGeoJSON = () => {
         city: item.address?.city || item.address?.town || item.address?.village || '',
         facility: item.extratags?.['emergency:social_facility'] || '',
         pointType: 'school',
-        contactNumber: mockContactNumber(),
-        hasPower: mockBoolean(0.3),
-        hasWater: mockBoolean(0.4),
       },
     }));
 
@@ -160,9 +143,6 @@ export const getMultiPurposeGeoJSON = () => {
         city: item.address?.city || item.address?.town || item.address?.village || '',
         facility: item.extratags?.['emergency:social_facility'] || '',
         pointType: 'multipurpose',
-        contactNumber: mockContactNumber(),
-        hasPower: mockBoolean(0.4),
-        hasWater: mockBoolean(0.5),
       },
     }));
 
@@ -188,9 +168,6 @@ export const getCoveredCourtGeoJSON = () => {
         city: item.address?.city || item.address?.town || item.address?.village || '',
         facility: item.extratags?.['emergency:social_facility'] || '',
         pointType: 'covered_court',
-        contactNumber: mockContactNumber(),
-        hasPower: mockBoolean(0.5),
-        hasWater: mockBoolean(0.6),
       },
     }));
 
