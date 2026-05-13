@@ -1,45 +1,75 @@
 export type DisasterContext = 'earthquake' | 'typhoon' | 'volcano' | 'prep';
 
-export type AgeGroup = 'adult' | 'senior' | 'minor';
+export type AgeGroup = 'Under 18' | '18-35' | '36-55' | '56+' | '';
 
 export type LatLng = {
   latitude: number;
   longitude: number;
 };
 
-export type Dependents = {
+export type Companion = {
   infants: number;
   children: number;
   elderly: number;
   pwd: number;
+};
+
+export type PetSize = 'Small' | 'Medium' | 'Large';
+
+export type PetEntry = {
+  count: number;
+  size: PetSize;
+};
+
+export type Pet = {
   hasPets: boolean;
-  petDetails: string;
+  dogs: PetEntry;
+  cats: PetEntry;
+  birds: PetEntry;
+  rabbits: PetEntry;
+  reptiles: PetEntry;
+  others: PetEntry;
 };
 
-export type MeetingPoints = {
-  primary: string;
-  secondary: string;
+export type MedicalCondition = {
+  asthma: boolean;
+  diabetes: boolean;
+  heartCondition: boolean;
+  hypertension: boolean;
+  epilepsy: boolean;
+  kidneydisease: boolean;
+  none: boolean;
+  other: string;
 };
 
-export type LocationPreference = {
+export type MeetingPoint = {
+  landmark: string;
+  streetAddress: string;
+  notes: string;
+};
+
+export type UserLocation = {
   city: string;
   barangay: string;
+  streetAddress: string;
   coordinates: LatLng;
+  primaryMeeting: MeetingPoint;
+  secondaryMeeting: MeetingPoint;
 };
 
 export type EmergencyContact = {
-  id: string;
   name: string;
   phone: string;
+  relationship: string;
 };
 
 export type UserProfile = {
   name: string;
   ageGroup: AgeGroup;
-  dependents: Dependents;
-  healthConditions: string[];
-  location: LocationPreference;
-  meetingPoints: MeetingPoints;
+  companions: Companion;
+  pets: Pet;
+  medicalConditions: MedicalCondition;
+  location: UserLocation;
   emergencyContacts: EmergencyContact[];
 };
 
@@ -67,10 +97,20 @@ export type EvacuationRanking = {
   warnings: string[];
 };
 
+export type ChatMessageAttachment = {
+  kind: 'route';
+  destinationName: string;
+  destination: LatLng;
+  distanceMeters: number;
+  durationMinutesWalking: number;
+  polyline: LatLng[];
+};
+
 export type ChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   text: string;
+  attachment?: ChatMessageAttachment;
 };
 
 export type PrepChecklistItem = {

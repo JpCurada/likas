@@ -12,6 +12,8 @@ ios/.xcode.env.local
 # Models and large assets (placeholders)
 *.litertlm
 *.bin
+*.gguf
+*.mbtiles
 data/
 planetiler.jar
 *.osm.pbf

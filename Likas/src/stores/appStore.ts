@@ -1,32 +1,66 @@
 import {create} from 'zustand';
 import {defaultCoordinates} from '../data/seedData';
-import type {ChatMessage, DisasterContext, UserProfile} from '../types';
+import type {
+  ChatMessage,
+  DisasterContext,
+  LatLng,
+  MeetingPoint,
+  PetEntry,
+  UserProfile,
+} from '../types';
+
+export type ActiveRoute = {
+  destinationName: string;
+  destination: LatLng;
+  polyline: LatLng[];
+  distanceMeters: number;
+  durationMinutesWalking: number;
+};
+
+// Mirrors DEFAULT_PROFILE in src/database/storage.ts. Kept local here so
+// importing this store in test environments doesn't pull AsyncStorage in.
+const EMPTY_PET: PetEntry = {count: 0, size: 'Medium'};
+const EMPTY_MEETING: MeetingPoint = {
+  landmark: '',
+  streetAddress: '',
+  notes: '',
+};
 
 export const defaultProfile: UserProfile = {
   name: '',
-  ageGroup: 'adult',
-  dependents: {
-    infants: 0,
-    children: 0,
-    elderly: 0,
-    pwd: 0,
+  ageGroup: '',
+  companions: {infants: 0, children: 0, elderly: 0, pwd: 0},
+  pets: {
     hasPets: false,
-    petDetails: '',
+    dogs: {...EMPTY_PET},
+    cats: {...EMPTY_PET},
+    birds: {...EMPTY_PET},
+    rabbits: {...EMPTY_PET},
+    reptiles: {...EMPTY_PET},
+    others: {...EMPTY_PET},
   },
-  healthConditions: [],
+  medicalConditions: {
+    asthma: false,
+    diabetes: false,
+    heartCondition: false,
+    hypertension: false,
+    epilepsy: false,
+    kidneydisease: false,
+    none: false,
+    other: '',
+  },
   location: {
-    city: 'Manila',
-    barangay: 'Ermita',
+    city: '',
+    barangay: '',
+    streetAddress: '',
     coordinates: defaultCoordinates,
-  },
-  meetingPoints: {
-    primary: '',
-    secondary: '',
+    primaryMeeting: {...EMPTY_MEETING},
+    secondaryMeeting: {...EMPTY_MEETING},
   },
   emergencyContacts: [
-    {id: 'primary', name: '', phone: ''},
-    {id: 'secondary', name: '', phone: ''},
-    {id: 'backup', name: '', phone: ''},
+    {name: '', phone: '', relationship: ''},
+    {name: '', phone: '', relationship: ''},
+    {name: '', phone: '', relationship: ''},
   ],
 };
 
@@ -36,11 +70,13 @@ type AppState = {
   hasCompletedOnboarding: boolean;
   packedItems: Record<string, boolean>;
   chatMessages: ChatMessage[];
+  activeRoute: ActiveRoute | null;
   setActiveContext: (context: DisasterContext) => void;
   updateProfile: (profile: UserProfile) => void;
   completeOnboarding: () => void;
   togglePackedItem: (itemId: string) => void;
   addChatMessage: (message: ChatMessage) => void;
+  setActiveRoute: (route: ActiveRoute | null) => void;
 };
 
 export const useAppStore = create<AppState>(set => ({
@@ -67,4 +103,6 @@ export const useAppStore = create<AppState>(set => ({
     })),
   addChatMessage: message =>
     set(state => ({chatMessages: [...state.chatMessages, message]})),
+  activeRoute: null,
+  setActiveRoute: route => set({activeRoute: route}),
 }));

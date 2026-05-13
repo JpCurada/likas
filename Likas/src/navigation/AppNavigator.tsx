@@ -12,9 +12,11 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 import { COLORS, FONTS } from '../theme';
 import { Icon } from '../components/Icon';
-import { isOnboardingComplete } from '../database/storage';
+import { isOnboardingComplete, isSetupComplete, loadProfile } from '../database/storage';
+import { useAppStore } from '../stores/appStore';
 
 import { OnboardingScreen } from '../screens/OnboardingScreen';
+import { SetupScreen } from '../screens/SetupScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { ChatScreen } from '../screens/ChatScreen';
 import { PrepScreen } from '../screens/PrepScreen';
@@ -23,6 +25,7 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 
 export type RootStackParamList = {
   Onboarding: undefined;
+  Setup: undefined;
   Main: undefined;
 };
 
@@ -123,13 +126,26 @@ function MainTabs() {
 
 export const AppNavigator: React.FC = () => {
   const [initialRoute, setInitialRoute] = useState<
-    'Onboarding' | 'Main' | null
+    'Onboarding' | 'Setup' | 'Main' | null
   >(null);
 
   useEffect(() => {
-    isOnboardingComplete().then(done =>
-      setInitialRoute(done ? 'Main' : 'Onboarding'),
-    );
+    (async () => {
+      // Hydrate Zustand from AsyncStorage so the AI and routing see the
+      // canonical profile captured during onboarding, not just defaults.
+      const persisted = await loadProfile();
+      if (persisted) {
+        useAppStore.getState().updateProfile(persisted);
+      }
+
+      const onboardingDone = await isOnboardingComplete();
+      if (!onboardingDone) {
+        setInitialRoute('Onboarding');
+        return;
+      }
+      const setupDone = await isSetupComplete();
+      setInitialRoute(setupDone ? 'Main' : 'Setup');
+    })();
   }, []);
 
   if (!initialRoute) {
@@ -164,6 +180,7 @@ export const AppNavigator: React.FC = () => {
         screenOptions={{ headerShown: false, animation: 'fade' }}
       >
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+        <Stack.Screen name="Setup" component={SetupScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>
