@@ -18,7 +18,6 @@ import { useAppStore } from '../stores/appStore';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { SetupScreen } from '../screens/SetupScreen';
 import { HomeScreen } from '../screens/HomeScreen';
-import { ChatScreen } from '../screens/ChatScreen';
 import { PrepScreen } from '../screens/PrepScreen';
 import { MapScreen } from '../screens/MapScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
@@ -31,7 +30,6 @@ export type RootStackParamList = {
 
 export type TabParamList = {
   Home: undefined;
-  Chat: undefined;
   Prep: undefined;
   Map: undefined;
   Profile: undefined;
@@ -42,7 +40,6 @@ const Tab = createBottomTabNavigator<TabParamList>();
 
 const TAB_CONFIG: Record<string, { icon: string; label: string }> = {
   Home: { icon: 'home', label: 'Home' },
-  Chat: { icon: 'robot', label: 'Guide' },
   Prep: { icon: 'bag-personal', label: 'Prep' },
   Map: { icon: 'map', label: 'Map' },
   Profile: { icon: 'account', label: 'Profile' },
@@ -116,7 +113,6 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Chat" component={ChatScreen} />
       <Tab.Screen name="Prep" component={PrepScreen} />
       <Tab.Screen name="Map" component={MapScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />

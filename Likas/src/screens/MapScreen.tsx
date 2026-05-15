@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
-import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity, Modal, PermissionsAndroid, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Map, Camera, GeoJSONSource, Layer, Images } from '@maplibre/maplibre-react-native';
+import { Map, Camera, GeoJSONSource, Layer, Images, UserLocation } from '@maplibre/maplibre-react-native';
 import type { CameraRef } from '@maplibre/maplibre-react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS } from '../theme';
@@ -11,6 +11,8 @@ import { MapTooltip, TooltipData } from '../components/MapTooltip';
 import { AssetMissingPrompt } from '../components/AssetMissingPrompt';
 import { useAppStore } from '../stores/appStore';
 import activeFaultsGeoJSON from '../data/gem_active_faults_harmonized.json';
+import { ChatScreen } from './ChatScreen';
+import { Icon } from '../components/Icon';
 
 // Metro Manila center
 const INITIAL_COORDINATES = [121.0509, 14.5823];
@@ -59,10 +61,20 @@ export const MapScreen: React.FC = () => {
   const [baseStyle, setBaseStyle] = useState<any>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('2D');
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+  const [isChatVisible, setIsChatVisible] = useState(false);
 
   const [assetMissing, setAssetMissing] = useState(false);
   const activeRoute = useAppStore(s => s.activeRoute);
   const setActiveRoute = useAppStore(s => s.setActiveRoute);
+
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+      ]).catch(console.warn);
+    }
+  }, []);
 
   const routeGeoJSON = useMemo(() => {
     if (!activeRoute || activeRoute.polyline.length < 2) return null;
@@ -364,6 +376,7 @@ export const MapScreen: React.FC = () => {
           onPress={handleMapPress}
         >
           <Images images={icons} />
+          <UserLocation />
           <Camera
             ref={cameraRef}
             initialViewState={{
@@ -495,6 +508,25 @@ export const MapScreen: React.FC = () => {
 
         {/* Tooltip bottom sheet — always mounted so exit animation plays */}
         <MapTooltip data={tooltip} onClose={handleCloseTooltip} />
+
+        {/* AI Chat FAB */}
+        <TouchableOpacity
+          style={styles.fabAi}
+          onPress={() => setIsChatVisible(true)}
+          activeOpacity={0.8}
+        >
+          <Icon name="robot" size={28} color={COLORS.white} />
+        </TouchableOpacity>
+
+        {/* AI Chat Modal */}
+        <Modal
+          visible={isChatVisible}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setIsChatVisible(false)}
+        >
+          <ChatScreen onClose={() => setIsChatVisible(false)} />
+        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -586,6 +618,22 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '700',
     fontSize: 12,
+  },
+  fabAi: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.primaryGreen,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
   },
 });
 

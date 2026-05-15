@@ -84,7 +84,7 @@ const ToolTraceList: React.FC<{trace: ToolTraceEntry[]}> = ({trace}) => (
   </View>
 );
 
-export const ChatScreen: React.FC = () => {
+export const ChatScreen: React.FC<{onClose?: () => void}> = ({onClose}) => {
   const navigation = useNavigation<any>();
   const activeContext = useAppStore(s => s.activeContext);
   const chatMessages = useAppStore(s => s.chatMessages);
@@ -210,14 +210,23 @@ export const ChatScreen: React.FC = () => {
         distanceMeters: a.distanceMeters,
         durationMinutesWalking: a.durationMinutesWalking,
       });
-      navigation.navigate('Main', {screen: 'Map'});
+      if (onClose) {
+        onClose();
+      } else {
+        navigation.navigate('Main', {screen: 'Map'});
+      }
     },
-    [navigation, setActiveRoute],
+    [navigation, setActiveRoute, onClose],
   );
 
   if (!isReady && !isInitializing) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
+        {onClose && (
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <Icon name="close" size={24} color={COLORS.darkGreen} />
+          </TouchableOpacity>
+        )}
         <AssetMissingPrompt
           iconName="robot-outline"
           title="AI assistant not installed"
@@ -279,6 +288,11 @@ export const ChatScreen: React.FC = () => {
           {isInitializing ? (
             <ActivityIndicator size="small" color={COLORS.primaryGreen} />
           ) : null}
+          {onClose && (
+            <TouchableOpacity onPress={onClose} style={styles.closeBtnHeader}>
+              <Icon name="close" size={24} color={COLORS.darkGreen} />
+            </TouchableOpacity>
+          )}
         </View>
 
         <FlatList
@@ -378,6 +392,16 @@ const styles = StyleSheet.create({
     fontSize: SIZES.body,
     color: COLORS.darkGreen,
     flex: 1,
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    zIndex: 10,
+    padding: 8,
+  },
+  closeBtnHeader: {
+    padding: 4,
   },
   list: {
     padding: SIZES.padding,
