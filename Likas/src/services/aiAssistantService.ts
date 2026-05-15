@@ -17,7 +17,7 @@ const BATTERY_FLOOR = 0.15;
 const DEFAULT_CONTEXT_SIZE = 4096;
 const MAX_TOOL_CALLS_PER_TURN = 3;
 const SAMPLING = {
-  temperature: 0.15,
+  temperature: 0.4,
   top_p: 0.85,
   top_k: 40,
   repeat_penalty: 1.1,
@@ -205,7 +205,8 @@ const ensureContext = async (): Promise<LlamaContext | null> => {
     try {
       const ctx = await initLlama({
         model: modelPath,
-        n_ctx: DEFAULT_CONTEXT_SIZE,
+        n_ctx: 2048,
+        n_threads: 4,
         n_gpu_layers: 99,
       });
       llamaContext = ctx;
@@ -459,6 +460,7 @@ export const aiAssistantService = {
     const toolContext = {profile: params.profile, activeContext: params.context};
 
     for (let turn = 0; turn <= MAX_TOOL_CALLS_PER_TURN; turn++) {
+      console.log(`[AI] Starting turn ${turn}...`);
       let raw = '';
       const streamQueue: string[] = [];
       let streamDone = false;
@@ -473,6 +475,7 @@ export const aiAssistantService = {
         }
       });
 
+      console.log('[AI] Starting completion...');
       const completionPromise = ctx
         .completion(
           {
@@ -493,12 +496,14 @@ export const aiAssistantService = {
           tok => {
             if (tok?.token) {
               raw += tok.token;
+              console.log(`[AI] Token: ${JSON.stringify(tok.token)}`);
               streamer.push(tok.token);
             }
           },
         )
         .then(result => {
           raw = (result as any)?.text ?? raw;
+          console.log(`[AI] Completion finished. Raw output length: ${raw.length}`);
         })
         .catch(err => {
           console.warn('[aiAssistantService] completion error:', err);
@@ -528,7 +533,9 @@ export const aiAssistantService = {
       }
       await completionPromise;
 
+      console.log(`[AI] Parsing action from raw: ${raw}`);
       const action = parseAction(raw);
+      console.log(`[AI] Parsed action kind: ${action.kind}`);
       if (action.kind === 'speak') {
         // Text already streamed via the token callback. Emit any trailing
         // characters the streamer missed (cheap idempotency guard).
@@ -538,6 +545,7 @@ export const aiAssistantService = {
       }
       if (action.kind === 'invalid') {
         // Grammar should make this impossible, but guard anyway.
+        console.warn('[AI] Invalid action kind, raw:', raw);
         yield raw || fallbackResponse(params);
         return;
       }
