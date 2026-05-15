@@ -388,6 +388,8 @@ const extractJsonObject = (raw: string): string | null => {
   return null;
 };
 
+const KNOWN_TOOL_NAMES = new Set(TOOL_REGISTRY.map(t => t.name));
+
 const parseAction = (raw: string): ParsedAction => {
   const json = extractJsonObject(raw) ?? raw.trim();
   try {
@@ -396,6 +398,18 @@ const parseAction = (raw: string): ParsedAction => {
       return {kind: 'speak', text: obj.text};
     }
     if (obj?.action === 'tool' && typeof obj.name === 'string') {
+      return {kind: 'tool', name: obj.name, args: obj.args ?? {}};
+    }
+    // Tolerate the common malformed shape: {"action":"<tool_name>", "name":"<tool_name>", "args":{}}
+    if (
+      typeof obj?.action === 'string' &&
+      typeof obj?.name === 'string' &&
+      obj.action === obj.name &&
+      KNOWN_TOOL_NAMES.has(obj.name)
+    ) {
+      return {kind: 'tool', name: obj.name, args: obj.args ?? {}};
+    }
+    if (typeof obj?.name === 'string' && KNOWN_TOOL_NAMES.has(obj.name)) {
       return {kind: 'tool', name: obj.name, args: obj.args ?? {}};
     }
     return {kind: 'invalid', raw};
@@ -445,7 +459,11 @@ export const aiAssistantService = {
     const trivialGreeting =
       /^(hi+|hello+|hey+|yo|kumusta|kamusta|good\s+(morning|evening|afternoon|day)|magandang\s+(umaga|hapon|gabi)|salamat|thanks|thank\s+you)[!.\s]*$/i;
     if (trivialGreeting.test(params.userMessage.trim())) {
-      const name = params.profile.name ? `, ${params.profile.name}` : '';
+      const rawName = params.profile.name?.trim() ?? '';
+      const displayName = rawName
+        ? rawName.charAt(0).toUpperCase() + rawName.slice(1)
+        : '';
+      const name = displayName ? `, ${displayName}` : '';
       yield `Hello${name}. I'm LIKAS, your offline disaster companion. Ask me about evacuation, first aid, typhoons, earthquakes, or volcanoes.`;
       return;
     }
@@ -475,7 +493,19 @@ export const aiAssistantService = {
         }
       });
 
-      console.log('[AI] Starting completion...');
+      const grammarStr = grammar();
+      console.log('[AI] Starting completion. Grammar length:', grammarStr.length);
+      console.log('[AI] Grammar head:', grammarStr.slice(0, 300));
+      try {
+        const formatted = await (ctx as any).getFormattedChat(messages, undefined, {
+          jinja: true,
+          enable_thinking: false,
+          reasoning_format: 'none',
+        });
+        console.log('[AI] Formatted chat type:', formatted?.type, '| prompt head:', String(formatted?.prompt ?? '').slice(0, 200));
+      } catch (e) {
+        console.warn('[AI] getFormattedChat probe failed:', e);
+      }
       const completionPromise = ctx
         .completion(
           {
@@ -484,7 +514,7 @@ export const aiAssistantService = {
             enable_thinking: false,
             reasoning_format: 'none',
             ...SAMPLING,
-            grammar: grammar(),
+            grammar: grammarStr,
             stop: [
               '<end_of_turn>',
               '<|eot_id|>',
@@ -544,9 +574,9 @@ export const aiAssistantService = {
         return;
       }
       if (action.kind === 'invalid') {
-        // Grammar should make this impossible, but guard anyway.
-        console.warn('[AI] Invalid action kind, raw:', raw);
-        yield raw || fallbackResponse(params);
+        // Grammar should make this impossible, but guard anyway. Never leak raw JSON to the UI.
+        console.warn('[AI] Invalid action from model. Raw head:', raw.slice(0, 300));
+        yield fallbackResponse(params);
         return;
       }
 
