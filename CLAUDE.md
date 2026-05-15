@@ -55,7 +55,7 @@ MBTiles are accessed at runtime via the `mbtiles://` scheme; `mapAssetManager.pr
 
 - **UI** — React Native screens under `src/screens/` (Onboarding, Home, Chat, Prep, Map, Profile), bottom-tab + stack navigator in `src/navigation/AppNavigator.tsx`. Onboarding gate routes to `Main` only after `isOnboardingComplete()` resolves true.
 - **State** — Zustand store at `src/stores/appStore.ts` (active disaster context, profile, packed-item checklist, chat messages). Note: the in-memory `UserProfile` shape in `appStore.ts` is older/simpler than the persisted `UserProfile` in `src/database/storage.ts` — the latter is canonical for onboarding flows.
-- **Services** — `src/services/` houses domain logic (`aiAssistantService`, `evacuationService`, `emergencyService`). These are the contracts that will eventually wrap the JSI LiteRT-LM module; today they are mostly typed stubs/mocks.
+- **Services** — `src/services/` houses domain logic (`aiAssistantService`, `aiTools`, `aiGrammar`, `assetManager`, `evacuationService`, `routingService`, `sttService`, `emergencyService`). `aiAssistantService` is the real `llama.rn`-backed implementation that owns a singleton `LlamaContext`, builds a GBNF grammar from `TOOL_REGISTRY`, and runs a tool-dispatch loop (max 3 tool turns per query). `routingService` is currently a stub awaiting the pedestrian graph asset; `emergencyService` is also stubbed.
 - **Persistence** — Currently **AsyncStorage** (`src/database/storage.ts`) for profile, onboarding flag, and prep checklist. The design doc specifies SQLite + R-tree as the target; treat that as planned, not implemented.
 - **Data** — Static GeoJSON for POIs (evacuation centers, hospitals, schools, gyms, multi-purpose halls, covered courts) lives under `src/data/scraped/`. Loaded synchronously via `src/utils/geoUtils.ts`.
 
@@ -84,10 +84,12 @@ Treat these as hard constraints when proposing changes:
 
 When reading [docs/design.md](docs/design.md), keep in mind it describes the **target** architecture. Current implementation reality:
 
-- On-device LLM: **not yet integrated** (services are stubs). Plan switched from LiteRT-LM JSI to `llama.rn` + Gemma 4 E2B GGUF — see [docs/roadmap_ai.md](docs/roadmap_ai.md).
+- On-device LLM: **implemented** via `llama.rn` + Gemma 4 E2B Q4_K_XL GGUF. Output is constrained by a GBNF grammar (`aiGrammar.ts`) over a JSON envelope; the dispatch loop in `aiAssistantService.query()` invokes tools from `aiTools.ts` (`get_protocol`, `route_to_nearest_evacuation`, `find_nearby`, `get_user_profile`) and surfaces events to the UI for the tool-call trail. Greetings are short-circuited to a canned response. Fallback responder fires on battery-low, missing-model, or unparseable output.
+- Asset Manager + first-run Setup screen: **implemented**. Downloads MBTiles and the Gemma 4 GGUF from manifest URLs; verifies SHA-256.
 - SQLite + R-tree: **not yet integrated** (AsyncStorage is in use).
 - MapLibre + offline MBTiles + 2D/3D + Metro Manila POIs: **implemented**.
 - Onboarding (5-step flow), Profile screen, prep checklist persistence: **implemented**.
-- Routing graph, fault-line overlay, ashfall overlay, SMS SOS: **not yet implemented**.
+- STT via `whisper.rn`: **implemented**.
+- Routing graph asset, fault-line overlay, ashfall overlay, SMS SOS: **not yet implemented**.
 
 See [docs/roadmap_maps.md](docs/roadmap_maps.md) and the status checklist in [GEMINI.md](GEMINI.md) for the up-to-date state.
