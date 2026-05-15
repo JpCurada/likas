@@ -1,25 +1,19 @@
 import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
 import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Map, Camera, GeoJSONSource, Layer } from '@maplibre/maplibre-react-native';
+import { Map, Camera, GeoJSONSource, Layer, Images } from '@maplibre/maplibre-react-native';
 import type { CameraRef } from '@maplibre/maplibre-react-native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS } from '../theme';
 import { getEvacuationGeoJSON, getHospitalGeoJSON, getGymnasiumGeoJSON, getSchoolGeoJSON, getMultiPurposeGeoJSON, getCoveredCourtGeoJSON } from '../utils/geoUtils';
 import { prepareOfflineMap, prepareGlyphs, MapAssetMissingError } from '../utils/mapAssetManager';
 import { MapTooltip, TooltipData } from '../components/MapTooltip';
 import { AssetMissingPrompt } from '../components/AssetMissingPrompt';
 import { useAppStore } from '../stores/appStore';
+import activeFaultsGeoJSON from '../data/gem_active_faults_harmonized.json';
 
 // Metro Manila center
 const INITIAL_COORDINATES = [121.0509, 14.5823];
-
-// Metro Manila approximate bounding box
-const METRO_MANILA_BOUNDS = {
-  minLon: 120.85,
-  maxLon: 121.30,
-  minLat: 14.25,
-  maxLat: 14.90,
-};
 
 // Bundled offline style base
 const baseOfflineStyle = require('../../assets/maps/style.json');
@@ -51,12 +45,21 @@ const buildStyle = (base: any, is3D: boolean): any => {
 
 type ViewMode = '2D' | '3D';
 
+const ICON_NAMES = {
+  evacuation: 'shield-home',
+  hospital: 'hospital-building',
+  gymnasium: 'basketball',
+  school: 'school',
+  multipurpose: 'office-building',
+};
+
 export const MapScreen: React.FC = () => {
   const cameraRef = useRef<CameraRef>(null);
   const [isMapReady, setIsMapReady] = useState(false);
   const [baseStyle, setBaseStyle] = useState<any>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('2D');
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+
   const [assetMissing, setAssetMissing] = useState(false);
   const activeRoute = useAppStore(s => s.activeRoute);
   const setActiveRoute = useAppStore(s => s.setActiveRoute);
@@ -77,6 +80,9 @@ export const MapScreen: React.FC = () => {
       ],
     };
   }, [activeRoute]);
+
+  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
+  const [icons, setIcons] = useState<any>({});
 
   const evacuationGeoJSON = useMemo(() => getEvacuationGeoJSON(), []);
   const hospitalGeoJSON = useMemo(() => getHospitalGeoJSON(), []);
@@ -118,7 +124,29 @@ export const MapScreen: React.FC = () => {
         console.error('Failed to initialize offline map:', error);
       }
     };
+
+    const loadIcons = async () => {
+      try {
+        const evacuationIcon = await MaterialCommunityIcons.getImageSource(ICON_NAMES.evacuation, 40, '#ffffff');
+        const hospitalIcon = await MaterialCommunityIcons.getImageSource(ICON_NAMES.hospital, 40, '#ffffff');
+        const gymnasiumIcon = await MaterialCommunityIcons.getImageSource(ICON_NAMES.gymnasium, 40, '#ffffff');
+        const schoolIcon = await MaterialCommunityIcons.getImageSource(ICON_NAMES.school, 40, '#ffffff');
+        const multipurposeIcon = await MaterialCommunityIcons.getImageSource(ICON_NAMES.multipurpose, 40, '#ffffff');
+        
+        setIcons({
+          evacuation: { source: evacuationIcon },
+          hospital: { source: hospitalIcon },
+          gymnasium: { source: gymnasiumIcon },
+          school: { source: schoolIcon },
+          multipurpose: { source: multipurposeIcon },
+        });
+      } catch (err) {
+        console.error('Failed to load icons', err);
+      }
+    };
+
     initializeMap();
+    loadIcons();
   }, []);
 
   useEffect(() => {
@@ -155,12 +183,15 @@ export const MapScreen: React.FC = () => {
   }, [viewMode]);
 
   const handleFeaturePress = useCallback((e: any) => {
-    // MapLibre RN v11 wraps events in NativeSyntheticEvent — data is in nativeEvent
     const feature = e?.nativeEvent?.features?.[0] ?? e?.features?.[0];
     if (!feature?.properties) return;
-    // Stop the event from bubbling up to <Map onPress> so it doesn't dismiss
     if (e.stopPropagation) e.stopPropagation();
-    // Extract lat/lon from the GeoJSON geometry so MapTooltip can open Maps
+
+    // Check if it's a cluster tap
+    if (feature.properties.cluster) {
+      return;
+    }
+
     const coords = feature?.geometry?.coordinates;
     const props = feature.properties as TooltipData;
     setTooltip({
@@ -168,17 +199,135 @@ export const MapScreen: React.FC = () => {
       longitude: coords?.[0] ?? undefined,
       latitude: coords?.[1] ?? undefined,
     });
+    setSelectedFeatureId(props.id || null);
   }, []);
 
-  // Map background tap: dismiss tooltip
-  // Safety: if features exist in the event (propagation wasn't stopped), don't dismiss
   const handleMapPress = useCallback((e: any) => {
     const features = e?.nativeEvent?.features ?? e?.features;
     if (features && features.length > 0) return;
     setTooltip(null);
+    setSelectedFeatureId(null);
   }, []);
 
-  const handleCloseTooltip = useCallback(() => setTooltip(null), []);
+  const handleCloseTooltip = useCallback(() => {
+    setTooltip(null);
+    setSelectedFeatureId(null);
+  }, []);
+
+  const renderPoiSource = (id: string, data: any, color: string, iconKey: string) => {
+    return (
+      <GeoJSONSource
+        id={id}
+        data={data as any}
+        cluster={true}
+        clusterRadius={40}
+        clusterMaxZoom={14}
+        onPress={handleFeaturePress}
+      >
+        {/* Cluster Layer */}
+        <Layer
+          id={`${id}-cluster`}
+          type="circle"
+          filter={['has', 'point_count']}
+          paint={{
+            'circle-color': color,
+            'circle-radius': ['step', ['get', 'point_count'], 16, 10, 22, 50, 28],
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#fff',
+          }}
+        />
+        <Layer
+          id={`${id}-cluster-count`}
+          type="symbol"
+          filter={['has', 'point_count']}
+          layout={{
+            'text-field': '{point_count_abbreviated}',
+            'text-font': OFFLINE_GLYPH_FONT_STACK,
+            'text-size': 14,
+            'text-allow-overlap': true,
+          }}
+          paint={{
+            'text-color': '#ffffff',
+          }}
+        />
+
+        {/* Unclustered Point Layer */}
+        <Layer
+          id={`${id}-glow`}
+          type="circle"
+          filter={['!', ['has', 'point_count']]}
+          paint={{
+            'circle-color': color,
+            'circle-radius': [
+              'case',
+              ['==', ['get', 'id'], selectedFeatureId || ''],
+              22,
+              16,
+            ],
+            'circle-opacity': [
+              'case',
+              ['==', ['get', 'id'], selectedFeatureId || ''],
+              0.3,
+              0.15,
+            ],
+            'circle-blur': 0.8,
+          }}
+        />
+        <Layer
+          id={`${id}-circles`}
+          type="circle"
+          filter={['!', ['has', 'point_count']]}
+          paint={{
+            'circle-color': color,
+            'circle-radius': [
+              'case',
+              ['==', ['get', 'id'], selectedFeatureId || ''],
+              14,
+              11,
+            ],
+            'circle-stroke-width': 2.5,
+            'circle-stroke-color': COLORS.white,
+          }}
+        />
+        <Layer
+          id={`${id}-icon`}
+          type="symbol"
+          filter={['!', ['has', 'point_count']]}
+          layout={{
+            'icon-image': iconKey,
+            'icon-size': [
+              'case',
+              ['==', ['get', 'id'], selectedFeatureId || ''],
+              0.6,
+              0.45,
+            ],
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+          }}
+        />
+        <Layer
+          id={`${id}-name`}
+          type="symbol"
+          minzoom={13.5}
+          filter={['!', ['has', 'point_count']]}
+          layout={{
+            'text-field': ['get', 'name'],
+            'text-font': OFFLINE_GLYPH_FONT_STACK,
+            'text-size': 12,
+            'text-anchor': 'left',
+            'text-offset': [1.6, 0],
+            'text-optional': true,
+          }}
+          paint={{
+            'text-color': '#111111',
+            'text-halo-color': '#ffffff',
+            'text-halo-width': 2.5,
+            'text-halo-blur': 0.5,
+          }}
+        />
+      </GeoJSONSource>
+    );
+  };
 
   if (assetMissing) {
     return (
@@ -214,6 +363,7 @@ export const MapScreen: React.FC = () => {
           attribution={false}
           onPress={handleMapPress}
         >
+          <Images images={icons} />
           <Camera
             ref={cameraRef}
             initialViewState={{
@@ -224,335 +374,56 @@ export const MapScreen: React.FC = () => {
             }}
           />
 
-          {/* Evacuation Centers (rendered after overlay = higher z) */}
-          <GeoJSONSource
-            id="evacuationSource"
-            data={evacuationGeoJSON as any}
-            onPress={handleFeaturePress}
-          >
-            {/* Outer glow ring */}
+          {/* Fault Lines */}
+          <GeoJSONSource id="faultLineSource" data={activeFaultsGeoJSON as any}>
             <Layer
-              id="evacuationGlow"
-              type="circle"
+              id="faultLineBuffer"
+              type="line"
               paint={{
-                'circle-color': COLORS.primaryGreen,
-                'circle-radius': 14,
-                'circle-opacity': 0.15,
-                'circle-blur': 0.8,
+                'line-color': COLORS.error,
+                'line-width': 12,
+                'line-opacity': 0.15,
               }}
             />
-            {/* Main badge body */}
             <Layer
-              id="evacuationCircles"
-              type="circle"
+              id="faultLineCore"
+              type="line"
               paint={{
-                'circle-color': COLORS.primaryGreen,
-                'circle-radius': 8,
-                'circle-stroke-width': 2.5,
-                'circle-stroke-color': COLORS.white,
+                'line-color': COLORS.error,
+                'line-width': 1.5,
               }}
             />
-            {/* Icon label */}
             <Layer
-              id="evacuationLabel"
+              id="faultLineLabel"
               type="symbol"
+              minzoom={10}
               layout={{
-                'text-field': '🛡️',
-                'text-font': OFFLINE_GLYPH_FONT_STACK,
-                'text-size': 10,
-                'text-anchor': 'center',
-                'text-allow-overlap': true,
-                'text-ignore-placement': true,
-              }}
-              paint={{
-                'text-color': '#ffffff',
-              }}
-            />
-            {/* Always-visible Name Tooltip */}
-            <Layer
-              id="evacuationNameTooltip"
-              type="symbol"
-              minzoom={13.5}
-              layout={{
+                'symbol-placement': 'line',
                 'text-field': ['get', 'name'],
                 'text-font': OFFLINE_GLYPH_FONT_STACK,
-                'text-size': 12,
-                'text-anchor': 'left',
-                'text-offset': [1.6, 0],
+                'text-size': 11,
+                'text-letter-spacing': 0.1,
+                'text-keep-upright': true,
+                'text-offset': [0, -1],
                 'text-optional': true,
               }}
               paint={{
-                'text-color': '#111111',
+                'text-color': COLORS.error,
                 'text-halo-color': '#ffffff',
-                'text-halo-width': 2.5,
+                'text-halo-width': 2,
                 'text-halo-blur': 0.5,
               }}
             />
           </GeoJSONSource>
 
-          {/* Hospitals (rendered last = highest z) */}
-          <GeoJSONSource
-            id="hospitalSource"
-            data={hospitalGeoJSON as any}
-            onPress={handleFeaturePress}
-          >
-            {/* Outer glow ring */}
-            <Layer
-              id="hospitalGlow"
-              type="circle"
-              paint={{
-                'circle-color': COLORS.error,
-                'circle-radius': 14,
-                'circle-opacity': 0.15,
-                'circle-blur': 0.8,
-              }}
-            />
-            {/* Main badge body */}
-            <Layer
-              id="hospitalCircles"
-              type="circle"
-              paint={{
-                'circle-color': COLORS.error,
-                'circle-radius': 8,
-                'circle-stroke-width': 2.5,
-                'circle-stroke-color': COLORS.white,
-              }}
-            />
-            {/* Icon label */}
-            <Layer
-              id="hospitalLabel"
-              type="symbol"
-              layout={{
-                'text-field': '🏥',
-                'text-font': OFFLINE_GLYPH_FONT_STACK,
-                'text-size': 10,
-                'text-anchor': 'center',
-                'text-allow-overlap': true,
-                'text-ignore-placement': true,
-              }}
-              paint={{
-                'text-color': '#ffffff',
-              }}
-            />
-            {/* Always-visible Name Tooltip */}
-            <Layer
-              id="hospitalNameTooltip"
-              type="symbol"
-              minzoom={13.5}
-              layout={{
-                'text-field': ['get', 'name'],
-                'text-font': OFFLINE_GLYPH_FONT_STACK,
-                'text-size': 12,
-                'text-anchor': 'left',
-                'text-offset': [1.6, 0],
-                'text-optional': true,
-              }}
-              paint={{
-                'text-color': '#111111',
-                'text-halo-color': '#ffffff',
-                'text-halo-width': 2.5,
-                'text-halo-blur': 0.5,
-              }}
-            />
-          </GeoJSONSource>
+          {/* POI Layers */}
+          {renderPoiSource('evacuationSource', evacuationGeoJSON, COLORS.primaryGreen, 'evacuation')}
+          {renderPoiSource('hospitalSource', hospitalGeoJSON, COLORS.error, 'hospital')}
+          {renderPoiSource('gymnasiumSource', gymnasiumGeoJSON, '#FF9800', 'gymnasium')}
+          {renderPoiSource('schoolSource', schoolGeoJSON, '#2196F3', 'school')}
+          {renderPoiSource('multipurposeSource', multiPurposeGeoJSON, '#9C27B0', 'multipurpose')}
+          {renderPoiSource('coveredCourtSource', coveredCourtGeoJSON, '#9C27B0', 'multipurpose')}
 
-          {/* Gymnasiums (rendered after hospitals) */}
-          <GeoJSONSource
-            id="gymnasiumSource"
-            data={gymnasiumGeoJSON as any}
-            onPress={handleFeaturePress}
-          >
-            {/* Outer glow ring */}
-            <Layer
-              id="gymnasiumGlow"
-              type="circle"
-              paint={{
-                'circle-color': '#FF9800',
-                'circle-radius': 14,
-                'circle-opacity': 0.15,
-                'circle-blur': 0.8,
-              }}
-            />
-            {/* Main badge body */}
-            <Layer
-              id="gymnasiumCircles"
-              type="circle"
-              paint={{
-                'circle-color': '#FF9800',
-                'circle-radius': 8,
-                'circle-stroke-width': 2.5,
-                'circle-stroke-color': COLORS.white,
-              }}
-            />
-            {/* Icon label */}
-            <Layer
-              id="gymnasiumLabel"
-              type="symbol"
-              layout={{
-                'text-field': '🏀',
-                'text-font': OFFLINE_GLYPH_FONT_STACK,
-                'text-size': 10,
-                'text-anchor': 'center',
-                'text-allow-overlap': true,
-                'text-ignore-placement': true,
-              }}
-              paint={{
-                'text-color': '#ffffff',
-              }}
-            />
-            {/* Always-visible Name Tooltip */}
-            <Layer
-              id="gymnasiumNameTooltip"
-              type="symbol"
-              minzoom={13.5}
-              layout={{
-                'text-field': ['get', 'name'],
-                'text-font': OFFLINE_GLYPH_FONT_STACK,
-                'text-size': 12,
-                'text-anchor': 'left',
-                'text-offset': [1.6, 0],
-                'text-optional': true,
-              }}
-              paint={{
-                'text-color': '#111111',
-                'text-halo-color': '#ffffff',
-                'text-halo-width': 2.5,
-                'text-halo-blur': 0.5,
-              }}
-            />
-          </GeoJSONSource>
-
-          {/* Schools (rendered after gymnasiums) */}
-          <GeoJSONSource
-            id="schoolSource"
-            data={schoolGeoJSON as any}
-            onPress={handleFeaturePress}
-          >
-            {/* Outer glow ring */}
-            <Layer
-              id="schoolGlow"
-              type="circle"
-              paint={{
-                'circle-color': '#2196F3',
-                'circle-radius': 14,
-                'circle-opacity': 0.15,
-                'circle-blur': 0.8,
-              }}
-            />
-            {/* Main badge body */}
-            <Layer
-              id="schoolCircles"
-              type="circle"
-              paint={{
-                'circle-color': '#2196F3',
-                'circle-radius': 8,
-                'circle-stroke-width': 2.5,
-                'circle-stroke-color': COLORS.white,
-              }}
-            />
-            {/* Icon label */}
-            <Layer
-              id="schoolLabel"
-              type="symbol"
-              layout={{
-                'text-field': '🏫',
-                'text-font': OFFLINE_GLYPH_FONT_STACK,
-                'text-size': 10,
-                'text-anchor': 'center',
-                'text-allow-overlap': true,
-                'text-ignore-placement': true,
-              }}
-              paint={{
-                'text-color': '#ffffff',
-              }}
-            />
-            {/* Always-visible Name Tooltip */}
-            <Layer
-              id="schoolNameTooltip"
-              type="symbol"
-              minzoom={13.5}
-              layout={{
-                'text-field': ['get', 'name'],
-                'text-font': OFFLINE_GLYPH_FONT_STACK,
-                'text-size': 12,
-                'text-anchor': 'left',
-                'text-offset': [1.6, 0],
-                'text-optional': true,
-              }}
-              paint={{
-                'text-color': '#111111',
-                'text-halo-color': '#ffffff',
-                'text-halo-width': 2.5,
-                'text-halo-blur': 0.5,
-              }}
-            />
-          </GeoJSONSource>
-
-          {/* Multi-Purpose Halls (rendered last = highest z) */}
-          <GeoJSONSource
-            id="multipurposeSource"
-            data={multiPurposeGeoJSON as any}
-            onPress={handleFeaturePress}
-          >
-            {/* Outer glow ring */}
-            <Layer
-              id="multipurposeGlow"
-              type="circle"
-              paint={{
-                'circle-color': '#9C27B0',
-                'circle-radius': 14,
-                'circle-opacity': 0.15,
-                'circle-blur': 0.8,
-              }}
-            />
-            {/* Main badge body */}
-            <Layer
-              id="multipurposeCircles"
-              type="circle"
-              paint={{
-                'circle-color': '#9C27B0',
-                'circle-radius': 8,
-                'circle-stroke-width': 2.5,
-                'circle-stroke-color': COLORS.white,
-              }}
-            />
-            {/* Icon label */}
-            <Layer
-              id="multipurposeLabel"
-              type="symbol"
-              layout={{
-                'text-field': '🏢',
-                'text-font': OFFLINE_GLYPH_FONT_STACK,
-                'text-size': 10,
-                'text-anchor': 'center',
-                'text-allow-overlap': true,
-                'text-ignore-placement': true,
-              }}
-              paint={{
-                'text-color': '#ffffff',
-              }}
-            />
-            {/* Always-visible Name Tooltip */}
-            <Layer
-              id="multipurposeNameTooltip"
-              type="symbol"
-              minzoom={13.5}
-              layout={{
-                'text-field': ['get', 'name'],
-                'text-font': OFFLINE_GLYPH_FONT_STACK,
-                'text-size': 12,
-                'text-anchor': 'left',
-                'text-offset': [1.6, 0],
-                'text-optional': true,
-              }}
-              paint={{
-                'text-color': '#111111',
-                'text-halo-color': '#ffffff',
-                'text-halo-width': 2.5,
-                'text-halo-blur': 0.5,
-              }}
-            />
-          </GeoJSONSource>
           {routeGeoJSON ? (
             <GeoJSONSource id="activeRouteSource" data={routeGeoJSON as any}>
               <Layer
