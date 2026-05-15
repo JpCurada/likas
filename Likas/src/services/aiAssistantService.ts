@@ -440,6 +440,15 @@ export const aiAssistantService = {
     onEvent?: (event: AssistantEvent) => void,
   ): AsyncIterableIterator<string> {
     await isBatteryOk();
+
+    const trivialGreeting =
+      /^(hi+|hello+|hey+|yo|kumusta|kamusta|good\s+(morning|evening|afternoon|day)|magandang\s+(umaga|hapon|gabi)|salamat|thanks|thank\s+you)[!.\s]*$/i;
+    if (trivialGreeting.test(params.userMessage.trim())) {
+      const name = params.profile.name ? `, ${params.profile.name}` : '';
+      yield `Hello${name}. I'm LIKAS, your offline disaster companion. Ask me about evacuation, first aid, typhoons, earthquakes, or volcanoes.`;
+      return;
+    }
+
     const ctx = await ensureContext();
     if (!ctx) {
       yield fallbackResponse(params);
@@ -468,9 +477,18 @@ export const aiAssistantService = {
         .completion(
           {
             messages: messages as any,
+            jinja: true,
+            enable_thinking: false,
+            reasoning_format: 'none',
             ...SAMPLING,
             grammar: grammar(),
-            stop: ['<end_of_turn>', '<|eot_id|>', '</s>'],
+            stop: [
+              '<end_of_turn>',
+              '<|eot_id|>',
+              '</s>',
+              '<|channel>',
+              '<channel|>',
+            ],
           },
           tok => {
             if (tok?.token) {

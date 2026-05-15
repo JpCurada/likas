@@ -106,11 +106,17 @@ export type ChatMessageAttachment = {
   polyline: LatLng[];
 };
 
+export type ToolTraceEntry = {
+  name: string;
+  status: 'running' | 'done' | 'error';
+};
+
 export type ChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   text: string;
   attachment?: ChatMessageAttachment;
+  toolTrace?: ToolTraceEntry[];
 };
 
 export type PrepChecklistItem = {

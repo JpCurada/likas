@@ -8,11 +8,17 @@ import {
 } from '../services/aiAssistantService';
 import {evacuationService} from '../services/evacuationService';
 import {useAppStore} from '../stores/appStore';
-import type {ChatMessage, ChatMessageAttachment, DisasterContext} from '../types';
+import type {
+  ChatMessage,
+  ChatMessageAttachment,
+  DisasterContext,
+  ToolTraceEntry,
+} from '../types';
 
 export type SendResult = {
   text: string;
   attachment: ChatMessageAttachment | null;
+  toolTrace: ToolTraceEntry[];
 };
 
 type SendOptions = {
@@ -26,6 +32,7 @@ type State = {
   isProcessing: boolean;
   streamingText: string;
   activeToolName: string | null;
+  toolTrace: ToolTraceEntry[];
   error: string | null;
 };
 
@@ -37,6 +44,7 @@ export const useAIAssistant = () => {
     isProcessing: false,
     streamingText: '',
     activeToolName: null,
+    toolTrace: [],
     error: null,
   });
   const mountedRef = useRef(true);
@@ -71,6 +79,7 @@ export const useAIAssistant = () => {
         isProcessing: true,
         streamingText: '',
         activeToolName: null,
+        toolTrace: [],
         error: null,
       }));
 
@@ -81,13 +90,25 @@ export const useAIAssistant = () => {
 
       let full = '';
       let attachment: ChatMessageAttachment | null = null;
+      const trace: ToolTraceEntry[] = [];
       try {
         const handleEvent = (ev: AssistantEvent) => {
           if (!mountedRef.current) return;
           if (ev.kind === 'tool_call') {
-            setState(s => ({...s, activeToolName: ev.name}));
+            trace.push({name: ev.name, status: 'running'});
+            setState(s => ({
+              ...s,
+              activeToolName: ev.name,
+              toolTrace: [...trace],
+            }));
           } else if (ev.kind === 'tool_result') {
-            setState(s => ({...s, activeToolName: null}));
+            const last = trace[trace.length - 1];
+            if (last && last.name === ev.name) last.status = 'done';
+            setState(s => ({
+              ...s,
+              activeToolName: null,
+              toolTrace: [...trace],
+            }));
             const payload = ev.result.payload as any;
             if (payload?.kind === 'evacuation_ranking' && payload.route) {
               attachment = {kind: 'route', ...payload.route};
@@ -110,8 +131,10 @@ export const useAIAssistant = () => {
           setState(s => ({...s, streamingText: full}));
           onChunk?.(chunk);
         }
-        return {text: full, attachment};
+        return {text: full, attachment, toolTrace: trace};
       } catch (err) {
+        const last = trace[trace.length - 1];
+        if (last && last.status === 'running') last.status = 'error';
         let message = 'Generation failed. Please try again.';
         if (err instanceof BatteryTooLowError) {
           message =
@@ -122,7 +145,7 @@ export const useAIAssistant = () => {
           message = err.message;
         }
         if (mountedRef.current) {
-          setState(s => ({...s, error: message}));
+          setState(s => ({...s, error: message, toolTrace: [...trace]}));
         }
         throw err;
       } finally {

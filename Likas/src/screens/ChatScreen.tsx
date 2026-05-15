@@ -21,7 +21,7 @@ import {AssetMissingPrompt} from '../components/AssetMissingPrompt';
 import {useAppStore} from '../stores/appStore';
 import {useAIAssistant} from '../hooks/useAIAssistant';
 import {STTModelNotLoadedError, sttService} from '../services/sttService';
-import type {ChatMessage} from '../types';
+import type {ChatMessage, ToolTraceEntry} from '../types';
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -31,6 +31,58 @@ const TOOL_STATUS_LABEL: Record<string, string> = {
   find_nearby: 'Finding nearby places…',
   get_user_profile: 'Checking your profile…',
 };
+
+const TOOL_DONE_LABEL: Record<string, string> = {
+  route_to_nearest_evacuation: 'Checked evacuation routes',
+  get_protocol: 'Checked official protocol',
+  find_nearby: 'Found nearby places',
+  get_user_profile: 'Checked your profile',
+};
+
+const TOOL_ICON: Record<string, string> = {
+  route_to_nearest_evacuation: 'map-marker-path',
+  get_protocol: 'shield-check',
+  find_nearby: 'map-search',
+  get_user_profile: 'account-details',
+};
+
+const traceLabel = (entry: ToolTraceEntry): string => {
+  if (entry.status === 'running')
+    return TOOL_STATUS_LABEL[entry.name] ?? `Using ${entry.name}…`;
+  if (entry.status === 'error')
+    return `${TOOL_DONE_LABEL[entry.name] ?? entry.name} (failed)`;
+  return TOOL_DONE_LABEL[entry.name] ?? entry.name;
+};
+
+const ToolTraceList: React.FC<{trace: ToolTraceEntry[]}> = ({trace}) => (
+  <View style={styles.traceList}>
+    {trace.map((entry, idx) => (
+      <View
+        key={`${entry.name}-${idx}`}
+        style={[
+          styles.traceChip,
+          entry.status === 'error' && styles.traceChipError,
+        ]}>
+        {entry.status === 'running' ? (
+          <ActivityIndicator size="small" color={COLORS.primaryGreen} />
+        ) : (
+          <Icon
+            name={
+              entry.status === 'error'
+                ? 'alert-circle-outline'
+                : TOOL_ICON[entry.name] ?? 'check-circle-outline'
+            }
+            size={14}
+            color={
+              entry.status === 'error' ? COLORS.error : COLORS.primaryGreen
+            }
+          />
+        )}
+        <Text style={styles.traceChipText}>{traceLabel(entry)}</Text>
+      </View>
+    ))}
+  </View>
+);
 
 export const ChatScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -44,6 +96,7 @@ export const ChatScreen: React.FC = () => {
     isProcessing,
     streamingText,
     activeToolName,
+    toolTrace,
     error,
     send,
   } = useAIAssistant();
@@ -139,6 +192,7 @@ export const ChatScreen: React.FC = () => {
         role: 'assistant',
         text: reply.text.trim() || 'No response.',
         attachment: reply.attachment ?? undefined,
+        toolTrace: reply.toolTrace.length > 0 ? reply.toolTrace : undefined,
       });
     } catch {
       // useAIAssistant already exposes the error via state; surface inline.
@@ -179,6 +233,9 @@ export const ChatScreen: React.FC = () => {
     const hasRoute = item.attachment?.kind === 'route';
     return (
       <View style={styles.messageGroup}>
+        {!isUser && item.toolTrace && item.toolTrace.length > 0 ? (
+          <ToolTraceList trace={item.toolTrace} />
+        ) : null}
         <View
           style={[
             styles.bubble,
@@ -232,6 +289,9 @@ export const ChatScreen: React.FC = () => {
           contentContainerStyle={styles.list}
           ListFooterComponent={
             <>
+              {isProcessing && toolTrace.length > 0 ? (
+                <ToolTraceList trace={toolTrace} />
+              ) : null}
               {isProcessing && streamingText ? (
                 <View style={[styles.bubble, styles.bubbleAssistant]}>
                   <Text style={styles.bubbleTextAssistant}>{streamingText}</Text>
@@ -392,6 +452,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  traceList: {
+    alignSelf: 'flex-start',
+    gap: 4,
+    marginBottom: 2,
+  },
+  traceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: COLORS.lightGreen,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    maxWidth: '85%',
+  },
+  traceChipError: {
+    backgroundColor: '#fee2e2',
+  },
+  traceChipText: {
+    fontFamily: FONTS.primaryMedium,
+    fontSize: SIZES.small,
+    color: COLORS.darkGreen,
+    flexShrink: 1,
   },
   thinkingText: {
     fontFamily: FONTS.primaryMedium,
