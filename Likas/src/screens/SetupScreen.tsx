@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   PermissionsAndroid,
   Platform,
   StyleSheet,
@@ -121,29 +122,32 @@ export const SetupScreen: React.FC<Props> = ({ navigation }) => {
     startDownload(AI_MODEL_ASSET_ID, 'finish');
   };
 
+  const requestManageStorage = () => {
+    if (Platform.OS === 'android' && Platform.Version >= 30) {
+      Alert.alert(
+        "Storage Access Needed",
+        "To use sideloaded AI models, you must enable 'All files access' for Likas in the next screen.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { 
+            text: "Open Settings", 
+            onPress: () => Linking.sendIntent('android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION') 
+          } 
+        ]
+      );
+    }
+  };
+
   const handleSideload = async (assetId: string, next: Step | 'finish') => {
+    console.log(`handleSideload triggered for ${assetId}`);
     setStatus('checking');
     setErrorMessage(null);
     try {
-      if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
-          {
-            title: 'Storage access',
-            message: 'LIKAS needs to read sideloaded files from /sdcard/likas/.',
-            buttonPositive: 'Allow',
-            buttonNegative: 'Cancel',
-          },
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          setErrorMessage('Storage permission denied.');
-          setStatus('error');
-          return;
-        }
-      }
+      console.log('Fetching manifest...');
       const manifest = await assetManager.fetchManifest();
       const asset = manifest.assets[assetId];
       if (!asset) {
+        console.log(`Asset ${assetId} not in manifest.`);
         setErrorMessage(`Asset ${assetId} not in manifest.`);
         setStatus('error');
         return;
@@ -151,21 +155,30 @@ export const SetupScreen: React.FC<Props> = ({ navigation }) => {
       const sideloadDir =
         Platform.OS === 'android' ? '/sdcard/likas' : RNFS.DocumentDirectoryPath;
       const sourcePath = `${sideloadDir}/${asset.localFilename}`;
+      console.log(`Checking source path: ${sourcePath}`);
       if (!(await RNFS.exists(sourcePath))) {
+        console.log('File not found.');
         setErrorMessage(
           `File not found at ${sourcePath}. Push it with:\nadb push ${asset.localFilename} ${sideloadDir}/`,
         );
         setStatus('error');
         return;
       }
+      console.log('Importing from path...');
       await assetManager.importFromPath(assetId, sourcePath);
+      console.log('Import successful.');
       if (next === 'finish') {
         await finish();
         return;
       }
       setStep(next);
       setStatus('idle');
-    } catch (err) {
+    } catch (err: any) {
+      console.error('Sideload failed:', err);
+      // Check if it's a permission-related error
+      if (err.message.includes('EACCES') || err.message.includes('Permission denied')) {
+        requestManageStorage();
+      }
       let message = 'Sideload failed.';
       if (err instanceof Error) message = err.message;
       setErrorMessage(message);
@@ -207,6 +220,14 @@ export const SetupScreen: React.FC<Props> = ({ navigation }) => {
       <Icon name="alert-circle" size={48} color={COLORS.error} />
       <Text style={styles.statusTitle}>Download failed</Text>
       <Text style={styles.statusBody}>{errorMessage}</Text>
+      {errorMessage?.includes('permanently denied') && (
+        <TouchableOpacity 
+          style={[styles.primaryButton, { marginTop: 10 }]} 
+          onPress={() => Linking.openSettings()}
+        >
+          <Text style={styles.primaryButtonText}>Open Settings</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
