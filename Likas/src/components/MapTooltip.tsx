@@ -15,6 +15,7 @@ import { COLORS, FONTS, SIZES } from '../theme';
 import { Icon } from './Icon';
 
 export type TooltipData = {
+  id?: string;
   name: string;
   type: string;
   category: string;
