@@ -1,6 +1,6 @@
 import RNFS from 'react-native-fs';
 import {Platform} from 'react-native';
-import {assetManager} from '../services/assetManager';
+import {assetManager, type ManifestAsset} from '../services/assetManager';
 
 const MAP_TILES_ASSET_ID = 'map-tiles';
 const MAP_GLYPHS_ASSET_ID = 'map-glyphs';
@@ -33,6 +33,60 @@ const tryImportSideload = async (
   }
 };
 
+/**
+ * Copies the file out of the APK / iOS bundle into DocumentDirectoryPath and
+ * registers it in installed.json so subsequent launches are instant.
+ */
+const tryExtractBundledAsset = async (
+  assetId: string,
+  asset: ManifestAsset,
+): Promise<string | null> => {
+  const finalPath = `${RNFS.DocumentDirectoryPath}/${asset.localSubdir}/${asset.localFilename}`;
+  const dir = `${RNFS.DocumentDirectoryPath}/${asset.localSubdir}`;
+
+  try {
+    if (Platform.OS === 'android') {
+      // Bundled at android/app/src/main/assets/custom/<filename>
+      const bundledAssetPath = `custom/${asset.localFilename}`;
+      if (__DEV__) {
+        console.log(`[OfflineMap] Extracting bundled APK asset: ${bundledAssetPath}`);
+      }
+      await RNFS.mkdir(dir);
+      await RNFS.copyFileAssets(bundledAssetPath, finalPath);
+    } else {
+      // iOS: file is in the main bundle root
+      const bundledPath = `${RNFS.MainBundlePath}/${asset.localFilename}`;
+      if (!(await RNFS.exists(bundledPath))) return null;
+      if (__DEV__) {
+        console.log(`[OfflineMap] Extracting bundled iOS asset: ${bundledPath}`);
+      }
+      await RNFS.mkdir(dir);
+      await RNFS.copyFile(bundledPath, finalPath);
+    }
+
+    // Register in installed.json so next launch skips this copy
+    const index = await assetManager.readInstalled();
+    index.records[assetId] = {
+      id: assetId,
+      version: asset.version,
+      sha256: asset.sha256,
+      installedAt: new Date().toISOString(),
+      localPath: finalPath,
+    };
+    const manifest = await assetManager.fetchManifest();
+    index.manifestVersion = manifest.manifestVersion;
+    await assetManager.writeInstalled(index);
+
+    if (__DEV__) {
+      console.log(`[OfflineMap] ✅ Bundled asset extracted to ${finalPath}`);
+    }
+    return finalPath;
+  } catch (error) {
+    if (__DEV__) console.warn(`[OfflineMap] Bundled asset extraction failed:`, error);
+    return null;
+  }
+};
+
 const ensureAsset = async (
   assetId: string,
   filename: string,
@@ -41,6 +95,12 @@ const ensureAsset = async (
   if (path) return path;
   path = await tryImportSideload(assetId, filename);
   if (path) return path;
+  const manifest = await assetManager.fetchManifest();
+  const asset = manifest.assets[assetId];
+  if (asset) {
+    path = await tryExtractBundledAsset(assetId, asset);
+    if (path) return path;
+  }
   throw new MapAssetMissingError(assetId);
 };
 

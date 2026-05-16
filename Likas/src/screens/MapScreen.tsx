@@ -1,12 +1,47 @@
-import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
-import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity, Modal, PermissionsAndroid, Platform } from 'react-native';
+import React, {
+  useMemo,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+} from 'react';
+import {
+  StyleSheet,
+  View,
+  ActivityIndicator,
+  Text,
+  TouchableOpacity,
+  Platform,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Map, Camera, GeoJSONSource, Layer, Images, UserLocation } from '@maplibre/maplibre-react-native';
-import type { CameraRef } from '@maplibre/maplibre-react-native';
+import {
+  Map,
+  Camera,
+  GeoJSONSource,
+  Layer,
+  Images,
+  UserLocation,
+} from '@maplibre/maplibre-react-native';
+import type {
+  CameraRef,
+  TrackUserLocation,
+} from '@maplibre/maplibre-react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import BottomSheet from '@gorhom/bottom-sheet';
 import { COLORS } from '../theme';
-import { getEvacuationGeoJSON, getHospitalGeoJSON, getGymnasiumGeoJSON, getSchoolGeoJSON, getMultiPurposeGeoJSON, getCoveredCourtGeoJSON } from '../utils/geoUtils';
-import { prepareOfflineMap, prepareGlyphs, MapAssetMissingError } from '../utils/mapAssetManager';
+import {
+  getEvacuationGeoJSON,
+  getHospitalGeoJSON,
+  getGymnasiumGeoJSON,
+  getSchoolGeoJSON,
+  getMultiPurposeGeoJSON,
+  getCoveredCourtGeoJSON,
+} from '../utils/geoUtils';
+import {
+  prepareOfflineMap,
+  prepareGlyphs,
+  MapAssetMissingError,
+} from '../utils/mapAssetManager';
 import { MapTooltip, TooltipData } from '../components/MapTooltip';
 import { AssetMissingPrompt } from '../components/AssetMissingPrompt';
 import { useAppStore } from '../stores/appStore';
@@ -35,10 +70,16 @@ const buildStyle = (base: any, is3D: boolean): any => {
       };
     }
     if (layer.id === 'building-2d') {
-      return { ...layer, layout: { ...layer.layout, visibility: is3D ? 'none' : 'visible' } };
+      return {
+        ...layer,
+        layout: { ...layer.layout, visibility: is3D ? 'none' : 'visible' },
+      };
     }
     if (layer.id === 'building-3d') {
-      return { ...layer, layout: { ...layer.layout, visibility: is3D ? 'visible' : 'none' } };
+      return {
+        ...layer,
+        layout: { ...layer.layout, visibility: is3D ? 'visible' : 'none' },
+      };
     }
     return layer;
   });
@@ -56,25 +97,31 @@ const ICON_NAMES = {
 };
 
 export const MapScreen: React.FC = () => {
+  const bottomSheetRef = useRef<BottomSheet>(null);
   const cameraRef = useRef<CameraRef>(null);
+  const [cameraKey, setCameraKey] = useState(0);
   const [isMapReady, setIsMapReady] = useState(false);
   const [baseStyle, setBaseStyle] = useState<any>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('2D');
+  const [viewMode, setViewMode] = useState<ViewMode>('3D');
+
+  // undefined = user panned freely; 'default' = camera follows user location
+  const [trackUser, setTrackUser] = useState<TrackUserLocation | undefined>(
+    'default',
+  );
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [isChatVisible, setIsChatVisible] = useState(false);
+  const [icons, setIcons] = useState<any>({});
+  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(
+    null,
+  );
+
+  const snapPoints = useMemo(() => ['15%', '50%', '90%'], []);
 
   const [assetMissing, setAssetMissing] = useState(false);
   const activeRoute = useAppStore(s => s.activeRoute);
   const setActiveRoute = useAppStore(s => s.setActiveRoute);
 
-  useEffect(() => {
-    if (Platform.OS === 'android') {
-      PermissionsAndroid.requestMultiple([
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-      ]).catch(console.warn);
-    }
-  }, []);
+  // Permissions are now handled inside the GPS watchPosition useEffect below
 
   const routeGeoJSON = useMemo(() => {
     if (!activeRoute || activeRoute.polyline.length < 2) return null;
@@ -86,15 +133,15 @@ export const MapScreen: React.FC = () => {
           properties: {},
           geometry: {
             type: 'LineString',
-            coordinates: activeRoute.polyline.map(p => [p.longitude, p.latitude]),
+            coordinates: activeRoute.polyline.map(p => [
+              p.longitude,
+              p.latitude,
+            ]),
           },
         },
       ],
     };
   }, [activeRoute]);
-
-  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
-  const [icons, setIcons] = useState<any>({});
 
   const evacuationGeoJSON = useMemo(() => getEvacuationGeoJSON(), []);
   const hospitalGeoJSON = useMemo(() => getHospitalGeoJSON(), []);
@@ -112,14 +159,30 @@ export const MapScreen: React.FC = () => {
   useEffect(() => {
     const initializeMap = async () => {
       try {
-        const [absoluteMbtilesUrl, glyphsPath] = await Promise.all([
-          prepareOfflineMap(),
-          prepareGlyphs(),
-        ]);
+        console.log('[MapScreen] Starting map initialization...');
+
+        // Try to get tiles first, as they are mandatory
+        const absoluteMbtilesUrl = await prepareOfflineMap();
+
+        // Try to get glyphs, but fallback gracefully if they fail
+        let glyphsPath;
+        try {
+          glyphsPath = await prepareGlyphs();
+        } catch (glyphErr) {
+          console.warn(
+            '[MapScreen] Glyph preparation failed, using default fallback:',
+            glyphErr,
+          );
+          glyphsPath =
+            Platform.OS === 'android'
+              ? 'asset://glyphs/{fontstack}/{range}.pbf'
+              : 'glyphs/{fontstack}/{range}.pbf';
+        }
+
         const newStyle = JSON.parse(JSON.stringify(baseOfflineStyle));
         newStyle.sources.openmaptiles.url = absoluteMbtilesUrl;
         newStyle.glyphs = glyphsPath;
-        
+
         if (__DEV__) {
           console.log('[MapScreen] 🗺️ Initializing Offline Map');
           console.log('[MapScreen] 📦 MBTiles path:', absoluteMbtilesUrl);
@@ -128,23 +191,44 @@ export const MapScreen: React.FC = () => {
 
         setBaseStyle(newStyle);
         setIsMapReady(true);
+        console.log('[MapScreen] Map initialization successful.');
       } catch (error) {
+        console.error('[MapScreen] CRITICAL: Map Init Failed:', error);
         if (error instanceof MapAssetMissingError) {
           setAssetMissing(true);
           return;
         }
-        console.error('Failed to initialize offline map:', error);
       }
     };
 
     const loadIcons = async () => {
       try {
-        const evacuationIcon = await MaterialCommunityIcons.getImageSource(ICON_NAMES.evacuation, 40, '#ffffff');
-        const hospitalIcon = await MaterialCommunityIcons.getImageSource(ICON_NAMES.hospital, 40, '#ffffff');
-        const gymnasiumIcon = await MaterialCommunityIcons.getImageSource(ICON_NAMES.gymnasium, 40, '#ffffff');
-        const schoolIcon = await MaterialCommunityIcons.getImageSource(ICON_NAMES.school, 40, '#ffffff');
-        const multipurposeIcon = await MaterialCommunityIcons.getImageSource(ICON_NAMES.multipurpose, 40, '#ffffff');
-        
+        const evacuationIcon = await MaterialCommunityIcons.getImageSource(
+          ICON_NAMES.evacuation,
+          40,
+          '#ffffff',
+        );
+        const hospitalIcon = await MaterialCommunityIcons.getImageSource(
+          ICON_NAMES.hospital,
+          40,
+          '#ffffff',
+        );
+        const gymnasiumIcon = await MaterialCommunityIcons.getImageSource(
+          ICON_NAMES.gymnasium,
+          40,
+          '#ffffff',
+        );
+        const schoolIcon = await MaterialCommunityIcons.getImageSource(
+          ICON_NAMES.school,
+          40,
+          '#ffffff',
+        );
+        const multipurposeIcon = await MaterialCommunityIcons.getImageSource(
+          ICON_NAMES.multipurpose,
+          40,
+          '#ffffff',
+        );
+
         setIcons({
           evacuation: { source: evacuationIcon },
           hospital: { source: hospitalIcon },
@@ -176,23 +260,14 @@ export const MapScreen: React.FC = () => {
       if (c.latitude > maxLat) maxLat = c.latitude;
     }
     cameraRef.current?.fitBounds([minLon, minLat, maxLon, maxLat], {
-      padding: {top: 120, bottom: 80, left: 60, right: 60},
+      padding: { top: 120, bottom: 80, left: 60, right: 60 },
       duration: 900,
     });
   }, [activeRoute, isMapReady]);
 
   const handleToggleView = useCallback(() => {
-    const next: ViewMode = viewMode === '2D' ? '3D' : '2D';
-    setViewMode(next);
-    cameraRef.current?.flyTo({
-      center: INITIAL_COORDINATES as [number, number],
-      zoom: next === '3D' ? 15 : 12,
-      pitch: next === '3D' ? 58 : 0,
-      bearing: next === '3D' ? 20 : 0,
-      duration: 900,
-      easing: 'fly',
-    });
-  }, [viewMode]);
+    setViewMode(prev => (prev === '2D' ? '3D' : '2D'));
+  }, []);
 
   const handleFeaturePress = useCallback((e: any) => {
     const feature = e?.nativeEvent?.features?.[0] ?? e?.features?.[0];
@@ -226,7 +301,12 @@ export const MapScreen: React.FC = () => {
     setSelectedFeatureId(null);
   }, []);
 
-  const renderPoiSource = (id: string, data: any, color: string, iconKey: string) => {
+  const renderPoiSource = (
+    id: string,
+    data: any,
+    color: string,
+    iconKey: string,
+  ) => {
     return (
       <GeoJSONSource
         id={id}
@@ -243,7 +323,15 @@ export const MapScreen: React.FC = () => {
           filter={['has', 'point_count']}
           paint={{
             'circle-color': color,
-            'circle-radius': ['step', ['get', 'point_count'], 16, 10, 22, 50, 28],
+            'circle-radius': [
+              'step',
+              ['get', 'point_count'],
+              16,
+              10,
+              22,
+              50,
+              28,
+            ],
             'circle-stroke-width': 2,
             'circle-stroke-color': '#fff',
           }}
@@ -359,7 +447,9 @@ export const MapScreen: React.FC = () => {
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primaryGreen} />
-          <Text style={styles.loadingText}>Extracting offline map for first use...</Text>
+          <Text style={styles.loadingText}>
+            Extracting offline map for first use...
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -374,17 +464,18 @@ export const MapScreen: React.FC = () => {
           logo={false}
           attribution={false}
           onPress={handleMapPress}
+          onRegionWillChange={() => setTrackUser(undefined)}
         >
           <Images images={icons} />
           <UserLocation />
           <Camera
+            key={cameraKey}
             ref={cameraRef}
-            initialViewState={{
-              center: INITIAL_COORDINATES as [number, number],
-              zoom: 12,
-              pitch: 0,
-              bearing: 0,
-            }}
+            trackUserLocation={trackUser}
+            zoom={17}
+            pitch={58}
+            bearing={20}
+            duration={3000}
           />
 
           {/* Fault Lines */}
@@ -430,12 +521,37 @@ export const MapScreen: React.FC = () => {
           </GeoJSONSource>
 
           {/* POI Layers */}
-          {renderPoiSource('evacuationSource', evacuationGeoJSON, COLORS.primaryGreen, 'evacuation')}
-          {renderPoiSource('hospitalSource', hospitalGeoJSON, COLORS.error, 'hospital')}
-          {renderPoiSource('gymnasiumSource', gymnasiumGeoJSON, '#FF9800', 'gymnasium')}
+          {renderPoiSource(
+            'evacuationSource',
+            evacuationGeoJSON,
+            COLORS.primaryGreen,
+            'evacuation',
+          )}
+          {renderPoiSource(
+            'hospitalSource',
+            hospitalGeoJSON,
+            COLORS.error,
+            'hospital',
+          )}
+          {renderPoiSource(
+            'gymnasiumSource',
+            gymnasiumGeoJSON,
+            '#FF9800',
+            'gymnasium',
+          )}
           {renderPoiSource('schoolSource', schoolGeoJSON, '#2196F3', 'school')}
-          {renderPoiSource('multipurposeSource', multiPurposeGeoJSON, '#9C27B0', 'multipurpose')}
-          {renderPoiSource('coveredCourtSource', coveredCourtGeoJSON, '#9C27B0', 'multipurpose')}
+          {renderPoiSource(
+            'multipurposeSource',
+            multiPurposeGeoJSON,
+            '#9C27B0',
+            'multipurpose',
+          )}
+          {renderPoiSource(
+            'coveredCourtSource',
+            coveredCourtGeoJSON,
+            '#9C27B0',
+            'multipurpose',
+          )}
 
           {routeGeoJSON ? (
             <GeoJSONSource id="activeRouteSource" data={routeGeoJSON as any}>
@@ -486,20 +602,36 @@ export const MapScreen: React.FC = () => {
         <View style={styles.viewToggleContainer}>
           <View style={styles.viewTogglePill}>
             <TouchableOpacity
-              style={[styles.viewToggleOption, viewMode === '2D' && styles.viewToggleActive]}
+              style={[
+                styles.viewToggleOption,
+                viewMode === '2D' && styles.viewToggleActive,
+              ]}
               onPress={() => viewMode !== '2D' && handleToggleView()}
               activeOpacity={0.8}
             >
-              <Text style={[styles.viewToggleText, viewMode === '2D' && styles.viewToggleTextActive]}>
+              <Text
+                style={[
+                  styles.viewToggleText,
+                  viewMode === '2D' && styles.viewToggleTextActive,
+                ]}
+              >
                 2D
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.viewToggleOption, viewMode === '3D' && styles.viewToggleActive]}
+              style={[
+                styles.viewToggleOption,
+                viewMode === '3D' && styles.viewToggleActive,
+              ]}
               onPress={() => viewMode !== '3D' && handleToggleView()}
               activeOpacity={0.8}
             >
-              <Text style={[styles.viewToggleText, viewMode === '3D' && styles.viewToggleTextActive]}>
+              <Text
+                style={[
+                  styles.viewToggleText,
+                  viewMode === '3D' && styles.viewToggleTextActive,
+                ]}
+              >
                 3D
               </Text>
             </TouchableOpacity>
@@ -509,24 +641,41 @@ export const MapScreen: React.FC = () => {
         {/* Tooltip bottom sheet — always mounted so exit animation plays */}
         <MapTooltip data={tooltip} onClose={handleCloseTooltip} />
 
+        {/* Center on Me FAB */}
+        <TouchableOpacity
+          style={styles.fabCenter}
+          onPress={() => {
+            setTrackUser('default');
+            setCameraKey(prev => prev + 1);
+          }}
+          activeOpacity={0.8}
+        >
+          <Icon name="crosshairs-gps" size={28} color={COLORS.white} />
+        </TouchableOpacity>
+
         {/* AI Chat FAB */}
         <TouchableOpacity
           style={styles.fabAi}
-          onPress={() => setIsChatVisible(true)}
+          onPress={() => bottomSheetRef.current?.expand()}
           activeOpacity={0.8}
         >
           <Icon name="robot" size={28} color={COLORS.white} />
         </TouchableOpacity>
 
-        {/* AI Chat Modal */}
-        <Modal
-          visible={isChatVisible}
-          animationType="slide"
-          presentationStyle="pageSheet"
-          onRequestClose={() => setIsChatVisible(false)}
+        {/* AI Chat Bottom Sheet */}
+        <BottomSheet
+          ref={bottomSheetRef}
+          index={-1}
+          snapPoints={snapPoints}
+          enablePanDownToClose={true}
+          handleIndicatorStyle={{ backgroundColor: COLORS.lightGreen }}
+          backgroundStyle={{ backgroundColor: '#f0fdf4' }}
         >
-          <ChatScreen onClose={() => setIsChatVisible(false)} />
-        </Modal>
+          <ChatScreen
+            onClose={() => bottomSheetRef.current?.close()}
+            isBottomSheet={true}
+          />
+        </BottomSheet>
       </View>
     </SafeAreaView>
   );
@@ -558,8 +707,8 @@ const styles = StyleSheet.create({
   // ─── 2D / 3D Toggle ───────────────────────────────────────────────────
   viewToggleContainer: {
     position: 'absolute',
-    top: 14,
-    left: 14,
+    top: 80,
+    right: 14,
   },
   viewTogglePill: {
     flexDirection: 'row',
@@ -587,9 +736,9 @@ const styles = StyleSheet.create({
   },
   routeBanner: {
     position: 'absolute',
-    top: 14,
+    top: 80,
     right: 14,
-    left: 78,
+    left: 14,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(9,22,16,0.88)',
@@ -618,6 +767,22 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '700',
     fontSize: 12,
+  },
+  fabCenter: {
+    position: 'absolute',
+    bottom: 96,
+    right: 24,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.primaryGreen,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
   },
   fabAi: {
     position: 'absolute',

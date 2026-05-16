@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
+import {BottomSheetFlatList, BottomSheetTextInput} from '@gorhom/bottom-sheet';
 
 import {COLORS, FONTS, SIZES} from '../theme';
 import {Icon} from '../components/Icon';
@@ -84,7 +85,7 @@ const ToolTraceList: React.FC<{trace: ToolTraceEntry[]}> = ({trace}) => (
   </View>
 );
 
-export const ChatScreen: React.FC<{onClose?: () => void}> = ({onClose}) => {
+export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean}> = ({onClose, isBottomSheet}) => {
   const navigation = useNavigation<any>();
   const activeContext = useAppStore(s => s.activeContext);
   const chatMessages = useAppStore(s => s.chatMessages);
@@ -277,28 +278,33 @@ export const ChatScreen: React.FC<{onClose?: () => void}> = ({onClose}) => {
     );
   };
 
+  const ListComponent = (isBottomSheet ? BottomSheetFlatList : FlatList) as any;
+  const InputComponent = (isBottomSheet ? BottomSheetTextInput : TextInput) as any;
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={isBottomSheet ? [] : ['top']}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.header}>
-          <Icon name="robot" size={22} color={COLORS.primaryGreen} />
-          <Text style={styles.headerTitle}>Disaster Guide</Text>
-          {isInitializing ? (
-            <ActivityIndicator size="small" color={COLORS.primaryGreen} />
-          ) : null}
-          {onClose && (
-            <TouchableOpacity onPress={onClose} style={styles.closeBtnHeader}>
-              <Icon name="close" size={24} color={COLORS.darkGreen} />
-            </TouchableOpacity>
-          )}
-        </View>
+        {!isBottomSheet && (
+          <View style={styles.header}>
+            <Icon name="robot" size={22} color={COLORS.primaryGreen} />
+            <Text style={styles.headerTitle}>Disaster Guide</Text>
+            {isInitializing ? (
+              <ActivityIndicator size="small" color={COLORS.primaryGreen} />
+            ) : null}
+            {onClose && (
+              <TouchableOpacity onPress={onClose} style={styles.closeBtnHeader}>
+                <Icon name="close" size={24} color={COLORS.darkGreen} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
-        <FlatList
+        <ListComponent
           ref={listRef}
           data={chatMessages}
-          keyExtractor={item => item.id}
+          keyExtractor={(item: ChatMessage) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           ListFooterComponent={
@@ -332,7 +338,7 @@ export const ChatScreen: React.FC<{onClose?: () => void}> = ({onClose}) => {
         />
 
         <View style={styles.inputRow}>
-          <TextInput
+          <InputComponent
             style={styles.input}
             value={input}
             onChangeText={setInput}
