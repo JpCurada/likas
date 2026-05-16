@@ -1,0 +1,28 @@
+sources:
+  flood_zones_source:
+    type: geojson
+    local_path: "C:/Users/User/CODERIST/gemma/likas/Likas/src/data/MetroManila_Flood_100year.json"
+
+layers:
+  - id: flood_zones
+    features:
+      - source: flood_zones_source
+        geometry: polygon
+        min_zoom: 0
+        attributes:
+          - key: Var
+            value: "${feature.tags.Var}"
+            type: integer
+          - key: DN
+            value: "${feature.tags.DN}"
+            type: integer
+          - key: GRIDCODE
+            value: "${feature.tags.GRIDCODE}"
+            type: integer
+          - key: gridcode
+            value: "${feature.tags.gridcode}"
+            type: integer
+          - key: hazard
+            value: "${feature.tags.hazard}"
+          - key: level
+            value: "${feature.tags.level}"

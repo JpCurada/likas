@@ -14,21 +14,22 @@
 		D09A1E5FEF48487888CB81B3 /* metro-manila.mbtiles in Resources */ = {isa = PBXBuildFile; fileRef = C5E8C72793FF47DEAA0C97C5 /* metro-manila.mbtiles */; };
 		5E82BCCDC69F44C4A1AF7EB3 /* osm-2020-02-10-v3.11_asia_philippines.mbtiles in Resources */ = {isa = PBXBuildFile; fileRef = D51FCA85857A4B57866971BA /* osm-2020-02-10-v3.11_asia_philippines.mbtiles */; };
 		CFA4AD346E554A4E99AFECB2 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = F70674FF26C54FB9AFE32A33 /* README.md */; };
-		366811AE90424C41AAE5F857 /* Clinton-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B2583D2C46654B5585B20812 /* Clinton-Bold.ttf */; };
-		57B2BEF7222941918CBF250C /* Clinton-BoldItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BBE468FD8BFD40F2B454B582 /* Clinton-BoldItalic.ttf */; };
-		C9DE4AD9D41144A593BD8C33 /* Clinton-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CC7792D2CB7B4F3AA6074386 /* Clinton-ExtraBold.ttf */; };
-		D1E20A3633A24DF0861A4551 /* Clinton-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D52D6D7885994FD8B5F09F06 /* Clinton-SemiBold.ttf */; };
-		C0B71257CFCE406C9848B784 /* Sora-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4C3E16ACAA594FC5878F00FC /* Sora-Bold.ttf */; };
-		F22D2D46D5094ABFBCDC5AB1 /* Sora-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 5A1B724FFC1E4F7291971392 /* Sora-ExtraBold.ttf */; };
-		C1E06038F5B54491ADFC5F50 /* Sora-ExtraLight.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AFFC1B4EF5B541F7896AFDA2 /* Sora-ExtraLight.ttf */; };
-		C77E2FFB74054DF9B837EDF5 /* Sora-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = ABE8F70ECB9C47948E25E654 /* Sora-Light.ttf */; };
-		B32C57DD53CF48908ED68CE7 /* Sora-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 59DF99A050AF4873BE556201 /* Sora-Medium.ttf */; };
-		4B744482DD9F42ECA58049D6 /* Sora-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 31ECA96E8C874AD08EE59ADA /* Sora-Regular.ttf */; };
-		2004267370CF4E59A5A82B1B /* Sora-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 985E414031464AEB9ED296FE /* Sora-SemiBold.ttf */; };
-		8C59E99E25C84A2F89108BC4 /* Sora-Thin.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 2A1C72F0F38044CBBBF39AA3 /* Sora-Thin.ttf */; };
-		A72B81FDB38F49D0AAC17AAE /* pedestrian-graph.json in Resources */ = {isa = PBXBuildFile; fileRef = 9D52F27B20F14D1580B6D9BD /* pedestrian-graph.json */; };
-		9669F98F72B644029D4ED7F7 /* philippines-extract.mbtiles in Resources */ = {isa = PBXBuildFile; fileRef = FBBBF84A5F2D48B992313A9C /* philippines-extract.mbtiles */; };
-		46E12BC35B1F467DB41F7AEC /* style.json in Resources */ = {isa = PBXBuildFile; fileRef = 3CCA10938F714209A6D8C034 /* style.json */; };
+		F50D4367E35D4EF1845F6748 /* Clinton-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3A2C1D76CD1B41DA8DC35DA4 /* Clinton-Bold.ttf */; };
+		F7219692439D4A6EB5B82422 /* Clinton-BoldItalic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C2A5572AC2F14F2B959930BC /* Clinton-BoldItalic.ttf */; };
+		670FDC41E34E4BA39358EC5E /* Clinton-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 09F45477AA474240B8A8926E /* Clinton-ExtraBold.ttf */; };
+		53C91C4AA52D409280DAA436 /* Clinton-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F9358D9851AE454DAFCD872F /* Clinton-SemiBold.ttf */; };
+		F2A80A2AE35947DFB41031E1 /* Sora-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E4A90C4DC8F64A90895022B9 /* Sora-Bold.ttf */; };
+		C70B88B451D64F95986DD7E5 /* Sora-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F72139480700417F9AE52206 /* Sora-ExtraBold.ttf */; };
+		6F767E7DC5DF427D9F6932DD /* Sora-ExtraLight.ttf in Resources */ = {isa = PBXBuildFile; fileRef = F28290C4615247D497408AC8 /* Sora-ExtraLight.ttf */; };
+		1827FC70AE004AB8BD1018CE /* Sora-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4B397EF7F9E94D6E8932D652 /* Sora-Light.ttf */; };
+		0E4C8156F114432FAF1F9AB0 /* Sora-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 7A40F591759A454281EDF9D7 /* Sora-Medium.ttf */; };
+		D8AF721967B642FD9639C94D /* Sora-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D3D4B106EADD41FEB0854E31 /* Sora-Regular.ttf */; };
+		B8EE4A65D9EE4778B226C1D8 /* Sora-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 34E43A5A394F43838568E33C /* Sora-SemiBold.ttf */; };
+		3D124F3417D94C89941244C4 /* Sora-Thin.ttf in Resources */ = {isa = PBXBuildFile; fileRef = DA1047A92D00421EAD3B83CE /* Sora-Thin.ttf */; };
+		A942F6026E8E4231BC7A84AA /* flood_zones.mbtiles in Resources */ = {isa = PBXBuildFile; fileRef = CFECDA6BE2144AA287DEE62C /* flood_zones.mbtiles */; };
+		C6007917F602401EAC4E64CB /* pedestrian-graph.json in Resources */ = {isa = PBXBuildFile; fileRef = C51C473B92A0461089D3810F /* pedestrian-graph.json */; };
+		8DA6444225064E22B212CC15 /* philippines-extract.mbtiles in Resources */ = {isa = PBXBuildFile; fileRef = 1B5B22F58CA0416281023604 /* philippines-extract.mbtiles */; };
+		D1CCB1159E324F5199C9580E /* style.json in Resources */ = {isa = PBXBuildFile; fileRef = D847CA2429E3428DB008E4DC /* style.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -45,21 +46,22 @@
 		C5E8C72793FF47DEAA0C97C5 /* metro-manila.mbtiles */ = {isa = PBXFileReference; name = "metro-manila.mbtiles"; path = "../assets/maps/metro-manila.mbtiles"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
 		D51FCA85857A4B57866971BA /* osm-2020-02-10-v3.11_asia_philippines.mbtiles */ = {isa = PBXFileReference; name = "osm-2020-02-10-v3.11_asia_philippines.mbtiles"; path = "../assets/maps/osm-2020-02-10-v3.11_asia_philippines.mbtiles"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
 		F70674FF26C54FB9AFE32A33 /* README.md */ = {isa = PBXFileReference; name = "README.md"; path = "../assets/maps/README.md"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		B2583D2C46654B5585B20812 /* Clinton-Bold.ttf */ = {isa = PBXFileReference; name = "Clinton-Bold.ttf"; path = "../assets/fonts/Clinton-Bold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		BBE468FD8BFD40F2B454B582 /* Clinton-BoldItalic.ttf */ = {isa = PBXFileReference; name = "Clinton-BoldItalic.ttf"; path = "../assets/fonts/Clinton-BoldItalic.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		CC7792D2CB7B4F3AA6074386 /* Clinton-ExtraBold.ttf */ = {isa = PBXFileReference; name = "Clinton-ExtraBold.ttf"; path = "../assets/fonts/Clinton-ExtraBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		D52D6D7885994FD8B5F09F06 /* Clinton-SemiBold.ttf */ = {isa = PBXFileReference; name = "Clinton-SemiBold.ttf"; path = "../assets/fonts/Clinton-SemiBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		4C3E16ACAA594FC5878F00FC /* Sora-Bold.ttf */ = {isa = PBXFileReference; name = "Sora-Bold.ttf"; path = "../assets/fonts/Sora-Bold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		5A1B724FFC1E4F7291971392 /* Sora-ExtraBold.ttf */ = {isa = PBXFileReference; name = "Sora-ExtraBold.ttf"; path = "../assets/fonts/Sora-ExtraBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		AFFC1B4EF5B541F7896AFDA2 /* Sora-ExtraLight.ttf */ = {isa = PBXFileReference; name = "Sora-ExtraLight.ttf"; path = "../assets/fonts/Sora-ExtraLight.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		ABE8F70ECB9C47948E25E654 /* Sora-Light.ttf */ = {isa = PBXFileReference; name = "Sora-Light.ttf"; path = "../assets/fonts/Sora-Light.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		59DF99A050AF4873BE556201 /* Sora-Medium.ttf */ = {isa = PBXFileReference; name = "Sora-Medium.ttf"; path = "../assets/fonts/Sora-Medium.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		31ECA96E8C874AD08EE59ADA /* Sora-Regular.ttf */ = {isa = PBXFileReference; name = "Sora-Regular.ttf"; path = "../assets/fonts/Sora-Regular.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		985E414031464AEB9ED296FE /* Sora-SemiBold.ttf */ = {isa = PBXFileReference; name = "Sora-SemiBold.ttf"; path = "../assets/fonts/Sora-SemiBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		2A1C72F0F38044CBBBF39AA3 /* Sora-Thin.ttf */ = {isa = PBXFileReference; name = "Sora-Thin.ttf"; path = "../assets/fonts/Sora-Thin.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		9D52F27B20F14D1580B6D9BD /* pedestrian-graph.json */ = {isa = PBXFileReference; name = "pedestrian-graph.json"; path = "../assets/maps/pedestrian-graph.json"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		FBBBF84A5F2D48B992313A9C /* philippines-extract.mbtiles */ = {isa = PBXFileReference; name = "philippines-extract.mbtiles"; path = "../assets/maps/philippines-extract.mbtiles"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		3CCA10938F714209A6D8C034 /* style.json */ = {isa = PBXFileReference; name = "style.json"; path = "../assets/maps/style.json"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		3A2C1D76CD1B41DA8DC35DA4 /* Clinton-Bold.ttf */ = {isa = PBXFileReference; name = "Clinton-Bold.ttf"; path = "../assets/fonts/Clinton-Bold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		C2A5572AC2F14F2B959930BC /* Clinton-BoldItalic.ttf */ = {isa = PBXFileReference; name = "Clinton-BoldItalic.ttf"; path = "../assets/fonts/Clinton-BoldItalic.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		09F45477AA474240B8A8926E /* Clinton-ExtraBold.ttf */ = {isa = PBXFileReference; name = "Clinton-ExtraBold.ttf"; path = "../assets/fonts/Clinton-ExtraBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		F9358D9851AE454DAFCD872F /* Clinton-SemiBold.ttf */ = {isa = PBXFileReference; name = "Clinton-SemiBold.ttf"; path = "../assets/fonts/Clinton-SemiBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		E4A90C4DC8F64A90895022B9 /* Sora-Bold.ttf */ = {isa = PBXFileReference; name = "Sora-Bold.ttf"; path = "../assets/fonts/Sora-Bold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		F72139480700417F9AE52206 /* Sora-ExtraBold.ttf */ = {isa = PBXFileReference; name = "Sora-ExtraBold.ttf"; path = "../assets/fonts/Sora-ExtraBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		F28290C4615247D497408AC8 /* Sora-ExtraLight.ttf */ = {isa = PBXFileReference; name = "Sora-ExtraLight.ttf"; path = "../assets/fonts/Sora-ExtraLight.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		4B397EF7F9E94D6E8932D652 /* Sora-Light.ttf */ = {isa = PBXFileReference; name = "Sora-Light.ttf"; path = "../assets/fonts/Sora-Light.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		7A40F591759A454281EDF9D7 /* Sora-Medium.ttf */ = {isa = PBXFileReference; name = "Sora-Medium.ttf"; path = "../assets/fonts/Sora-Medium.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		D3D4B106EADD41FEB0854E31 /* Sora-Regular.ttf */ = {isa = PBXFileReference; name = "Sora-Regular.ttf"; path = "../assets/fonts/Sora-Regular.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		34E43A5A394F43838568E33C /* Sora-SemiBold.ttf */ = {isa = PBXFileReference; name = "Sora-SemiBold.ttf"; path = "../assets/fonts/Sora-SemiBold.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		DA1047A92D00421EAD3B83CE /* Sora-Thin.ttf */ = {isa = PBXFileReference; name = "Sora-Thin.ttf"; path = "../assets/fonts/Sora-Thin.ttf"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		CFECDA6BE2144AA287DEE62C /* flood_zones.mbtiles */ = {isa = PBXFileReference; name = "flood_zones.mbtiles"; path = "../assets/maps/flood_zones.mbtiles"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		C51C473B92A0461089D3810F /* pedestrian-graph.json */ = {isa = PBXFileReference; name = "pedestrian-graph.json"; path = "../assets/maps/pedestrian-graph.json"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		1B5B22F58CA0416281023604 /* philippines-extract.mbtiles */ = {isa = PBXFileReference; name = "philippines-extract.mbtiles"; path = "../assets/maps/philippines-extract.mbtiles"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
+		D847CA2429E3428DB008E4DC /* style.json */ = {isa = PBXFileReference; name = "style.json"; path = "../assets/maps/style.json"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -140,21 +142,22 @@
 				C5E8C72793FF47DEAA0C97C5 /* metro-manila.mbtiles */,
 				D51FCA85857A4B57866971BA /* osm-2020-02-10-v3.11_asia_philippines.mbtiles */,
 				F70674FF26C54FB9AFE32A33 /* README.md */,
-				B2583D2C46654B5585B20812 /* Clinton-Bold.ttf */,
-				BBE468FD8BFD40F2B454B582 /* Clinton-BoldItalic.ttf */,
-				CC7792D2CB7B4F3AA6074386 /* Clinton-ExtraBold.ttf */,
-				D52D6D7885994FD8B5F09F06 /* Clinton-SemiBold.ttf */,
-				4C3E16ACAA594FC5878F00FC /* Sora-Bold.ttf */,
-				5A1B724FFC1E4F7291971392 /* Sora-ExtraBold.ttf */,
-				AFFC1B4EF5B541F7896AFDA2 /* Sora-ExtraLight.ttf */,
-				ABE8F70ECB9C47948E25E654 /* Sora-Light.ttf */,
-				59DF99A050AF4873BE556201 /* Sora-Medium.ttf */,
-				31ECA96E8C874AD08EE59ADA /* Sora-Regular.ttf */,
-				985E414031464AEB9ED296FE /* Sora-SemiBold.ttf */,
-				2A1C72F0F38044CBBBF39AA3 /* Sora-Thin.ttf */,
-				9D52F27B20F14D1580B6D9BD /* pedestrian-graph.json */,
-				FBBBF84A5F2D48B992313A9C /* philippines-extract.mbtiles */,
-				3CCA10938F714209A6D8C034 /* style.json */,
+				3A2C1D76CD1B41DA8DC35DA4 /* Clinton-Bold.ttf */,
+				C2A5572AC2F14F2B959930BC /* Clinton-BoldItalic.ttf */,
+				09F45477AA474240B8A8926E /* Clinton-ExtraBold.ttf */,
+				F9358D9851AE454DAFCD872F /* Clinton-SemiBold.ttf */,
+				E4A90C4DC8F64A90895022B9 /* Sora-Bold.ttf */,
+				F72139480700417F9AE52206 /* Sora-ExtraBold.ttf */,
+				F28290C4615247D497408AC8 /* Sora-ExtraLight.ttf */,
+				4B397EF7F9E94D6E8932D652 /* Sora-Light.ttf */,
+				7A40F591759A454281EDF9D7 /* Sora-Medium.ttf */,
+				D3D4B106EADD41FEB0854E31 /* Sora-Regular.ttf */,
+				34E43A5A394F43838568E33C /* Sora-SemiBold.ttf */,
+				DA1047A92D00421EAD3B83CE /* Sora-Thin.ttf */,
+				CFECDA6BE2144AA287DEE62C /* flood_zones.mbtiles */,
+				C51C473B92A0461089D3810F /* pedestrian-graph.json */,
+				1B5B22F58CA0416281023604 /* philippines-extract.mbtiles */,
+				D847CA2429E3428DB008E4DC /* style.json */,
 			);
 			name = Resources;
 			sourceTree = "<group>";
@@ -225,21 +228,22 @@
 				D09A1E5FEF48487888CB81B3 /* metro-manila.mbtiles in Resources */,
 				5E82BCCDC69F44C4A1AF7EB3 /* osm-2020-02-10-v3.11_asia_philippines.mbtiles in Resources */,
 				CFA4AD346E554A4E99AFECB2 /* README.md in Resources */,
-				366811AE90424C41AAE5F857 /* Clinton-Bold.ttf in Resources */,
-				57B2BEF7222941918CBF250C /* Clinton-BoldItalic.ttf in Resources */,
-				C9DE4AD9D41144A593BD8C33 /* Clinton-ExtraBold.ttf in Resources */,
-				D1E20A3633A24DF0861A4551 /* Clinton-SemiBold.ttf in Resources */,
-				C0B71257CFCE406C9848B784 /* Sora-Bold.ttf in Resources */,
-				F22D2D46D5094ABFBCDC5AB1 /* Sora-ExtraBold.ttf in Resources */,
-				C1E06038F5B54491ADFC5F50 /* Sora-ExtraLight.ttf in Resources */,
-				C77E2FFB74054DF9B837EDF5 /* Sora-Light.ttf in Resources */,
-				B32C57DD53CF48908ED68CE7 /* Sora-Medium.ttf in Resources */,
-				4B744482DD9F42ECA58049D6 /* Sora-Regular.ttf in Resources */,
-				2004267370CF4E59A5A82B1B /* Sora-SemiBold.ttf in Resources */,
-				8C59E99E25C84A2F89108BC4 /* Sora-Thin.ttf in Resources */,
-				A72B81FDB38F49D0AAC17AAE /* pedestrian-graph.json in Resources */,
-				9669F98F72B644029D4ED7F7 /* philippines-extract.mbtiles in Resources */,
-				46E12BC35B1F467DB41F7AEC /* style.json in Resources */,
+				F50D4367E35D4EF1845F6748 /* Clinton-Bold.ttf in Resources */,
+				F7219692439D4A6EB5B82422 /* Clinton-BoldItalic.ttf in Resources */,
+				670FDC41E34E4BA39358EC5E /* Clinton-ExtraBold.ttf in Resources */,
+				53C91C4AA52D409280DAA436 /* Clinton-SemiBold.ttf in Resources */,
+				F2A80A2AE35947DFB41031E1 /* Sora-Bold.ttf in Resources */,
+				C70B88B451D64F95986DD7E5 /* Sora-ExtraBold.ttf in Resources */,
+				6F767E7DC5DF427D9F6932DD /* Sora-ExtraLight.ttf in Resources */,
+				1827FC70AE004AB8BD1018CE /* Sora-Light.ttf in Resources */,
+				0E4C8156F114432FAF1F9AB0 /* Sora-Medium.ttf in Resources */,
+				D8AF721967B642FD9639C94D /* Sora-Regular.ttf in Resources */,
+				B8EE4A65D9EE4778B226C1D8 /* Sora-SemiBold.ttf in Resources */,
+				3D124F3417D94C89941244C4 /* Sora-Thin.ttf in Resources */,
+				A942F6026E8E4231BC7A84AA /* flood_zones.mbtiles in Resources */,
+				C6007917F602401EAC4E64CB /* pedestrian-graph.json in Resources */,
+				8DA6444225064E22B212CC15 /* philippines-extract.mbtiles in Resources */,
+				D1CCB1159E324F5199C9580E /* style.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

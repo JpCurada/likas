@@ -69,10 +69,13 @@ export const evacuationService = {
           pwdScore * 0.3 +
           petScore * 0.2 +
           capacityScore * 0.1;
+        const warnings: string[] = [];
+        /*
         const warnings =
           type === 'flood' && distanceKm > 8
             ? ['Route may pass through flood-prone roads; verify with barangay advisories.']
             : [];
+        */
 
         return {
           center,

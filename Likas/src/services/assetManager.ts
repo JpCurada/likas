@@ -1,5 +1,5 @@
 import RNFS from 'react-native-fs';
-import devManifest from './manifest.dev.json';
+import devManifest from './manifest.dev.json'; // Cache buster
 
 export type AssetKind = 'model' | 'mbtiles' | 'glyphs' | 'data';
 

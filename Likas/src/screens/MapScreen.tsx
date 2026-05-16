@@ -12,6 +12,7 @@ import {
   Text,
   TouchableOpacity,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -36,9 +37,11 @@ import {
   getSchoolGeoJSON,
   getMultiPurposeGeoJSON,
   getCoveredCourtGeoJSON,
+  getNearestFeature,
 } from '../utils/geoUtils';
 import {
   prepareOfflineMap,
+  prepareFloodMap,
   prepareGlyphs,
   MapAssetMissingError,
 } from '../utils/mapAssetManager';
@@ -57,7 +60,7 @@ const baseOfflineStyle = require('../../assets/maps/style.json');
 const OFFLINE_GLYPH_FONT_STACK = ['Noto Sans Regular'];
 
 /** Rebuilds the style object with building layers toggled between 2D / 3D */
-const buildStyle = (base: any, is3D: boolean): any => {
+const buildStyle = (base: any, is3D: boolean, activeFilters: Record<string, boolean>): any => {
   const clone = JSON.parse(JSON.stringify(base));
   clone.layers = clone.layers.map((layer: any) => {
     if (layer.type === 'symbol') {
@@ -81,6 +84,18 @@ const buildStyle = (base: any, is3D: boolean): any => {
         layout: { ...layer.layout, visibility: is3D ? 'visible' : 'none' },
       };
     }
+    /* 
+    // Flood layers visibility
+    if (layer.id === 'flood_zones_fill' || layer.id === 'flood_zones_outline') {
+        return {
+          ...layer,
+          layout: { 
+            ...layer.layout, 
+            visibility: activeFilters.flood ? 'visible' : 'none' 
+          },
+        };
+    }
+    */
     return layer;
   });
   return clone;
@@ -96,6 +111,17 @@ const ICON_NAMES = {
   multipurpose: 'office-building',
 };
 
+const FILTER_OPTIONS = [
+  // { id: 'flood', label: 'Flood Zones', color: '#BF00FF' },
+  { id: 'evacuation', label: 'Evacuation', color: COLORS.primaryGreen },
+  { id: 'hospital', label: 'Hospitals', color: COLORS.error },
+  { id: 'faults', label: 'Fault Lines', color: COLORS.error },
+  { id: 'gymnasium', label: 'Gymnasiums', color: '#FF9800' },
+  { id: 'school', label: 'Schools', color: '#2196F3' },
+  { id: 'multipurpose', label: 'Multi-Purpose', color: '#9C27B0' },
+  { id: 'covered_court', label: 'Covered Courts', color: '#9C27B0' },
+];
+
 export const MapScreen: React.FC = () => {
   const bottomSheetRef = useRef<BottomSheet>(null);
   const cameraRef = useRef<CameraRef>(null);
@@ -103,6 +129,18 @@ export const MapScreen: React.FC = () => {
   const [isMapReady, setIsMapReady] = useState(false);
   const [baseStyle, setBaseStyle] = useState<any>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('3D');
+
+  const [activeFilters, setActiveFilters] = useState<Record<string, boolean>>({
+    // flood: true,
+    evacuation: true,
+    hospital: true,
+    faults: true,
+    gymnasium: false,
+    school: false,
+    multipurpose: false,
+    covered_court: false,
+  });
+  const [showLayersMenu, setShowLayersMenu] = useState(false);
 
   // undefined = user panned freely; 'default' = camera follows user location
   const [trackUser, setTrackUser] = useState<TrackUserLocation | undefined>(
@@ -120,8 +158,6 @@ export const MapScreen: React.FC = () => {
   const [assetMissing, setAssetMissing] = useState(false);
   const activeRoute = useAppStore(s => s.activeRoute);
   const setActiveRoute = useAppStore(s => s.setActiveRoute);
-
-  // Permissions are now handled inside the GPS watchPosition useEffect below
 
   const routeGeoJSON = useMemo(() => {
     if (!activeRoute || activeRoute.polyline.length < 2) return null;
@@ -150,21 +186,27 @@ export const MapScreen: React.FC = () => {
   const multiPurposeGeoJSON = useMemo(() => getMultiPurposeGeoJSON(), []);
   const coveredCourtGeoJSON = useMemo(() => getCoveredCourtGeoJSON(), []);
 
-  // Derive the active style from base + current viewMode
+  // Derive the active style from base + current viewMode + filters
   const dynamicStyle = useMemo(() => {
     if (!baseStyle) return null;
-    return buildStyle(baseStyle, viewMode === '3D');
-  }, [baseStyle, viewMode]);
+    return buildStyle(baseStyle, viewMode === '3D', activeFilters);
+  }, [baseStyle, viewMode, activeFilters]);
 
   useEffect(() => {
     const initializeMap = async () => {
       try {
         console.log('[MapScreen] Starting map initialization...');
-
-        // Try to get tiles first, as they are mandatory
         const absoluteMbtilesUrl = await prepareOfflineMap();
 
-        // Try to get glyphs, but fallback gracefully if they fail
+        let floodUrl = null;
+        /*
+        try {
+            floodUrl = await prepareFloodMap();
+        } catch (floodErr) {
+            console.warn('[MapScreen] Flood MBTiles not installed:', floodErr);
+        }
+        */
+
         let glyphsPath;
         try {
           glyphsPath = await prepareGlyphs();
@@ -183,11 +225,83 @@ export const MapScreen: React.FC = () => {
         newStyle.sources.openmaptiles.url = absoluteMbtilesUrl;
         newStyle.glyphs = glyphsPath;
 
-        if (__DEV__) {
-          console.log('[MapScreen] 🗺️ Initializing Offline Map');
-          console.log('[MapScreen] 📦 MBTiles path:', absoluteMbtilesUrl);
-          console.log('[MapScreen] 🔤 Glyphs path:', glyphsPath);
+        /* 
+        if (floodUrl) {
+            newStyle.sources.flood_zones = {
+                type: 'vector',
+                url: floodUrl,
+            };
+            // Add fill layer directly into style
+            newStyle.layers.push({
+                id: 'flood_zones_fill',
+                type: 'fill',
+                source: 'flood_zones',
+                'source-layer': 'flood_zones',
+                paint: {
+                    'fill-color': [
+                        'match',
+                        ['to-string', ['coalesce', ['get', 'level'], ['get', 'Var'], ['get', 'GRIDCODE'], ['get', 'DN']]],
+                        ['High', '3'], '#FF0000',      // Neon Red
+                        ['Medium', '2'], '#BF00FF',    // Electric Purple
+                        ['Low', '1'], '#00BFFF',       // Sky Blue
+                        '#FF0000'                      // Fallback to Red if matched but value unknown
+                    ],
+                    'fill-opacity': 0.75,
+                },
+                layout: {
+                    visibility: 'visible'
+                }
+            });
+            // Add thin outline
+            newStyle.layers.push({
+                id: 'flood_zones_outline',
+                type: 'line',
+                source: 'flood_zones',
+                'source-layer': 'flood_zones',
+                paint: {
+                    'line-color': [
+                        'match',
+                        ['to-string', ['coalesce', ['get', 'level'], ['get', 'Var'], ['get', 'GRIDCODE'], ['get', 'DN']]],
+                        ['High', '3'], '#8B0000',
+                        ['Medium', '2'], '#4B0082',
+                        ['Low', '1'], '#00008B',
+                        '#8B0000'
+                    ],
+                    'line-width': 1.2,
+                    'line-opacity': 0.9,
+                },
+                layout: {
+                    visibility: 'visible'
+                }
+            });
+            // Add Diagnostic Label
+            newStyle.layers.push({
+                id: 'flood_zones_label',
+                type: 'symbol',
+                source: 'flood_zones',
+                'source-layer': 'flood_zones',
+                minzoom: 12,
+                layout: {
+                    'text-field': [
+                        'concat',
+                        'Var:', ['to-string', ['get', 'Var']],
+                        ' DN:', ['to-string', ['get', 'DN']],
+                        ' GC:', ['to-string', ['get', 'gridcode']],
+                        ' LVL:', ['to-string', ['get', 'level']],
+                    ],
+                    'text-font': OFFLINE_GLYPH_FONT_STACK,
+                    'text-size': 11,
+                    'text-allow-overlap': false,
+                    'text-ignore-placement': false,
+                },
+                paint: {
+                    'text-color': '#FFFFFF',
+                    'text-halo-color': '#000000',
+                    'text-halo-width': 2,
+                },
+            });
         }
+        */
 
         setBaseStyle(newStyle);
         setIsMapReady(true);
@@ -245,6 +359,15 @@ export const MapScreen: React.FC = () => {
     loadIcons();
   }, []);
 
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+
+  // Expose user location handling from UserLocation component
+  const handleUserLocationUpdate = (location: any) => {
+    if (location?.coords) {
+      setUserLocation([location.coords.longitude, location.coords.latitude]);
+    }
+  };
+
   useEffect(() => {
     if (!activeRoute || !isMapReady) return;
     const coords = activeRoute.polyline;
@@ -269,12 +392,47 @@ export const MapScreen: React.FC = () => {
     setViewMode(prev => (prev === '2D' ? '3D' : '2D'));
   }, []);
 
+  const toggleFilter = useCallback((id: string) => {
+    setActiveFilters(prev => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+
+  const handleFindNearestSafeZone = useCallback(() => {
+    if (!userLocation) {
+      Alert.alert('Location required', 'Please wait for your location to be determined.');
+      return;
+    }
+    const [userLon, userLat] = userLocation;
+    const evacs = evacuationGeoJSON.features;
+    const hosp = hospitalGeoJSON.features;
+    const safeZones = [...evacs, ...hosp];
+    
+    const nearest = getNearestFeature(userLon, userLat, safeZones);
+    
+    if (nearest && cameraRef.current) {
+      const [lon, lat] = nearest.geometry.coordinates;
+      setTrackUser(undefined);
+      cameraRef.current.flyTo({
+        center: [lon, lat],
+        zoom: 16,
+        duration: 1000,
+      });
+      const props = nearest.properties as TooltipData;
+      setTooltip({
+        ...props,
+        longitude: lon,
+        latitude: lat,
+      });
+      setSelectedFeatureId(props.id || null);
+    } else {
+      Alert.alert('Not found', 'Could not find any safe zones nearby.');
+    }
+  }, [userLocation, evacuationGeoJSON, hospitalGeoJSON]);
+
   const handleFeaturePress = useCallback((e: any) => {
     const feature = e?.nativeEvent?.features?.[0] ?? e?.features?.[0];
     if (!feature?.properties) return;
     if (e.stopPropagation) e.stopPropagation();
 
-    // Check if it's a cluster tap
     if (feature.properties.cluster) {
       return;
     }
@@ -291,10 +449,21 @@ export const MapScreen: React.FC = () => {
 
   const handleMapPress = useCallback((e: any) => {
     const features = e?.nativeEvent?.features ?? e?.features;
+
+    if (__DEV__ && features?.length) {
+      console.log(`[MapDebug] Tapped — ${features.length} feature(s) at point`);
+      features.forEach((f: any, i: number) => {
+        console.log(`[MapDebug] Feature[${i}] layer="${f?.layer?.id}" props=`, JSON.stringify(f?.properties));
+      });
+    } else if (__DEV__) {
+      console.log('[MapDebug] Tapped — no features at this point (empty tile or outside data)');
+    }
+
     if (features && features.length > 0) return;
     setTooltip(null);
     setSelectedFeatureId(null);
-  }, []);
+    if (showLayersMenu) setShowLayersMenu(false);
+  }, [showLayersMenu]);
 
   const handleCloseTooltip = useCallback(() => {
     setTooltip(null);
@@ -316,7 +485,6 @@ export const MapScreen: React.FC = () => {
         clusterMaxZoom={14}
         onPress={handleFeaturePress}
       >
-        {/* Cluster Layer */}
         <Layer
           id={`${id}-cluster`}
           type="circle"
@@ -350,8 +518,6 @@ export const MapScreen: React.FC = () => {
             'text-color': '#ffffff',
           }}
         />
-
-        {/* Unclustered Point Layer */}
         <Layer
           id={`${id}-glow`}
           type="circle"
@@ -458,6 +624,7 @@ export const MapScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.container}>
+        
         <Map
           style={styles.map}
           mapStyle={dynamicStyle}
@@ -479,74 +646,76 @@ export const MapScreen: React.FC = () => {
           />
 
           {/* Fault Lines */}
-          <GeoJSONSource id="faultLineSource" data={activeFaultsGeoJSON as any}>
-            <Layer
-              id="faultLineBuffer"
-              type="line"
-              paint={{
-                'line-color': COLORS.error,
-                'line-width': 12,
-                'line-opacity': 0.15,
-              }}
-            />
-            <Layer
-              id="faultLineCore"
-              type="line"
-              paint={{
-                'line-color': COLORS.error,
-                'line-width': 1.5,
-              }}
-            />
-            <Layer
-              id="faultLineLabel"
-              type="symbol"
-              minzoom={10}
-              layout={{
-                'symbol-placement': 'line',
-                'text-field': ['get', 'name'],
-                'text-font': OFFLINE_GLYPH_FONT_STACK,
-                'text-size': 11,
-                'text-letter-spacing': 0.1,
-                'text-keep-upright': true,
-                'text-offset': [0, -1],
-                'text-optional': true,
-              }}
-              paint={{
-                'text-color': COLORS.error,
-                'text-halo-color': '#ffffff',
-                'text-halo-width': 2,
-                'text-halo-blur': 0.5,
-              }}
-            />
-          </GeoJSONSource>
+          {activeFilters.faults && (
+            <GeoJSONSource id="faultLineSource" data={activeFaultsGeoJSON as any}>
+              <Layer
+                id="faultLineBuffer"
+                type="line"
+                paint={{
+                  'line-color': COLORS.error,
+                  'line-width': 12,
+                  'line-opacity': 0.15,
+                }}
+              />
+              <Layer
+                id="faultLineCore"
+                type="line"
+                paint={{
+                  'line-color': COLORS.error,
+                  'line-width': 1.5,
+                }}
+              />
+              <Layer
+                id="faultLineLabel"
+                type="symbol"
+                minzoom={10}
+                layout={{
+                  'symbol-placement': 'line',
+                  'text-field': ['get', 'name'],
+                  'text-font': OFFLINE_GLYPH_FONT_STACK,
+                  'text-size': 11,
+                  'text-letter-spacing': 0.1,
+                  'text-keep-upright': true,
+                  'text-offset': [0, -1],
+                  'text-optional': true,
+                }}
+                paint={{
+                  'text-color': COLORS.error,
+                  'text-halo-color': '#ffffff',
+                  'text-halo-width': 2,
+                  'text-halo-blur': 0.5,
+                }}
+              />
+            </GeoJSONSource>
+          )}
 
           {/* POI Layers */}
-          {renderPoiSource(
+          {activeFilters.evacuation && renderPoiSource(
             'evacuationSource',
             evacuationGeoJSON,
             COLORS.primaryGreen,
             'evacuation',
           )}
-          {renderPoiSource(
+          {activeFilters.hospital && renderPoiSource(
             'hospitalSource',
             hospitalGeoJSON,
             COLORS.error,
             'hospital',
           )}
-          {renderPoiSource(
+          {activeFilters.gymnasium && renderPoiSource(
             'gymnasiumSource',
             gymnasiumGeoJSON,
             '#FF9800',
             'gymnasium',
           )}
-          {renderPoiSource('schoolSource', schoolGeoJSON, '#2196F3', 'school')}
-          {renderPoiSource(
+          {activeFilters.school && renderPoiSource('schoolSource', schoolGeoJSON, '#2196F3', 'school')}
+          {activeFilters.multipurpose && renderPoiSource(
             'multipurposeSource',
             multiPurposeGeoJSON,
             '#9C27B0',
             'multipurpose',
           )}
-          {renderPoiSource(
+          {activeFilters.covered_court && renderPoiSource(
             'coveredCourtSource',
             coveredCourtGeoJSON,
             '#9C27B0',
@@ -578,6 +747,47 @@ export const MapScreen: React.FC = () => {
           ) : null}
         </Map>
 
+        {/* Floating Map Layers Menu */}
+        {showLayersMenu && (
+          <View style={styles.layersMenuContainer}>
+            <View style={styles.layersHeader}>
+              <Text style={styles.layersTitle}>Map Layers</Text>
+              <TouchableOpacity onPress={() => setShowLayersMenu(false)}>
+                <Icon name="close" size={20} color={COLORS.gray} />
+              </TouchableOpacity>
+            </View>
+            {FILTER_OPTIONS.map(opt => (
+              <TouchableOpacity 
+                key={opt.id} 
+                style={styles.layerItem}
+                onPress={() => toggleFilter(opt.id)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.layerInfo}>
+                  <View style={[styles.layerColor, { backgroundColor: opt.color }]} />
+                  <Text style={styles.layerText}>{opt.label}</Text>
+                </View>
+                <Icon 
+                  name={activeFilters[opt.id] ? "checkbox-marked-circle" : "checkbox-blank-circle-outline"} 
+                  size={20} 
+                  color={activeFilters[opt.id] ? COLORS.primaryGreen : '#ccc'} 
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Toggle Layers Button */}
+        {!showLayersMenu && (
+          <TouchableOpacity 
+            style={styles.layersToggleBtn} 
+            onPress={() => setShowLayersMenu(true)}
+            activeOpacity={0.8}
+          >
+            <Icon name="layers" size={24} color={COLORS.gray} />
+          </TouchableOpacity>
+        )}
+
         {activeRoute ? (
           <View style={styles.routeBanner}>
             <View style={{ flex: 1 }}>
@@ -600,43 +810,26 @@ export const MapScreen: React.FC = () => {
 
         {/* ─── 2D / 3D View Toggle ──────────────────────────────────────── */}
         <View style={styles.viewToggleContainer}>
-          <View style={styles.viewTogglePill}>
-            <TouchableOpacity
-              style={[
-                styles.viewToggleOption,
-                viewMode === '2D' && styles.viewToggleActive,
-              ]}
-              onPress={() => viewMode !== '2D' && handleToggleView()}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.viewToggleText,
-                  viewMode === '2D' && styles.viewToggleTextActive,
-                ]}
-              >
-                2D
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.viewToggleOption,
-                viewMode === '3D' && styles.viewToggleActive,
-              ]}
-              onPress={() => viewMode !== '3D' && handleToggleView()}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.viewToggleText,
-                  viewMode === '3D' && styles.viewToggleTextActive,
-                ]}
-              >
-                3D
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={[styles.viewToggleOption, styles.viewToggleActive]}
+            onPress={handleToggleView}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.viewToggleTextActive}>
+              {viewMode}
+            </Text>
+          </TouchableOpacity>
         </View>
+
+        {/* Find Nearest Safe Zone FAB */}
+        <TouchableOpacity
+          style={styles.fabNearest}
+          onPress={handleFindNearestSafeZone}
+          activeOpacity={0.8}
+        >
+          <Icon name="shield-search" size={24} color={COLORS.white} />
+          <Text style={styles.fabNearestText}>Find Safe Zone</Text>
+        </TouchableOpacity>
 
         {/* Tooltip bottom sheet — always mounted so exit animation plays */}
         <MapTooltip data={tooltip} onClose={handleCloseTooltip} />
@@ -704,18 +897,71 @@ const styles = StyleSheet.create({
     color: COLORS.gray,
     fontWeight: '500',
   },
-  // ─── 2D / 3D Toggle ───────────────────────────────────────────────────
+  layersToggleBtn: {
+    position: 'absolute',
+    left: 14,
+    top: 14,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    padding: 10,
+    borderRadius: 24,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  layersMenuContainer: {
+    position: 'absolute',
+    left: 14,
+    top: 14,
+    backgroundColor: 'rgba(255,255,255,0.98)',
+    padding: 14,
+    borderRadius: 16,
+    width: 200,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  layersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  layersTitle: {
+    fontWeight: '700',
+    fontSize: 15,
+    color: '#333',
+  },
+  layerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  layerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  layerColor: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    marginRight: 10,
+  },
+  layerText: {
+    fontSize: 14,
+    color: '#444',
+  },
   viewToggleContainer: {
     position: 'absolute',
-    top: 80,
+    top: 14,
     right: 14,
-  },
-  viewTogglePill: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 20,
-    padding: 3,
-    gap: 2,
   },
   viewToggleOption: {
     paddingHorizontal: 16,
@@ -725,18 +971,15 @@ const styles = StyleSheet.create({
   viewToggleActive: {
     backgroundColor: COLORS.primaryGreen,
   },
-  viewToggleText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.55)',
-    letterSpacing: 0.5,
-  },
   viewToggleTextActive: {
     color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   routeBanner: {
     position: 'absolute',
-    top: 80,
+    top: 70,
     right: 14,
     left: 14,
     flexDirection: 'row',
@@ -767,6 +1010,28 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '700',
     fontSize: 12,
+  },
+  fabNearest: {
+    position: 'absolute',
+    bottom: 168,
+    right: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primaryGreen,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  fabNearestText: {
+    color: COLORS.white,
+    fontWeight: '700',
+    marginLeft: 8,
+    fontSize: 14,
   },
   fabCenter: {
     position: 'absolute',

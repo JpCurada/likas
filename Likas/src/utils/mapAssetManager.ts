@@ -6,7 +6,7 @@ const MAP_TILES_ASSET_ID = 'map-tiles';
 const MAP_GLYPHS_ASSET_ID = 'map-glyphs';
 
 const SIDELOAD_DIR =
-  Platform.OS === 'android' ? '/sdcard/likas' : RNFS.DocumentDirectoryPath;
+  Platform.OS === 'android' ? RNFS.ExternalDirectoryPath : RNFS.DocumentDirectoryPath;
 
 const sideloadPath = (filename: string): string =>
   `${SIDELOAD_DIR}/${filename}`;
@@ -127,6 +127,19 @@ export const prepareOfflineMap = async (): Promise<string> => {
   }
 
   const destPath = await ensureAsset(MAP_TILES_ASSET_ID, asset.localFilename);
+  const absolutePrefix = destPath.startsWith('/') ? 'mbtiles://' : 'mbtiles:///';
+  return `${absolutePrefix}${destPath}`;
+};
+
+export const prepareFloodMap = async (): Promise<string> => {
+  const ASSET_ID = 'flood-zones-mbtiles';
+  const manifest = await assetManager.fetchManifest();
+  const asset = manifest.assets[ASSET_ID];
+  if (!asset) {
+    throw new MapAssetMissingError(ASSET_ID);
+  }
+
+  const destPath = await ensureAsset(ASSET_ID, asset.localFilename);
   const absolutePrefix = destPath.startsWith('/') ? 'mbtiles://' : 'mbtiles:///';
   return `${absolutePrefix}${destPath}`;
 };

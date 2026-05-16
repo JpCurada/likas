@@ -42,7 +42,7 @@ const scopeMessage =
   'LIKAS is specialized for disaster preparedness and emergency response. Ask about evacuation, first aid, typhoons, earthquakes, volcanoes, or go-bag preparation.';
 
 const disasterKeywords = [
-  'ash', 'bag', 'bleed', 'burn', 'baha', 'earthquake', 'evac', 'flood',
+  'ash', 'bag', 'bleed', 'burn', 'baha', 'earthquake', 'evac', // 'flood',
   'lindol', 'quake', 'trapped', 'typhoon', 'ulan', 'volcano', 'bagyo',
   'sugat', 'abo',
 ];
@@ -179,7 +179,7 @@ const fallbackResponse = (
     return 'PHIVOLCS guidance: protect breathing with N95 or damp cloth, keep ash out of food and water, follow mandatory evacuation at Alert Level 4 or 5.';
   }
   if (params.context === 'typhoon') {
-    return 'PAGASA and NDRRMC guidance: avoid floodwater, unplug appliances if water enters, evacuate early if your barangay is under flood or storm-surge warning.';
+    return 'PAGASA and NDRRMC guidance: stay indoors, unplug appliances, and follow LGU evacuation orders for storm-surge or heavy rain.';
   }
   return 'NDRRMC guidance: prepare water, food, flashlight, radio, medicines, documents, and family meeting points.';
 };

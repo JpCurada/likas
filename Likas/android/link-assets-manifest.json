@@ -50,6 +50,10 @@
       "sha1": "ef1bbd232020073a8351b3151515c121c61622db"
     },
     {
+      "path": "assets/maps/flood_zones.mbtiles",
+      "sha1": "d08519ac5ad20d1e719d13078bcd05ee88878122"
+    },
+    {
       "path": "assets/maps/pedestrian-graph.json",
       "sha1": "a21afd5ec51efb3d284016e554e027d75faf65a1"
     },
