@@ -10,6 +10,7 @@
     "link-assets": "npx react-native-asset",
     "generate-map": "node scripts/generate-map.js",
     "generate-graph": "node scripts/generate-pedestrian-graph.js",
+    "generate-graph-db": "node scripts/generate-pedestrian-graph-db.js",
     "start": "react-native start",
     "test": "jest"
   },
@@ -52,6 +53,7 @@
     "@react-native/typescript-config": "0.85.2",
     "@types/jest": "^29.5.13",
     "@types/react": "^19.2.0",
+    "@types/react-native-sqlite-storage": "^6.0.5",
     "@types/react-native-vector-icons": "^6.4.18",
     "@types/react-test-renderer": "^19.1.0",
     "eslint": "^8.19.0",
@@ -60,6 +62,7 @@
     "prettier": "2.8.8",
     "react-native-asset": "^2.3.0",
     "react-test-renderer": "19.2.3",
+    "sql.js": "^1.14.1",
     "typescript": "^5.8.3"
   },
   "engines": {
