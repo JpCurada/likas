@@ -171,8 +171,18 @@ export const MapScreen: React.FC = () => {
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [calcDestName, setCalcDestName] = useState('');
   const calcPillAnim = useRef(new Animated.Value(400)).current;
+  const abortControllerRef = useRef<AbortController | null>(null);
   const activeRoute = useAppStore(s => s.activeRoute);
   const setActiveRoute = useAppStore(s => s.setActiveRoute);
+
+  const handleCancelCalculation = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsCalculatingRoute(false);
+    setIsRerouting(false);
+  }, []);
 
   const routeGeoJSON = useMemo(() => {
     if (!activeRoute || activeRoute.polyline.length < 2) return null;
@@ -533,51 +543,63 @@ export const MapScreen: React.FC = () => {
   const handleGetDirections = useCallback(async (dest: TooltipData) => {
     if (!dest.latitude || !dest.longitude) return;
 
+    handleCancelCalculation(); // Abort any existing one
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsCalculatingRoute(true);
     setCalcDestName(dest.name);
 
-    const origin = userLocation
-      ? { latitude: userLocation[1], longitude: userLocation[0] }
-      : await new Promise<{ latitude: number; longitude: number }>((resolve, reject) =>
-          Geolocation.getCurrentPosition(
-            p => resolve({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
-            reject,
-            { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 },
-          ),
-        ).catch(() => null);
-
-    if (!origin) {
-      setIsCalculatingRoute(false);
-      Alert.alert('Location unavailable', 'Could not determine your current location.');
-      return;
-    }
-
     try {
+      const origin = userLocation
+        ? { latitude: userLocation[1], longitude: userLocation[0] }
+        : await new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
+            Geolocation.getCurrentPosition(
+              p => resolve({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
+              reject,
+              { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 },
+            );
+            controller.signal.addEventListener('abort', () => reject(new Error('Aborted')));
+          }).catch(() => null);
+
+      if (!origin) {
+        setIsCalculatingRoute(false);
+        Alert.alert('Location unavailable', 'Could not determine your current location.');
+        return;
+      }
+
+      if (controller.signal.aborted) return;
+
       const route = await routingService.route(origin, {
         latitude: dest.latitude,
         longitude: dest.longitude,
-      });
+      }, controller.signal);
+
       setActiveRoute({
         ...route,
         destination: { latitude: dest.latitude, longitude: dest.longitude },
         destinationName: dest.name,
       });
     } catch (err: any) {
+      if (err.message === 'Aborted') return;
       if (err instanceof GraphNotLoadedError) {
         // Pedestrian graph not installed — use straight-line estimate as fallback
         const R = 6_371_000;
         const toRad = (d: number) => (d * Math.PI) / 180;
-        const dLat = toRad(dest.latitude - origin.latitude);
-        const dLon = toRad(dest.longitude - origin.longitude);
+        const originLat = userLocation ? userLocation[1] : 0; // fallback if origin logic failed but we didn't return
+        const originLon = userLocation ? userLocation[0] : 0;
+
+        const dLat = toRad(dest.latitude - originLat);
+        const dLon = toRad(dest.longitude - originLon);
         const a =
           Math.sin(dLat / 2) ** 2 +
-          Math.cos(toRad(origin.latitude)) *
+          Math.cos(toRad(originLat)) *
             Math.cos(toRad(dest.latitude)) *
             Math.sin(dLon / 2) ** 2;
         const distanceMeters = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const WALKING_MPS = 1.167;
         setActiveRoute({
-          polyline: [origin, { latitude: dest.latitude, longitude: dest.longitude }],
+          polyline: [{ latitude: originLat, longitude: originLon }, { latitude: dest.latitude, longitude: dest.longitude }],
           distanceMeters,
           durationMinutesWalking: Math.ceil(distanceMeters / WALKING_MPS / 60),
           destination: { latitude: dest.latitude, longitude: dest.longitude },
@@ -591,9 +613,12 @@ export const MapScreen: React.FC = () => {
         );
       }
     } finally {
-      setIsCalculatingRoute(false);
+      if (abortControllerRef.current === controller) {
+        setIsCalculatingRoute(false);
+        abortControllerRef.current = null;
+      }
     }
-  }, [userLocation, setActiveRoute]);
+  }, [userLocation, setActiveRoute, handleCancelCalculation]);
 
   const handleReroute = useCallback(async () => {
     if (!userLocation || !activeRoute) {
@@ -601,17 +626,22 @@ export const MapScreen: React.FC = () => {
       return;
     }
 
+    handleCancelCalculation(); // Abort any existing one
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsRerouting(true);
     const origin = { latitude: userLocation[1], longitude: userLocation[0] };
     const dest = activeRoute.destination;
 
     try {
-      const newRoute = await routingService.route(origin, dest);
+      const newRoute = await routingService.route(origin, dest, controller.signal);
       setActiveRoute({
         ...activeRoute,
         ...newRoute,
       });
     } catch (err: any) {
+      if (err.message === 'Aborted') return;
       if (err instanceof GraphNotLoadedError) {
         // Pedestrian graph not installed — fall back to straight-line from new position
         const R = 6_371_000;
@@ -642,9 +672,12 @@ export const MapScreen: React.FC = () => {
         Alert.alert('Reroute failed', err?.message ?? 'Could not recalculate path from your current location.');
       }
     } finally {
-      setIsRerouting(false);
+      if (abortControllerRef.current === controller) {
+        setIsRerouting(false);
+        abortControllerRef.current = null;
+      }
     }
-  }, [userLocation, activeRoute, setActiveRoute]);
+  }, [userLocation, activeRoute, setActiveRoute, handleCancelCalculation]);
 
   const handleFeaturePress = useCallback((e: any) => {
     const feature = e?.nativeEvent?.features?.[0] ?? e?.features?.[0];
@@ -1087,8 +1120,9 @@ export const MapScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.routeBannerClose}
               onPress={() => setActiveRoute(null)}
+              activeOpacity={0.7}
             >
-              <Text style={styles.routeBannerCloseText}>Clear</Text>
+              <Icon name="close" size={18} color={COLORS.white} />
             </TouchableOpacity>
           </View>
         ) : null}
@@ -1099,15 +1133,23 @@ export const MapScreen: React.FC = () => {
             styles.routeCalcPill,
             { transform: [{ translateY: calcPillAnim }] },
           ]}
-          pointerEvents="none"
+          pointerEvents={isCalculatingRoute || isRerouting ? 'auto' : 'none'}
         >
           <ActivityIndicator size="small" color={COLORS.primaryGreen} />
           <View style={{ flex: 1 }}>
             <Text style={styles.routeCalcLabel}>Calculating route</Text>
             <Text style={styles.routeCalcDest} numberOfLines={1}>
-              {calcDestName}
+              {calcDestName || 'Rerouting...'}
             </Text>
           </View>
+
+          <TouchableOpacity
+            style={styles.routeCalcCancel}
+            onPress={handleCancelCalculation}
+            activeOpacity={0.7}
+          >
+            <Icon name="close" size={16} color={COLORS.primaryGreen} />
+          </TouchableOpacity>
         </Animated.View>
 
         {/* Find Nearest Safe Zone FAB */}
@@ -1352,15 +1394,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   routeBannerClose: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.18)',
-  },
-  routeBannerCloseText: {
-    color: COLORS.white,
-    fontWeight: '700',
-    fontSize: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   fabNearest: {
     position: 'absolute',
@@ -1450,6 +1489,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.darkGreen,
     marginTop: 1,
+  },
+  routeCalcCancel: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(59, 179, 114, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

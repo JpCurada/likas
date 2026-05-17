@@ -188,11 +188,13 @@ export const routingService = {
    * Throws GraphNotLoadedError if the DB isn't installed,
    * NoRouteError if the points snap but no walkable path connects them.
    */
-  route: async (from: LatLng, to: LatLng): Promise<RouteResult> => {
+  route: async (from: LatLng, to: LatLng, signal?: AbortSignal): Promise<RouteResult> => {
     console.log(
       `[routingService] route() — from (${from.latitude.toFixed(5)}, ${from.longitude.toFixed(5)})` +
       ` to (${to.latitude.toFixed(5)}, ${to.longitude.toFixed(5)})`,
     );
+
+    if (signal?.aborted) throw new Error('Aborted');
 
     // ── 1. Resolve DB path ──────────────────────────────────────────────────
     const dbPath = await assetManager.getLocalPath(GRAPH_DB_ASSET_ID);
@@ -201,8 +203,12 @@ export const routingService = {
       throw new GraphNotLoadedError();
     }
 
+    if (signal?.aborted) throw new Error('Aborted');
+
     // ── 2. Open singleton connection ────────────────────────────────────────
     const db = await openGraphDb(dbPath);
+
+    if (signal?.aborted) throw new Error('Aborted');
 
     // ── 3. Load corridor subgraph ───────────────────────────────────────────
     const {nodes, adjacency} = await querySubgraph(db, from, to);
@@ -210,6 +216,8 @@ export const routingService = {
       console.warn('[routingService] ❌ Subgraph is empty — corridor may be outside DB bbox.');
       throw new NoRouteError();
     }
+
+    if (signal?.aborted) throw new Error('Aborted');
 
     // ── 4. Snap to nearest graph nodes ──────────────────────────────────────
     const start = findNearestNode(nodes, from.longitude, from.latitude);
@@ -225,6 +233,8 @@ export const routingService = {
       `dest → node ${goal.id} (${goal.meters.toFixed(0)} m). Running A*...`,
     );
 
+    if (signal?.aborted) throw new Error('Aborted');
+
     // ── 5. A* ───────────────────────────────────────────────────────────────
     const result = aStar(nodes, adjacency, start.id, goal.id);
     if (!result) {
@@ -235,6 +245,8 @@ export const routingService = {
       `[routingService] ✅ Route found — ${result.path.length} nodes, ` +
       `${(result.distanceMeters / 1000).toFixed(2)} km graph distance.`,
     );
+
+    if (signal?.aborted) throw new Error('Aborted');
 
     // ── 6. Build polyline & return ──────────────────────────────────────────
     const polyline: LatLng[] = [
