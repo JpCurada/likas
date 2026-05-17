@@ -35,6 +35,11 @@ type Props = {
   data: TooltipData | null;
   onClose: () => void;
   onGetDirections?: (data: TooltipData) => void;
+  /** Nearby list navigation — provided by MapScreen when browsing sorted POIs */
+  onPrev?: () => void;
+  onNext?: () => void;
+  listIndex?: number;
+  listTotal?: number;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -66,7 +71,15 @@ const openMaps = (lat: number, lon: number, label: string) => {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export const MapTooltip: React.FC<Props> = ({ data, onClose, onGetDirections }) => {
+export const MapTooltip: React.FC<Props> = ({
+  data,
+  onClose,
+  onGetDirections,
+  onPrev,
+  onNext,
+  listIndex,
+  listTotal,
+}) => {
   // Keep a "last seen" snapshot so we can animate OUT with real content still rendered
   const [snapshot, setSnapshot] = useState<TooltipData | null>(null);
 
@@ -189,6 +202,32 @@ export const MapTooltip: React.FC<Props> = ({ data, onClose, onGetDirections }) 
       >
         {/* Drag handle */}
         <View style={styles.handle} />
+
+        {/* Nearby navigation strip — visible when browsing a sorted POI list */}
+        {onPrev !== undefined && onNext !== undefined &&
+          listTotal !== undefined && listTotal > 1 && (
+          <View style={styles.navStrip}>
+            <TouchableOpacity
+              style={styles.navBtn}
+              onPress={onPrev}
+              hitSlop={{ top: 10, bottom: 10, left: 16, right: 16 }}
+              activeOpacity={0.7}
+            >
+              <Icon name="chevron-left" size={22} color={accentColor} />
+            </TouchableOpacity>
+            <Text style={[styles.navCounter, { color: accentColor }]}>
+              {(listIndex ?? 0) + 1} / {listTotal}
+            </Text>
+            <TouchableOpacity
+              style={styles.navBtn}
+              onPress={onNext}
+              hitSlop={{ top: 10, bottom: 10, left: 16, right: 16 }}
+              activeOpacity={0.7}
+            >
+              <Icon name="chevron-right" size={22} color={accentColor} />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* ── Header ── */}
         <View style={styles.header}>
@@ -350,6 +389,30 @@ const InfoRow: React.FC<InfoRowProps> = ({ iconName, label, value, accent }) => 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  // ── Navigation strip ──
+  navStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    gap: 12,
+  },
+  navBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F2F4F3',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  navCounter: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    minWidth: 64,
+    textAlign: 'center',
+  },
   backdrop: {
     ...StyleSheet.absoluteFill,
     backgroundColor: '#000',

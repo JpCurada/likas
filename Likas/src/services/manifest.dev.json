@@ -41,6 +41,16 @@
       "localFilename": "pedestrian-graph.json",
       "localSubdir": "maps"
     },
+    "pedestrian-graph-db": {
+      "kind": "data",
+      "version": "2026.05",
+      "url": "https://cdn.example.invalid/likas/maps/pedestrian-graph.v2026.05.db",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "size": 28000000,
+      "required": true,
+      "localFilename": "pedestrian-graph.db",
+      "localSubdir": "maps"
+    },
     "ai-model-gemma-4-e2b": {
       "kind": "model",
       "version": "1.0.0",

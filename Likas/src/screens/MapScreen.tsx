@@ -45,6 +45,7 @@ import {
   prepareOfflineMap,
   prepareFloodMap,
   prepareGlyphs,
+  prepareGraphDb,
   MapAssetMissingError,
 } from '../utils/mapAssetManager';
 import { MapTooltip, TooltipData } from '../components/MapTooltip';
@@ -52,7 +53,7 @@ import { AssetMissingPrompt } from '../components/AssetMissingPrompt';
 import { useAppStore } from '../stores/appStore';
 import { loadProfile, UserProfile } from '../database/storage';
 import { useFocusEffect } from '@react-navigation/native';
-import { routingService, GraphNotLoadedError } from '../services/routingService';
+import { routingService, GraphNotLoadedError, NoRouteError } from '../services/routingService';
 import activeFaultsGeoJSON from '../data/gem_active_faults_harmonized.json';
 import { ChatScreen } from './ChatScreen';
 import { Icon } from '../components/Icon';
@@ -159,6 +160,8 @@ export const MapScreen: React.FC = () => {
   const [isChatVisible, setIsChatVisible] = useState(false);
   const [icons, setIcons] = useState<any>({});
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
+  const [nearbyList, setNearbyList] = useState<any[]>([]);
+  const [nearbyIndex, setNearbyIndex] = useState(0);
 
   const snapPoints = useMemo(() => ['15%', '50%', '90%'], []);
 
@@ -199,6 +202,32 @@ export const MapScreen: React.FC = () => {
     if (!baseStyle) return null;
     return buildStyle(baseStyle, true, activeFilters);
   }, [baseStyle, activeFilters]);
+
+  // ── Nearby-list helpers ───────────────────────────────────────────────────
+
+  /** Sort features by straight-line distance from the user (degree-space Euclidean — fine for ordering). */
+  const sortByDistance = (features: any[], userLon: number, userLat: number): any[] =>
+    [...features]
+      .filter(f => Array.isArray(f.geometry?.coordinates) && f.geometry.coordinates.length >= 2)
+      .map(f => ({
+        ...f,
+        _d: Math.hypot(f.geometry.coordinates[0] - userLon, f.geometry.coordinates[1] - userLat),
+      }))
+      .sort((a, b) => a._d - b._d);
+
+  /** Return all features of the same pointType as the tapped POI. */
+  const getFeaturesByType = useCallback((pointType: string): any[] => {
+    switch (pointType) {
+      case 'evacuation':   return evacuationGeoJSON.features;
+      case 'hospital':     return hospitalGeoJSON.features;
+      case 'gymnasium':    return gymnasiumGeoJSON.features;
+      case 'school':       return schoolGeoJSON.features;
+      case 'multipurpose':
+      case 'multi_purpose': return [...multiPurposeGeoJSON.features, ...coveredCourtGeoJSON.features];
+      case 'covered_court': return coveredCourtGeoJSON.features;
+      default:             return [];
+    }
+  }, [evacuationGeoJSON, hospitalGeoJSON, gymnasiumGeoJSON, schoolGeoJSON, multiPurposeGeoJSON, coveredCourtGeoJSON]);
 
   useEffect(() => {
     const initializeMap = async () => {
@@ -314,6 +343,12 @@ export const MapScreen: React.FC = () => {
         setBaseStyle(newStyle);
         setIsMapReady(true);
         console.log('[MapScreen] Map initialization successful.');
+
+        // Register pedestrian graph DB from sideload / bundled APK so routingService can find it.
+        prepareGraphDb().then(p => {
+          if (p) console.log('[MapScreen] Pedestrian graph DB ready:', p);
+          else console.log('[MapScreen] Pedestrian graph DB not installed — straight-line fallback active.');
+        });
       } catch (error) {
         console.error('[MapScreen] CRITICAL: Map Init Failed:', error);
         if (error instanceof MapAssetMissingError) {
@@ -441,20 +476,21 @@ export const MapScreen: React.FC = () => {
   }, []);
 
   const findAndNavigateToSafeZone = useCallback((lon: number, lat: number) => {
-    const evacs = evacuationGeoJSON.features;
-    const hosp = hospitalGeoJSON.features;
-    const safeZones = [...evacs, ...hosp];
-    const nearest = getNearestFeature(lon, lat, safeZones);
-    if (nearest && cameraRef.current) {
-      const [nearLon, nearLat] = nearest.geometry.coordinates;
-      setTrackUser(undefined);
-      cameraRef.current.flyTo({ center: [nearLon, nearLat], zoom: 16, duration: 1000 });
-      const props = nearest.properties as TooltipData;
-      setTooltip({ ...props, longitude: nearLon, latitude: nearLat });
-      setSelectedFeatureId(props.id || null);
-    } else {
+    const safeZones = [...evacuationGeoJSON.features, ...hospitalGeoJSON.features];
+    const sorted = sortByDistance(safeZones, lon, lat);
+    if (sorted.length === 0 || !cameraRef.current) {
       Alert.alert('Not found', 'Could not find any safe zones nearby.');
+      return;
     }
+    setNearbyList(sorted);
+    setNearbyIndex(0);
+    const nearest = sorted[0];
+    const [nearLon, nearLat] = nearest.geometry.coordinates;
+    setTrackUser(undefined);
+    cameraRef.current.flyTo({ center: [nearLon, nearLat], zoom: 16, duration: 1000 });
+    const props = nearest.properties as TooltipData;
+    setTooltip({ ...props, longitude: nearLon, latitude: nearLat });
+    setSelectedFeatureId(props.id || null);
   }, [evacuationGeoJSON, hospitalGeoJSON]);
 
   const handleFindNearestSafeZone = useCallback(() => {
@@ -543,21 +579,47 @@ export const MapScreen: React.FC = () => {
       Alert.alert('Cannot reroute', 'Location and active route are required.');
       return;
     }
-    
+
     setIsRerouting(true);
+    const origin = { latitude: userLocation[1], longitude: userLocation[0] };
+    const dest = activeRoute.destination;
+
     try {
-      const newRoute = await routingService.route(
-        { latitude: userLocation[1], longitude: userLocation[0] },
-        activeRoute.destination
-      );
-      
+      const newRoute = await routingService.route(origin, dest);
       setActiveRoute({
         ...activeRoute,
         ...newRoute,
       });
-    } catch (err) {
-      console.warn('[MapScreen] Reroute failed:', err);
-      Alert.alert('Reroute failed', 'Could not recalculate path from your current location.');
+    } catch (err: any) {
+      if (err instanceof GraphNotLoadedError) {
+        // Pedestrian graph not installed — fall back to straight-line from new position
+        const R = 6_371_000;
+        const toRad = (d: number) => (d * Math.PI) / 180;
+        const dLat = toRad(dest.latitude - origin.latitude);
+        const dLon = toRad(dest.longitude - origin.longitude);
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(origin.latitude)) *
+            Math.cos(toRad(dest.latitude)) *
+            Math.sin(dLon / 2) ** 2;
+        const distanceMeters = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const WALKING_MPS = 1.167;
+        setActiveRoute({
+          ...activeRoute,
+          polyline: [origin, dest],
+          distanceMeters,
+          durationMinutesWalking: Math.ceil(distanceMeters / WALKING_MPS / 60),
+        });
+        console.warn('[MapScreen] Reroute — graph not installed, showing straight-line from new position');
+      } else if (err instanceof NoRouteError) {
+        Alert.alert(
+          'No path found',
+          'Could not find a walkable path from your current location. The route may cross impassable terrain.',
+        );
+      } else {
+        console.warn('[MapScreen] Reroute failed:', err);
+        Alert.alert('Reroute failed', err?.message ?? 'Could not recalculate path from your current location.');
+      }
     } finally {
       setIsRerouting(false);
     }
@@ -567,10 +629,7 @@ export const MapScreen: React.FC = () => {
     const feature = e?.nativeEvent?.features?.[0] ?? e?.features?.[0];
     if (!feature?.properties) return;
     if (e.stopPropagation) e.stopPropagation();
-
-    if (feature.properties.cluster) {
-      return;
-    }
+    if (feature.properties.cluster) return;
 
     const coords = feature?.geometry?.coordinates;
     const props = feature.properties as TooltipData;
@@ -580,7 +639,21 @@ export const MapScreen: React.FC = () => {
       latitude: coords?.[1] ?? undefined,
     });
     setSelectedFeatureId(props.id || null);
-  }, []);
+
+    // Build a distance-sorted list for the same POI type so the user can
+    // cycle through all nearby options with ← Prev / Next → in the tooltip.
+    if (userLocation) {
+      const [uLon, uLat] = userLocation;
+      const typeFeatures = getFeaturesByType(props.pointType);
+      const sorted = sortByDistance(typeFeatures, uLon, uLat);
+      setNearbyList(sorted);
+      const idx = sorted.findIndex(f => f.properties?.id === props.id);
+      setNearbyIndex(Math.max(0, idx));
+    } else {
+      setNearbyList([]);
+      setNearbyIndex(0);
+    }
+  }, [userLocation, getFeaturesByType]);
 
   const handleMapPress = useCallback((e: any) => {
     const features = e?.nativeEvent?.features ?? e?.features;
@@ -597,13 +670,38 @@ export const MapScreen: React.FC = () => {
     if (features && features.length > 0) return;
     setTooltip(null);
     setSelectedFeatureId(null);
+    setNearbyList([]);
     if (showLayersMenu) setShowLayersMenu(false);
   }, [showLayersMenu]);
 
   const handleCloseTooltip = useCallback(() => {
     setTooltip(null);
     setSelectedFeatureId(null);
+    setNearbyList([]);
   }, []);
+
+  /** Pan the map to nearbyList[idx] and update the tooltip. */
+  const navigateToNearbyAt = useCallback((idx: number) => {
+    const feature = nearbyList[idx];
+    if (!feature || !cameraRef.current) return;
+    const [lon, lat] = feature.geometry.coordinates;
+    setTrackUser(undefined);
+    cameraRef.current.flyTo({ center: [lon, lat], zoom: 16, duration: 600 });
+    const props = feature.properties as TooltipData;
+    setTooltip({ ...props, longitude: lon, latitude: lat });
+    setSelectedFeatureId(props.id || null);
+    setNearbyIndex(idx);
+  }, [nearbyList]);
+
+  const handleNearbyPrev = useCallback(() => {
+    const prev = (nearbyIndex - 1 + nearbyList.length) % nearbyList.length;
+    navigateToNearbyAt(prev);
+  }, [nearbyIndex, nearbyList.length, navigateToNearbyAt]);
+
+  const handleNearbyNext = useCallback(() => {
+    const next = (nearbyIndex + 1) % nearbyList.length;
+    navigateToNearbyAt(next);
+  }, [nearbyIndex, nearbyList.length, navigateToNearbyAt]);
 
   const renderPoiSource = (
     id: string,
@@ -985,7 +1083,15 @@ export const MapScreen: React.FC = () => {
         </TouchableOpacity>
 
         {/* Tooltip bottom sheet — always mounted so exit animation plays */}
-        <MapTooltip data={tooltip} onClose={handleCloseTooltip} onGetDirections={handleGetDirections} />
+        <MapTooltip
+          data={tooltip}
+          onClose={handleCloseTooltip}
+          onGetDirections={handleGetDirections}
+          onPrev={nearbyList.length > 1 ? handleNearbyPrev : undefined}
+          onNext={nearbyList.length > 1 ? handleNearbyNext : undefined}
+          listIndex={nearbyIndex}
+          listTotal={nearbyList.length}
+        />
 
         {/* Center on Me FAB */}
         <TouchableOpacity

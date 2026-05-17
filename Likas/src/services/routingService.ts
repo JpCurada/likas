@@ -1,34 +1,38 @@
-import RNFS from 'react-native-fs';
+/**
+ * routingService.ts
+ *
+ * Provides offline pedestrian A* routing backed by a SQLite graph DB.
+ *
+ * Flow per route() call:
+ *   1. Resolve DB path from assetManager (installed.json)
+ *   2. Open singleton SQLite connection (instant after first open)
+ *   3. Query corridor subgraph: R-tree bbox → ~15–20k nodes & edges
+ *   4. Snap origin & destination to nearest subgraph nodes
+ *   5. A* on the in-memory subgraph
+ *   6. Return polyline + distance + walking time
+ *
+ * Falls back to GraphNotLoadedError if the DB isn't installed, which
+ * MapScreen catches and falls back to a straight-line estimate.
+ */
+
 import {assetManager} from './assetManager';
 import {getDistanceKm} from './evacuationService';
+import {openGraphDb, querySubgraph} from './graphDb';
 import type {LatLng} from '../types';
 
-const GRAPH_ASSET_ID = 'pedestrian-graph';
+// ── Constants ─────────────────────────────────────────────────────────────────
 
-type GraphFile = {
-  bbox: [number, number, number, number];
-  nodes: Record<string, [number, number]>;
-  adjacency: Record<string, Array<[number, number]>>;
-  meta?: Record<string, unknown>;
-};
+const GRAPH_DB_ASSET_ID = 'pedestrian-graph-db';
+const WALKING_MPS       = 1.167;  // 4.2 km/h
+const MAX_SNAP_METERS   = 1500;   // refuse to route if >1.5 km from any road
 
-type LoadedGraph = {
-  bbox: [number, number, number, number];
-  nodes: Map<number, [number, number]>;
-  adjacency: Map<number, Array<[number, number]>>;
-  grid: Map<string, number[]>;
-};
-
-export type RouteResult = {
-  polyline: LatLng[];
-  distanceMeters: number;
-  durationMinutesWalking: number;
-};
+// ── Error classes ─────────────────────────────────────────────────────────────
 
 export class GraphNotLoadedError extends Error {
   constructor() {
     super(
-      'Pedestrian routing graph is not installed. Download it from Setup or sideload to /sdcard/likas/.',
+      'Pedestrian routing graph is not installed. ' +
+      'Sideload pedestrian-graph.db to /sdcard/Android/data/com.likas/files/',
     );
     this.name = 'GraphNotLoadedError';
   }
@@ -41,12 +45,15 @@ export class NoRouteError extends Error {
   }
 }
 
-const WALKING_MPS = 1.167; // 4.2 km/h, matches evacuationService
-const GRID_CELL_DEG = 0.005; // ~500m, used for nearest-node lookup
-const MAX_SNAP_METERS = 1500; // refuse to route if you're >1.5km from any walkable way
+// ── Result type ───────────────────────────────────────────────────────────────
 
-let cached: LoadedGraph | null = null;
-let loadPromise: Promise<LoadedGraph | null> | null = null;
+export type RouteResult = {
+  polyline: LatLng[];
+  distanceMeters: number;
+  durationMinutesWalking: number;
+};
+
+// ── Haversine ─────────────────────────────────────────────────────────────────
 
 const haversineMeters = (a: [number, number], b: [number, number]): number =>
   getDistanceKm(
@@ -54,114 +61,32 @@ const haversineMeters = (a: [number, number], b: [number, number]): number =>
     {latitude: b[1], longitude: b[0]},
   ) * 1000;
 
-const cellKey = (lon: number, lat: number): string => {
-  const cx = Math.floor(lon / GRID_CELL_DEG);
-  const cy = Math.floor(lat / GRID_CELL_DEG);
-  return `${cx}:${cy}`;
-};
-
-const buildGrid = (
-  nodes: Map<number, [number, number]>,
-): Map<string, number[]> => {
-  const grid = new Map<string, number[]>();
-  for (const [id, [lon, lat]] of nodes.entries()) {
-    const key = cellKey(lon, lat);
-    let bucket = grid.get(key);
-    if (!bucket) {
-      bucket = [];
-      grid.set(key, bucket);
-    }
-    bucket.push(id);
-  }
-  return grid;
-};
-
-const loadGraph = async (): Promise<LoadedGraph | null> => {
-  if (cached) return cached;
-  if (loadPromise) return loadPromise;
-
-  loadPromise = (async () => {
-    const localPath = await assetManager.getLocalPath(GRAPH_ASSET_ID);
-    if (!localPath) return null;
-    try {
-      const raw = await RNFS.readFile(localPath, 'utf8');
-      const parsed = JSON.parse(raw) as GraphFile;
-      const nodes = new Map<number, [number, number]>();
-      for (const [k, v] of Object.entries(parsed.nodes)) {
-        nodes.set(Number(k), v);
-      }
-      const adjacency = new Map<number, Array<[number, number]>>();
-      for (const [k, edges] of Object.entries(parsed.adjacency)) {
-        adjacency.set(
-          Number(k),
-          edges.map(([nb, m]) => [Number(nb), m]),
-        );
-      }
-      cached = {
-        bbox: parsed.bbox,
-        nodes,
-        adjacency,
-        grid: buildGrid(nodes),
-      };
-      return cached;
-    } catch (err) {
-      console.warn('[routingService] failed to load graph:', err);
-      return null;
-    } finally {
-      loadPromise = null;
-    }
-  })();
-  return loadPromise;
-};
+// ── Nearest-node (linear scan on subgraph) ────────────────────────────────────
 
 const findNearestNode = (
-  graph: LoadedGraph,
+  nodes: Map<number, [number, number]>,
   lon: number,
   lat: number,
 ): {id: number; meters: number} | null => {
-  // Search the cell containing the point + 1-cell ring (≈1.5km radius). Expand
-  // if nothing found, capped at MAX_SNAP_METERS.
-  const cx = Math.floor(lon / GRID_CELL_DEG);
-  const cy = Math.floor(lat / GRID_CELL_DEG);
   const target: [number, number] = [lon, lat];
-  let bestId = -1;
+  let bestId     = -1;
   let bestMeters = Infinity;
 
-  for (let ring = 0; ring <= 4; ring++) {
-    for (let dx = -ring; dx <= ring; dx++) {
-      for (let dy = -ring; dy <= ring; dy++) {
-        if (
-          ring > 0 &&
-          Math.abs(dx) !== ring &&
-          Math.abs(dy) !== ring
-        )
-          continue;
-        const bucket = graph.grid.get(`${cx + dx}:${cy + dy}`);
-        if (!bucket) continue;
-        for (const id of bucket) {
-          const coord = graph.nodes.get(id)!;
-          const meters = haversineMeters(target, coord);
-          if (meters < bestMeters) {
-            bestMeters = meters;
-            bestId = id;
-          }
-        }
-      }
-    }
-    if (bestId !== -1 && bestMeters < (ring + 1) * 500) break;
+  for (const [id, coord] of nodes.entries()) {
+    const m = haversineMeters(target, coord);
+    if (m < bestMeters) { bestMeters = m; bestId = id; }
   }
 
   if (bestId === -1 || bestMeters > MAX_SNAP_METERS) return null;
   return {id: bestId, meters: bestMeters};
 };
 
-// Binary-heap priority queue keyed by f-score.
+// ── Min-heap (unchanged from original) ───────────────────────────────────────
+
 class MinHeap {
   private heap: Array<{id: number; f: number}> = [];
 
-  size(): number {
-    return this.heap.length;
-  }
+  size(): number { return this.heap.length; }
 
   push(item: {id: number; f: number}): void {
     this.heap.push(item);
@@ -170,12 +95,9 @@ class MinHeap {
 
   pop(): {id: number; f: number} | undefined {
     if (this.heap.length === 0) return undefined;
-    const top = this.heap[0];
+    const top  = this.heap[0];
     const last = this.heap.pop()!;
-    if (this.heap.length > 0) {
-      this.heap[0] = last;
-      this.sinkDown(0);
-    }
+    if (this.heap.length > 0) { this.heap[0] = last; this.sinkDown(0); }
     return top;
   }
 
@@ -205,21 +127,24 @@ class MinHeap {
   }
 }
 
+// ── A* ────────────────────────────────────────────────────────────────────────
+
 const aStar = (
-  graph: LoadedGraph,
+  nodes: Map<number, [number, number]>,
+  adjacency: Map<number, Array<[number, number]>>,
   startId: number,
   goalId: number,
 ): {path: number[]; distanceMeters: number} | null => {
   if (startId === goalId) return {path: [startId], distanceMeters: 0};
 
-  const goalCoord = graph.nodes.get(goalId)!;
-  const heuristic = (id: number): number =>
-    haversineMeters(graph.nodes.get(id)!, goalCoord);
+  const goalCoord  = nodes.get(goalId)!;
+  const heuristic  = (id: number): number =>
+    haversineMeters(nodes.get(id)!, goalCoord);
 
-  const gScore = new Map<number, number>();
+  const gScore  = new Map<number, number>();
   const cameFrom = new Map<number, number>();
-  const closed = new Set<number>();
-  const open = new MinHeap();
+  const closed  = new Set<number>();
+  const open    = new MinHeap();
 
   gScore.set(startId, 0);
   open.push({id: startId, f: heuristic(startId)});
@@ -228,19 +153,15 @@ const aStar = (
     const current = open.pop()!;
     if (closed.has(current.id)) continue;
     if (current.id === goalId) {
-      // Reconstruct
       const path: number[] = [goalId];
       let cur = goalId;
-      while (cameFrom.has(cur)) {
-        cur = cameFrom.get(cur)!;
-        path.push(cur);
-      }
+      while (cameFrom.has(cur)) { cur = cameFrom.get(cur)!; path.push(cur); }
       path.reverse();
       return {path, distanceMeters: gScore.get(goalId) ?? 0};
     }
     closed.add(current.id);
 
-    const neighbors = graph.adjacency.get(current.id);
+    const neighbors = adjacency.get(current.id);
     if (!neighbors) continue;
     const curG = gScore.get(current.id) ?? Infinity;
     for (const [nbId, edgeMeters] of neighbors) {
@@ -256,40 +177,80 @@ const aStar = (
   return null;
 };
 
+// ── Public service ────────────────────────────────────────────────────────────
+
 export const routingService = {
-  isReady: async (): Promise<boolean> => {
-    if (cached) return true;
-    return assetManager.isInstalled(GRAPH_ASSET_ID);
-  },
+  isReady: async (): Promise<boolean> =>
+    assetManager.isInstalled(GRAPH_DB_ASSET_ID),
 
   /**
-   * Compute a walking route between two LatLngs. Throws GraphNotLoadedError if
-   * the graph asset isn't installed, NoRouteError if the points snap but no
-   * walkable path connects them.
+   * Compute a walking route between two LatLngs using the SQLite graph DB.
+   * Throws GraphNotLoadedError if the DB isn't installed,
+   * NoRouteError if the points snap but no walkable path connects them.
    */
   route: async (from: LatLng, to: LatLng): Promise<RouteResult> => {
-    const graph = await loadGraph();
-    if (!graph) throw new GraphNotLoadedError();
+    console.log(
+      `[routingService] route() — from (${from.latitude.toFixed(5)}, ${from.longitude.toFixed(5)})` +
+      ` to (${to.latitude.toFixed(5)}, ${to.longitude.toFixed(5)})`,
+    );
 
-    const start = findNearestNode(graph, from.longitude, from.latitude);
-    const goal = findNearestNode(graph, to.longitude, to.latitude);
-    if (!start || !goal) throw new NoRouteError();
+    // ── 1. Resolve DB path ──────────────────────────────────────────────────
+    const dbPath = await assetManager.getLocalPath(GRAPH_DB_ASSET_ID);
+    if (!dbPath) {
+      console.warn('[routingService] ❌ DB not registered — throwing GraphNotLoadedError.');
+      throw new GraphNotLoadedError();
+    }
 
-    const result = aStar(graph, start.id, goal.id);
-    if (!result) throw new NoRouteError();
+    // ── 2. Open singleton connection ────────────────────────────────────────
+    const db = await openGraphDb(dbPath);
 
-    // Build polyline: start point -> snapped start -> path nodes -> snapped goal -> end point.
+    // ── 3. Load corridor subgraph ───────────────────────────────────────────
+    const {nodes, adjacency} = await querySubgraph(db, from, to);
+    if (nodes.size === 0) {
+      console.warn('[routingService] ❌ Subgraph is empty — corridor may be outside DB bbox.');
+      throw new NoRouteError();
+    }
+
+    // ── 4. Snap to nearest graph nodes ──────────────────────────────────────
+    const start = findNearestNode(nodes, from.longitude, from.latitude);
+    const goal  = findNearestNode(nodes, to.longitude,   to.latitude);
+    if (!start || !goal) {
+      console.warn(
+        `[routingService] ❌ Snap failed. start=${JSON.stringify(start)}, goal=${JSON.stringify(goal)}`,
+      );
+      throw new NoRouteError();
+    }
+    console.log(
+      `[routingService] Snapped origin → node ${start.id} (${start.meters.toFixed(0)} m), ` +
+      `dest → node ${goal.id} (${goal.meters.toFixed(0)} m). Running A*...`,
+    );
+
+    // ── 5. A* ───────────────────────────────────────────────────────────────
+    const result = aStar(nodes, adjacency, start.id, goal.id);
+    if (!result) {
+      console.warn('[routingService] ❌ A* found no path in subgraph.');
+      throw new NoRouteError();
+    }
+    console.log(
+      `[routingService] ✅ Route found — ${result.path.length} nodes, ` +
+      `${(result.distanceMeters / 1000).toFixed(2)} km graph distance.`,
+    );
+
+    // ── 6. Build polyline & return ──────────────────────────────────────────
     const polyline: LatLng[] = [
       from,
       ...result.path.map(id => {
-        const [lon, lat] = graph.nodes.get(id)!;
+        const [lon, lat] = nodes.get(id)!;
         return {latitude: lat, longitude: lon};
       }),
       to,
     ];
 
-    const totalMeters =
-      result.distanceMeters + start.meters + goal.meters;
+    const totalMeters = result.distanceMeters + start.meters + goal.meters;
+    console.log(
+      `[routingService] Total: ${(totalMeters / 1000).toFixed(2)} km, ` +
+      `~${Math.ceil(totalMeters / WALKING_MPS / 60)} min walk.`,
+    );
     return {
       polyline,
       distanceMeters: totalMeters,
