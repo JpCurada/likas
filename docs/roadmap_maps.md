@@ -34,8 +34,8 @@ This document outlines the strategic implementation plan for the offline mapping
 
 - [ ] **Offline Routing Engine**: Implement a pre-computed pedestrian routing graph using a Dijkstra-based approach.
 - [ ] **Hazard-Aware Pathfinding**: Logic to calculate routes that automatically avoid active flood or ashfall zones.
-- [ ] **AI Map Integration**: Connect the Gemma 4 assistant to the mapping service for queries like *"Where is the safest path to [Center Name]?"*
+- [/] **AI Map Integration**: Gemma 4 E2B (via `llama.rn`) can call `route_to_nearest_evacuation` and `find_nearby` tools to surface POIs and ranked centers; the road-following polyline path lights up once the pedestrian routing graph is provisioned.
 - [ ] **Android App Bundle (AAB) Assets**: Implement Play Asset Delivery for the "Entire Philippines" map pack (~250MB) to bypass the 150MB APK limit.
 
 ---
-*Last Updated: 2026-05-11*
+*Last Updated: 2026-05-15*

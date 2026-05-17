@@ -50,8 +50,12 @@
       "sha1": "ef1bbd232020073a8351b3151515c121c61622db"
     },
     {
+      "path": "assets/maps/pedestrian-graph.json",
+      "sha1": "a21afd5ec51efb3d284016e554e027d75faf65a1"
+    },
+    {
       "path": "assets/maps/philippines-extract.mbtiles",
-      "sha1": "5401d509e1e639155802222753cf4d2ca2ede74a"
+      "sha1": "5f5df691f7d10ed73a59356b1f89b4671e344d52"
     },
     {
       "path": "assets/maps/style.json",

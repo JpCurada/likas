@@ -1,0 +1,11 @@
+{
+  "disaster": "typhoon",
+  "source": "PAGASA Tropical Cyclone Bulletin guidance; NDRRMC Typhoon Preparedness Checklist",
+  "retrieved": "2026-05-14",
+  "phases": {
+    "before": "PAGASA and NDRRMC preparedness: 1) Monitor the official PAGASA Tropical Cyclone Bulletin every 3 hours. 2) Reinforce roof, windows, and doors. Clear gutters and drainage. 3) Prepare a Go Bag with 3 days of water, ready-to-eat food, flashlight, battery radio, power bank, medicines, IDs, and waterproof bag for documents. 4) Charge phones and power banks before landfall. 5) Know your barangay's designated evacuation center and pre-emptive evacuation triggers (Signal No. 2 or higher for low-lying or coastal areas).",
+    "during": "PAGASA and NDRRMC guidance: Stay indoors away from windows. Unplug appliances if water enters the home. Do not wade in floodwater — it can be electrified or contaminated. If ordered to evacuate, go immediately to the designated evacuation center. Avoid using candles; use flashlights. Listen to the radio for updates. Do NOT cross flooded roads or rivers, even on foot.",
+    "after": "NDRRMC guidance: Wait for the official 'all clear' from local DRRMO before returning home. Watch for downed power lines, weakened structures, and contaminated water. Boil drinking water for at least 1 minute. Report damaged infrastructure to your barangay. Discard food that touched floodwater. Be alert for leptospirosis symptoms (fever, muscle pain) within 2 weeks of wading."
+  },
+  "emergency_contact": "NDRRMC Operations Center: 911 or (02) 8911-1406; PAGASA Weather Hotline: (02) 8284-0800"
+}
