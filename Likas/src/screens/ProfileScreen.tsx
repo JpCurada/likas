@@ -36,6 +36,7 @@ import {
 } from '../data/metroManila';
 import RNFS from 'react-native-fs';
 import { assetManager } from '../services/assetManager';
+import { MeetingPointPickerModal } from '../components/MeetingPointPickerModal';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -204,6 +205,9 @@ export const ProfileScreen: React.FC = () => {
   const [cityModal, setCityModal] = useState(false);
   const [brgyModal, setBrgyModal] = useState(false);
   const [search, setSearch] = useState('');
+
+  // ── Map meeting-point picker state ──
+  const [pickerTarget, setPickerTarget] = useState<'primaryMeeting' | 'secondaryMeeting' | null>(null);
 
   // ── Routing graph state ──
   const [graphInstalled, setGraphInstalled] = useState<boolean | null>(null);
@@ -581,50 +585,123 @@ export const ProfileScreen: React.FC = () => {
             onSave={v => updLoc({ streetAddress: v })}
           />
 
+          {/* Primary Meeting Place */}
           <View style={ps.meetingHeader}>
             <Icon name="star" size={16} color={COLORS.darkGreen} />
             <Text style={ps.meetingTitle}>Primary Meeting Place</Text>
           </View>
+
+          {/* Map pin button */}
+          <TouchableOpacity
+            style={ps.mapPinBtn}
+            onPress={() => setPickerTarget('primaryMeeting')}
+            activeOpacity={0.8}
+          >
+            <View style={[
+              ps.mapPinIconWrap,
+              profile.location.primaryMeeting.coordinates && ps.mapPinIconWrapSet,
+            ]}>
+              <Icon
+                name={profile.location.primaryMeeting.coordinates ? 'map-marker-check' : 'map-marker-plus-outline'}
+                size={22}
+                color={profile.location.primaryMeeting.coordinates ? COLORS.primaryGreen : COLORS.gray}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              {profile.location.primaryMeeting.coordinates ? (
+                <>
+                  <Text style={ps.mapPinSetLabel}>Pin set ✓</Text>
+                  <Text style={ps.mapPinCoords}>
+                    {profile.location.primaryMeeting.coordinates.latitude.toFixed(5)},{' '}
+                    {profile.location.primaryMeeting.coordinates.longitude.toFixed(5)}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={ps.mapPinEmptyLabel}>Tap to pin on map</Text>
+                  <Text style={ps.mapPinHint}>Drop a pin at the exact meeting spot</Text>
+                </>
+              )}
+            </View>
+            <Icon name="chevron-right" size={18} color={COLORS.gray} />
+          </TouchableOpacity>
+
           <FieldRow
-            label="Landmark"
+            label="Landmark Name (optional)"
             value={profile.location.primaryMeeting.landmark}
-            placeholder="Basketball Court, Church..."
+            placeholder="Basketball Court, Church…"
             onSave={v => updMeeting('primaryMeeting', { landmark: v })}
           />
           <FieldRow
             label="Street Address"
             value={profile.location.primaryMeeting.streetAddress}
-            placeholder="12 Rizal St., Brgy. ..."
+            placeholder="12 Rizal St., Brgy. …"
             onSave={v => updMeeting('primaryMeeting', { streetAddress: v })}
           />
           <FieldRow
             label="Notes"
             value={profile.location.primaryMeeting.notes}
-            placeholder="Near the red sari-sari store..."
+            placeholder="Near the red sari-sari store…"
             onSave={v => updMeeting('primaryMeeting', { notes: v })}
             multiline
           />
 
+          {/* Secondary Meeting Place */}
           <View style={ps.meetingHeader}>
             <Icon name="map-marker-outline" size={16} color={COLORS.darkGreen} />
             <Text style={ps.meetingTitle}>Secondary Meeting Place</Text>
           </View>
+
+          {/* Map pin button */}
+          <TouchableOpacity
+            style={ps.mapPinBtn}
+            onPress={() => setPickerTarget('secondaryMeeting')}
+            activeOpacity={0.8}
+          >
+            <View style={[
+              ps.mapPinIconWrap,
+              profile.location.secondaryMeeting.coordinates && ps.mapPinIconWrapSet,
+            ]}>
+              <Icon
+                name={profile.location.secondaryMeeting.coordinates ? 'map-marker-check' : 'map-marker-plus-outline'}
+                size={22}
+                color={profile.location.secondaryMeeting.coordinates ? COLORS.primaryGreen : COLORS.gray}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              {profile.location.secondaryMeeting.coordinates ? (
+                <>
+                  <Text style={ps.mapPinSetLabel}>Pin set ✓</Text>
+                  <Text style={ps.mapPinCoords}>
+                    {profile.location.secondaryMeeting.coordinates.latitude.toFixed(5)},{' '}
+                    {profile.location.secondaryMeeting.coordinates.longitude.toFixed(5)}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={ps.mapPinEmptyLabel}>Tap to pin on map</Text>
+                  <Text style={ps.mapPinHint}>Drop a pin at the exact meeting spot</Text>
+                </>
+              )}
+            </View>
+            <Icon name="chevron-right" size={18} color={COLORS.gray} />
+          </TouchableOpacity>
           <FieldRow
-            label="Landmark"
+            label="Landmark Name (optional)"
             value={profile.location.secondaryMeeting.landmark}
-            placeholder="Basketball Court, Church..."
+            placeholder="Basketball Court, Church…"
             onSave={v => updMeeting('secondaryMeeting', { landmark: v })}
           />
           <FieldRow
             label="Street Address"
             value={profile.location.secondaryMeeting.streetAddress}
-            placeholder="12 Rizal St., Brgy. ..."
+            placeholder="12 Rizal St., Brgy. …"
             onSave={v => updMeeting('secondaryMeeting', { streetAddress: v })}
           />
           <FieldRow
             label="Notes"
             value={profile.location.secondaryMeeting.notes}
-            placeholder="Near the red sari-sari store..."
+            placeholder="Near the red sari-sari store…"
             onSave={v => updMeeting('secondaryMeeting', { notes: v })}
             multiline
           />
@@ -749,6 +826,26 @@ export const ProfileScreen: React.FC = () => {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Meeting Point Map Picker */}
+      <MeetingPointPickerModal
+        visible={pickerTarget !== null}
+        title={
+          pickerTarget === 'primaryMeeting'
+            ? 'Pin Primary Meeting Point'
+            : 'Pin Secondary Meeting Point'
+        }
+        initial={
+          pickerTarget ? profile.location[pickerTarget].coordinates : null
+        }
+        onConfirm={coords => {
+          if (pickerTarget) {
+            updMeeting(pickerTarget, { coordinates: coords });
+          }
+          setPickerTarget(null);
+        }}
+        onCancel={() => setPickerTarget(null)}
+      />
 
       {/* City Modal */}
       <Modal visible={cityModal} animationType="slide" transparent>
@@ -1155,6 +1252,53 @@ const ps = StyleSheet.create({
     fontFamily: FONTS.primaryBold,
     fontSize: SIZES.small,
     color: COLORS.darkGreen,
+  },
+  // ── Map pin button ──
+  mapPinBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.lightGreen,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  mapPinIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#e5e7eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mapPinIconWrapSet: {
+    backgroundColor: '#dcfce7',
+  },
+  mapPinSetLabel: {
+    fontFamily: FONTS.primaryBold,
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primaryGreen,
+  },
+  mapPinCoords: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 11,
+    color: COLORS.gray,
+    marginTop: 1,
+    letterSpacing: 0.2,
+  },
+  mapPinEmptyLabel: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 13,
+    color: COLORS.darkGreen,
+  },
+  mapPinHint: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 11,
+    color: COLORS.gray,
+    marginTop: 1,
   },
   contactBlock: {
     gap: 8,

@@ -71,12 +71,15 @@ type AppState = {
   packedItems: Record<string, boolean>;
   chatMessages: ChatMessage[];
   activeRoute: ActiveRoute | null;
+  /** The fully processed MapLibre style object — set by MapScreen on first init. */
+  offlineMapStyle: any | null;
   setActiveContext: (context: DisasterContext) => void;
   updateProfile: (profile: UserProfile) => void;
   completeOnboarding: () => void;
   togglePackedItem: (itemId: string) => void;
   addChatMessage: (message: ChatMessage) => void;
   setActiveRoute: (route: ActiveRoute | null) => void;
+  setOfflineMapStyle: (style: any) => void;
 };
 
 export const useAppStore = create<AppState>(set => ({
@@ -104,5 +107,7 @@ export const useAppStore = create<AppState>(set => ({
   addChatMessage: message =>
     set(state => ({chatMessages: [...state.chatMessages, message]})),
   activeRoute: null,
+  offlineMapStyle: null,
   setActiveRoute: route => set({activeRoute: route}),
+  setOfflineMapStyle: style => set({offlineMapStyle: style}),
 }));

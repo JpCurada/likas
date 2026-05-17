@@ -174,6 +174,7 @@ export const MapScreen: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeRoute = useAppStore(s => s.activeRoute);
   const setActiveRoute = useAppStore(s => s.setActiveRoute);
+  const setOfflineMapStyle = useAppStore(s => s.setOfflineMapStyle);
 
   const handleCancelCalculation = useCallback(() => {
     if (abortControllerRef.current) {
@@ -365,6 +366,9 @@ export const MapScreen: React.FC = () => {
         */
 
         setBaseStyle(newStyle);
+        // Publish the processed style to the global store so other screens
+        // (e.g. MeetingPointPickerModal) can reuse it without re-initialising.
+        setOfflineMapStyle(buildStyle(newStyle, true, {}));
         setIsMapReady(true);
         console.log('[MapScreen] Map initialization successful.');
 
