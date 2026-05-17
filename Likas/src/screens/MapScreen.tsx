@@ -13,7 +13,9 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
+  PermissionsAndroid,
 } from 'react-native';
+import Geolocation from '@react-native-community/geolocation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Map,
@@ -48,6 +50,7 @@ import {
 import { MapTooltip, TooltipData } from '../components/MapTooltip';
 import { AssetMissingPrompt } from '../components/AssetMissingPrompt';
 import { useAppStore } from '../stores/appStore';
+import { routingService, GraphNotLoadedError } from '../services/routingService';
 import activeFaultsGeoJSON from '../data/gem_active_faults_harmonized.json';
 import { ChatScreen } from './ChatScreen';
 import { Icon } from '../components/Icon';
@@ -156,6 +159,7 @@ export const MapScreen: React.FC = () => {
   const snapPoints = useMemo(() => ['15%', '50%', '90%'], []);
 
   const [assetMissing, setAssetMissing] = useState(false);
+  const [isRerouting, setIsRerouting] = useState(false);
   const activeRoute = useAppStore(s => s.activeRoute);
   const setActiveRoute = useAppStore(s => s.setActiveRoute);
 
@@ -361,12 +365,52 @@ export const MapScreen: React.FC = () => {
 
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
 
-  // Expose user location handling from UserLocation component
-  const handleUserLocationUpdate = (location: any) => {
-    if (location?.coords) {
-      setUserLocation([location.coords.longitude, location.coords.latitude]);
+  // Request permission then watch GPS position
+  useEffect(() => {
+    let watchId: number | null = null;
+
+    const startTracking = () => {
+      // Immediately get current position for a fast first fix
+      Geolocation.getCurrentPosition(
+        position => {
+          setUserLocation([position.coords.longitude, position.coords.latitude]);
+        },
+        error => console.warn('[MapScreen] getCurrentPosition error:', error),
+        { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 },
+      );
+      // Then keep watching for updates
+      watchId = Geolocation.watchPosition(
+        position => {
+          setUserLocation([position.coords.longitude, position.coords.latitude]);
+        },
+        error => console.warn('[MapScreen] watchPosition error:', error),
+        { enableHighAccuracy: false, distanceFilter: 5 },
+      );
+    };
+
+    if (Platform.OS === 'android') {
+      PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        {
+          title: 'Location Permission',
+          message: 'LIKAS needs your location to find nearby safe zones.',
+          buttonPositive: 'Allow',
+        },
+      ).then(result => {
+        if (result === PermissionsAndroid.RESULTS.GRANTED) {
+          startTracking();
+        } else {
+          console.warn('[MapScreen] Location permission denied');
+        }
+      });
+    } else {
+      startTracking();
     }
-  };
+
+    return () => {
+      if (watchId !== null) Geolocation.clearWatch(watchId);
+    };
+  }, []);
 
   useEffect(() => {
     if (!activeRoute || !isMapReady) return;
@@ -396,37 +440,128 @@ export const MapScreen: React.FC = () => {
     setActiveFilters(prev => ({ ...prev, [id]: !prev[id] }));
   }, []);
 
-  const handleFindNearestSafeZone = useCallback(() => {
-    if (!userLocation) {
-      Alert.alert('Location required', 'Please wait for your location to be determined.');
-      return;
-    }
-    const [userLon, userLat] = userLocation;
+  const findAndNavigateToSafeZone = useCallback((lon: number, lat: number) => {
     const evacs = evacuationGeoJSON.features;
     const hosp = hospitalGeoJSON.features;
     const safeZones = [...evacs, ...hosp];
-    
-    const nearest = getNearestFeature(userLon, userLat, safeZones);
-    
+    const nearest = getNearestFeature(lon, lat, safeZones);
     if (nearest && cameraRef.current) {
-      const [lon, lat] = nearest.geometry.coordinates;
+      const [nearLon, nearLat] = nearest.geometry.coordinates;
       setTrackUser(undefined);
-      cameraRef.current.flyTo({
-        center: [lon, lat],
-        zoom: 16,
-        duration: 1000,
-      });
+      cameraRef.current.flyTo({ center: [nearLon, nearLat], zoom: 16, duration: 1000 });
       const props = nearest.properties as TooltipData;
-      setTooltip({
-        ...props,
-        longitude: lon,
-        latitude: lat,
-      });
+      setTooltip({ ...props, longitude: nearLon, latitude: nearLat });
       setSelectedFeatureId(props.id || null);
     } else {
       Alert.alert('Not found', 'Could not find any safe zones nearby.');
     }
-  }, [userLocation, evacuationGeoJSON, hospitalGeoJSON]);
+  }, [evacuationGeoJSON, hospitalGeoJSON]);
+
+  const handleFindNearestSafeZone = useCallback(() => {
+    if (userLocation) {
+      // Already have cached location — use it immediately
+      findAndNavigateToSafeZone(userLocation[0], userLocation[1]);
+      return;
+    }
+    // Location not yet cached — request it on-demand
+    Geolocation.getCurrentPosition(
+      position => {
+        const { longitude, latitude } = position.coords;
+        setUserLocation([longitude, latitude]);
+        findAndNavigateToSafeZone(longitude, latitude);
+      },
+      () => {
+        Alert.alert(
+          'Location unavailable',
+          'Unable to determine your location. Please ensure location services are enabled.',
+        );
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 },
+    );
+  }, [userLocation, findAndNavigateToSafeZone]);
+
+  const handleGetDirections = useCallback(async (dest: TooltipData) => {
+    if (!dest.latitude || !dest.longitude) return;
+    const origin = userLocation
+      ? { latitude: userLocation[1], longitude: userLocation[0] }
+      : await new Promise<{ latitude: number; longitude: number }>((resolve, reject) =>
+          Geolocation.getCurrentPosition(
+            p => resolve({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
+            reject,
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 },
+          ),
+        ).catch(() => null);
+
+    if (!origin) {
+      Alert.alert('Location unavailable', 'Could not determine your current location.');
+      return;
+    }
+
+    try {
+      const route = await routingService.route(origin, {
+        latitude: dest.latitude,
+        longitude: dest.longitude,
+      });
+      setActiveRoute({
+        ...route,
+        destination: { latitude: dest.latitude, longitude: dest.longitude },
+        destinationName: dest.name,
+      });
+    } catch (err: any) {
+      if (err instanceof GraphNotLoadedError) {
+        // Pedestrian graph not installed — use straight-line estimate as fallback
+        const R = 6_371_000;
+        const toRad = (d: number) => (d * Math.PI) / 180;
+        const dLat = toRad(dest.latitude - origin.latitude);
+        const dLon = toRad(dest.longitude - origin.longitude);
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(origin.latitude)) *
+            Math.cos(toRad(dest.latitude)) *
+            Math.sin(dLon / 2) ** 2;
+        const distanceMeters = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const WALKING_MPS = 1.167;
+        setActiveRoute({
+          polyline: [origin, { latitude: dest.latitude, longitude: dest.longitude }],
+          distanceMeters,
+          durationMinutesWalking: Math.ceil(distanceMeters / WALKING_MPS / 60),
+          destination: { latitude: dest.latitude, longitude: dest.longitude },
+          destinationName: dest.name,
+        });
+        console.warn('[MapScreen] Routing graph not installed — showing straight-line route');
+      } else {
+        Alert.alert(
+          'Routing failed',
+          err?.message ?? 'Could not calculate a walking route to this location.',
+        );
+      }
+    }
+  }, [userLocation, setActiveRoute]);
+
+  const handleReroute = useCallback(async () => {
+    if (!userLocation || !activeRoute) {
+      Alert.alert('Cannot reroute', 'Location and active route are required.');
+      return;
+    }
+    
+    setIsRerouting(true);
+    try {
+      const newRoute = await routingService.route(
+        { latitude: userLocation[1], longitude: userLocation[0] },
+        activeRoute.destination
+      );
+      
+      setActiveRoute({
+        ...activeRoute,
+        ...newRoute,
+      });
+    } catch (err) {
+      console.warn('[MapScreen] Reroute failed:', err);
+      Alert.alert('Reroute failed', 'Could not recalculate path from your current location.');
+    } finally {
+      setIsRerouting(false);
+    }
+  }, [userLocation, activeRoute, setActiveRoute]);
 
   const handleFeaturePress = useCallback((e: any) => {
     const feature = e?.nativeEvent?.features?.[0] ?? e?.features?.[0];
@@ -800,6 +935,17 @@ export const MapScreen: React.FC = () => {
               </Text>
             </View>
             <TouchableOpacity
+              style={styles.routeBannerReroute}
+              onPress={handleReroute}
+              disabled={isRerouting}
+            >
+              {isRerouting ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
+              ) : (
+                <Text style={styles.routeBannerRerouteText}>Reroute</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
               style={styles.routeBannerClose}
               onPress={() => setActiveRoute(null)}
             >
@@ -832,7 +978,7 @@ export const MapScreen: React.FC = () => {
         </TouchableOpacity>
 
         {/* Tooltip bottom sheet — always mounted so exit animation plays */}
-        <MapTooltip data={tooltip} onClose={handleCloseTooltip} />
+        <MapTooltip data={tooltip} onClose={handleCloseTooltip} onGetDirections={handleGetDirections} />
 
         {/* Center on Me FAB */}
         <TouchableOpacity
@@ -999,6 +1145,17 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.75)',
     fontSize: 12,
     marginTop: 2,
+  },
+  routeBannerReroute: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: COLORS.primaryGreen,
+  },
+  routeBannerRerouteText: {
+    color: COLORS.white,
+    fontWeight: '700',
+    fontSize: 12,
   },
   routeBannerClose: {
     paddingHorizontal: 10,

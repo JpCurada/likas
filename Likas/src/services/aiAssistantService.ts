@@ -11,6 +11,7 @@ import type {
 import {assetManager} from './assetManager';
 import {TOOL_REGISTRY, ToolResult, findTool} from './aiTools';
 import {buildGrammar} from './aiGrammar';
+import {routingService, GraphNotLoadedError, NoRouteError} from './routingService';
 
 const AI_MODEL_ASSET_ID = 'ai-model-gemma-4-e2b';
 const BATTERY_FLOOR = 0.15;
@@ -203,16 +204,18 @@ const ensureContext = async (): Promise<LlamaContext | null> => {
     const modelPath = await assetManager.getLocalPath(AI_MODEL_ASSET_ID);
     if (!modelPath) return null;
     try {
+      console.log(`[aiAssistantService] Native initLlama start with model: ${modelPath}`);
       const ctx = await initLlama({
         model: modelPath,
         n_ctx: 2048,
         n_threads: 4,
         n_gpu_layers: 99,
       });
+      console.log('[aiAssistantService] Native initLlama SUCCESS');
       llamaContext = ctx;
       return ctx;
     } catch (err) {
-      console.warn('[aiAssistantService] initLlama failed:', err);
+      console.warn('[aiAssistantService] Native initLlama FAILED:', err);
       return null;
     } finally {
       initPromise = null;
@@ -470,6 +473,63 @@ export const aiAssistantService = {
 
     const ctx = await ensureContext();
     if (!ctx) {
+      const normalized = params.userMessage.toLowerCase();
+      if (
+        normalized.includes('evac') ||
+        normalized.includes('center') ||
+        normalized.includes('shelter') ||
+        normalized.includes('saan pupunta')
+      ) {
+        const best = params.nearestCenters[0];
+        if (best) {
+          onEvent?.({
+            kind: 'tool_call',
+            name: 'route_to_nearest_evacuation',
+            args: {},
+          });
+          const destination = {
+            latitude: best.center.latitude,
+            longitude: best.center.longitude,
+          };
+          let route = null;
+          let routeNote = '';
+          try {
+            route = await routingService.route(
+              params.profile.location.coordinates,
+              destination,
+            );
+            routeNote = `\n\nRoute to ${best.center.name}: ${(route.distanceMeters / 1000).toFixed(2)} km along walkable roads, ~${route.durationMinutesWalking} min walking.`;
+          } catch (err) {
+            if (err instanceof GraphNotLoadedError) {
+              routeNote = '\n\n(Road-following route unavailable — pedestrian map data not installed.)';
+            } else if (err instanceof NoRouteError) {
+              routeNote = '\n\n(Could not snap your location to a walkable road. Use the straight-line direction shown on the map.)';
+            }
+          }
+          onEvent?.({
+            kind: 'tool_result',
+            name: 'route_to_nearest_evacuation',
+            result: {
+              summary: `Nearest option: ${best.center.name}${routeNote}`,
+              payload: {
+                kind: 'evacuation_ranking',
+                centers: [best],
+                route: route
+                  ? {
+                      destinationName: best.center.name,
+                      destination,
+                      polyline: route.polyline,
+                      distanceMeters: route.distanceMeters,
+                      durationMinutesWalking: route.durationMinutesWalking,
+                    }
+                  : null,
+              },
+            },
+          });
+          yield `NDRRMC guidance: your best local option is ${best.center.name}, about ${best.distanceKm.toFixed(1)} km away or ${best.estimatedWalkMinutes} minutes on foot.${routeNote}`;
+          return;
+        }
+      }
       yield fallbackResponse(params);
       return;
     }

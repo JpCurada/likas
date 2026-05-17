@@ -54,12 +54,18 @@ export const useAIAssistant = () => {
     let cancelled = false;
     (async () => {
       const ready = await aiAssistantService.isReady();
+      console.log(`[AI Hook] LLM Asset Installed: ${ready}`);
       if (!mountedRef.current || cancelled) return;
       setState(s => ({...s, isReady: ready, isInitializing: !ready ? false : true}));
       if (ready) {
+        console.log('[AI Hook] Starting LLM Initialization...');
         await aiAssistantService.initialize();
         if (!mountedRef.current || cancelled) return;
+        const finalReady = await aiAssistantService.isReady();
+        console.log(`[AI Hook] LLM Initialization finished. Ready: ${finalReady}`);
         setState(s => ({...s, isInitializing: false}));
+      } else {
+        console.log('[AI Hook] LLM not installed. AI will run in Smart Fallback mode.');
       }
     })();
     return () => {

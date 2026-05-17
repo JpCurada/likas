@@ -34,6 +34,7 @@ export type TooltipData = {
 type Props = {
   data: TooltipData | null;
   onClose: () => void;
+  onGetDirections?: (data: TooltipData) => void;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -65,7 +66,7 @@ const openMaps = (lat: number, lon: number, label: string) => {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export const MapTooltip: React.FC<Props> = ({ data, onClose }) => {
+export const MapTooltip: React.FC<Props> = ({ data, onClose, onGetDirections }) => {
   // Keep a "last seen" snapshot so we can animate OUT with real content still rendered
   const [snapshot, setSnapshot] = useState<TooltipData | null>(null);
 
@@ -297,32 +298,19 @@ export const MapTooltip: React.FC<Props> = ({ data, onClose }) => {
             <TouchableOpacity
               style={[styles.actionBtn, { backgroundColor: accentColor }]}
               activeOpacity={0.82}
-              onPress={() =>
-                openMaps(
-                  snapshot.latitude!,
-                  snapshot.longitude!,
-                  snapshot.name,
-                )
-              }
+              onPress={() => {
+                if (onGetDirections) {
+                  onGetDirections(snapshot);
+                  onClose();
+                } else {
+                  openMaps(snapshot.latitude!, snapshot.longitude!, snapshot.name);
+                }
+              }}
             >
               <Icon name="directions" size={18} color="#fff" />
               <Text style={styles.actionBtnText}>Get Directions</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity
-            style={[
-              styles.actionBtn,
-              styles.actionBtnOutline,
-              { borderColor: accentColor + '60' },
-            ]}
-            activeOpacity={0.7}
-            onPress={onClose}
-          >
-            <Icon name="close-circle-outline" size={18} color={COLORS.gray} />
-            <Text style={[styles.actionBtnText, { color: COLORS.gray }]}>
-              Dismiss
-            </Text>
-          </TouchableOpacity>
         </View>
 
         {/* Safe-area bottom padding */}

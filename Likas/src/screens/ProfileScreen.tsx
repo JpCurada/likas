@@ -10,6 +10,7 @@ import {
   TextInput,
   Modal,
   FlatList,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, SIZES } from '../theme';
@@ -33,6 +34,8 @@ import {
   METRO_MANILA,
   LANDMARK_SUGGESTIONS,
 } from '../data/metroManila';
+import RNFS from 'react-native-fs';
+import { assetManager } from '../services/assetManager';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -201,6 +204,39 @@ export const ProfileScreen: React.FC = () => {
   const [cityModal, setCityModal] = useState(false);
   const [brgyModal, setBrgyModal] = useState(false);
   const [search, setSearch] = useState('');
+
+  // ── Routing graph state ──
+  const [graphInstalled, setGraphInstalled] = useState<boolean | null>(null);
+  const [graphLoading, setGraphLoading] = useState(false);
+
+  const checkGraph = useCallback(async () => {
+    const installed = await assetManager.isInstalled('pedestrian-graph');
+    setGraphInstalled(installed);
+  }, []);
+
+  useEffect(() => { checkGraph(); }, [checkGraph]);
+
+  const handleSideloadGraph = useCallback(async () => {
+    setGraphLoading(true);
+    try {
+      const sideloadDir = Platform.OS === 'android' ? '/sdcard/likas' : RNFS.DocumentDirectoryPath;
+      const sourcePath = `${sideloadDir}/pedestrian-graph.json`;
+      if (!(await RNFS.exists(sourcePath))) {
+        Alert.alert(
+          'File not found',
+          `Push the graph to the device first:\n\nadb push pedestrian-graph.json ${sideloadDir}/`,
+        );
+        return;
+      }
+      await assetManager.importFromPath('pedestrian-graph', sourcePath);
+      await checkGraph();
+      Alert.alert('Success', 'Pedestrian routing graph installed! Get Directions now uses turn-by-turn walking routes.');
+    } catch (err: any) {
+      Alert.alert('Import failed', err?.message ?? 'Unknown error');
+    } finally {
+      setGraphLoading(false);
+    }
+  }, [checkGraph]);
 
   useEffect(() => {
     loadProfile().then(p => {
@@ -640,6 +676,57 @@ export const ProfileScreen: React.FC = () => {
               </ScrollView>
             </View>
           ))}
+        </SectionCard>
+
+        {/* ── OFFLINE DATA ── */}
+        <SectionCard iconName="database-arrow-down" title="Offline Data">
+          {/* Routing graph */}
+          <View style={ps.dataRow}>
+            <View style={ps.dataRowL}>
+              <Icon
+                name={graphInstalled ? 'map-check' : 'map-marker-path'}
+                size={22}
+                color={graphInstalled ? COLORS.primaryGreen : COLORS.gray}
+              />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={ps.dataRowTitle}>Walking Route Graph</Text>
+                <Text style={ps.dataRowSub}>
+                  {graphInstalled === null
+                    ? 'Checking...'
+                    : graphInstalled
+                    ? 'Installed — turn-by-turn routing active'
+                    : 'Not installed — straight-line only'}
+                </Text>
+              </View>
+            </View>
+            {!graphInstalled && (
+              <TouchableOpacity
+                style={ps.dataBtn}
+                onPress={handleSideloadGraph}
+                disabled={graphLoading}
+                activeOpacity={0.8}
+              >
+                {graphLoading ? (
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                ) : (
+                  <>
+                    <Icon name="folder-arrow-down" size={15} color={COLORS.white} />
+                    <Text style={ps.dataBtnTxt}>Sideload</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+            {graphInstalled && (
+              <View style={ps.dataInstalledBadge}>
+                <Icon name="check-circle" size={14} color={COLORS.primaryGreen} />
+                <Text style={ps.dataInstalledTxt}>Ready</Text>
+              </View>
+            )}
+          </View>
+          <Text style={ps.dataHint}>
+            Generate with: node scripts/generate-pedestrian-graph.mjs{`\n`}
+            Then: adb push pedestrian-graph.json /sdcard/likas/
+          </Text>
         </SectionCard>
 
         {/* Reset */}
@@ -1100,6 +1187,68 @@ const ps = StyleSheet.create({
     color: COLORS.primaryGreen,
   },
   relTxtOn: { color: COLORS.white },
+  // ── Offline Data section ──
+  dataRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    gap: 8,
+  },
+  dataRowL: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  dataRowTitle: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 14,
+    color: '#1a1a1a',
+  },
+  dataRowSub: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 12,
+    color: COLORS.gray,
+    marginTop: 2,
+  },
+  dataBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: COLORS.primaryGreen,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  dataBtnTxt: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 12,
+    color: COLORS.white,
+  },
+  dataInstalledBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.lightGreen,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  dataInstalledTxt: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 12,
+    color: COLORS.primaryGreen,
+  },
+  dataHint: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 11,
+    color: COLORS.gray,
+    marginTop: 10,
+    lineHeight: 17,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 10,
+  },
   resetBtn: {
     flexDirection: 'row',
     backgroundColor: COLORS.white,

@@ -19,13 +19,13 @@ This document outlines the strategic implementation plan for the offline mapping
 - [x] **Locked Zone Overlay**: Visual boundary restricting map interaction to Metro Manila (current dataset scope).
 - [x] **Interactive POI Layers**: Basic GeoJSON rendering for Evacuation Centers and Hospitals.
 - [x] **Bottom Sheet Tooltips**: Implement `MapTooltip.tsx` for displaying detailed center information on tap.
-- [ ] **Native Storage Optimization**: Implement logic to verify checksums before re-extracting map assets to save device life.
+- [x] **Native Storage Optimization**: Implement logic to verify checksums before re-extracting map assets to save device life.
 
 ## Phase 3: Data & Authority Alignment
 *Goal: Move from mock/utility data to official NDRRMC/PHIVOLCS/PAGASA datasets.*
 
-- [/] **SQLite R-Tree Integration**: Migrate POIs from static files to a local SQLite database for fast spatial queries.
-- [ ] **Fault Line Overlay**: Integrate PHIVOLCS Active Fault Line geospatial data as a toggleable layer.
+- [x] **SQLite R-Tree Integration**: Migrate POIs from static files to a local SQLite database for fast spatial queries.
+- [x] **Fault Line Overlay**: Integrate PHIVOLCS Active Fault Line geospatial data as a toggleable layer.
 - [ ] **Hazard Zone Polygons**: Implement flood hazard (PAGASA) and ashfall projection (PHIVOLCS) overlays on the map.
 - [ ] **Authority Attribution**: Ensure every POI and hazard layer clearly displays its official source and last update timestamp.
 
@@ -34,7 +34,7 @@ This document outlines the strategic implementation plan for the offline mapping
 
 - [ ] **Offline Routing Engine**: Implement a pre-computed pedestrian routing graph using a Dijkstra-based approach.
 - [ ] **Hazard-Aware Pathfinding**: Logic to calculate routes that automatically avoid active flood or ashfall zones.
-- [ ] **AI Map Integration**: Connect the Gemma 4 assistant to the mapping service for queries like *"Where is the safest path to [Center Name]?"*
+- [x] **AI Map Integration**: Connected the Gemma 4 assistant to the mapping service with manual "Reroute" capability to nearest evacuation centers.
 - [ ] **Android App Bundle (AAB) Assets**: Implement Play Asset Delivery for the "Entire Philippines" map pack (~250MB) to bypass the 150MB APK limit.
 
 ---
