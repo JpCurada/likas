@@ -38,7 +38,7 @@ export const evacuationService = {
     type?: EvacuationType;
   }): EvacuationRanking[] => {
     const profileNeedsPwd =
-      profile.dependents.pwd > 0 || profile.dependents.elderly > 0;
+      profile.companions.pwd > 0 || profile.companions.elderly > 0;
     const maxCapacity = Math.max(
       ...evacuationCenters.map(center => center.capacity),
     );
@@ -58,9 +58,9 @@ export const evacuationService = {
               ? 0
               : 0.7;
         const petScore =
-          profile.dependents.hasPets && center.isPetFriendly
+          profile.pets.hasPets && center.isPetFriendly
             ? 1
-            : profile.dependents.hasPets
+            : profile.pets.hasPets
               ? 0
               : 0.7;
         const capacityScore = center.capacity / maxCapacity;
@@ -69,10 +69,13 @@ export const evacuationService = {
           pwdScore * 0.3 +
           petScore * 0.2 +
           capacityScore * 0.1;
+        const warnings: string[] = [];
+        /*
         const warnings =
           type === 'flood' && distanceKm > 8
             ? ['Route may pass through flood-prone roads; verify with barangay advisories.']
             : [];
+        */
 
         return {
           center,

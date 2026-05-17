@@ -35,6 +35,6 @@ The project is currently in the **Design and Requirements phase**.
 - [x] On-Demand Glyph Pipeline (Automated labels summoning)
 - [ ] Onboarding Implementation (TODO)
 - [ ] Dashboard Implementation (TODO)
-- [ ] LiteRT-LM JSI Integration (TODO)
+- [ ] AI Integration via `llama.rn` + Gemma 4 E2B GGUF (TODO — see [roadmap_ai.md](./docs/roadmap_ai.md))
 - [x] Offline Maps Foundation (Phase 1 & 2 completed - see [roadmap_maps.md](./docs/roadmap_maps.md))
 

@@ -5,6 +5,7 @@ import {
   Text,
   StyleSheet,
   Platform,
+  Image,
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -12,51 +13,50 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 import { COLORS, FONTS } from '../theme';
 import { Icon } from '../components/Icon';
-import { isOnboardingComplete } from '../database/storage';
+import { isOnboardingComplete, isSetupComplete, loadProfile } from '../database/storage';
+import { useAppStore } from '../stores/appStore';
 
 import { OnboardingScreen } from '../screens/OnboardingScreen';
-import { HomeScreen } from '../screens/HomeScreen';
-import { ChatScreen } from '../screens/ChatScreen';
+import { SetupScreen } from '../screens/SetupScreen';
 import { PrepScreen } from '../screens/PrepScreen';
 import { MapScreen } from '../screens/MapScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 
 export type RootStackParamList = {
   Onboarding: undefined;
+  Setup: undefined;
   Main: undefined;
 };
 
 export type TabParamList = {
-  Home: undefined;
-  Chat: undefined;
-  Prep: undefined;
   Map: undefined;
+  Prep: undefined;
   Profile: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
-const TAB_CONFIG: Record<string, { icon: string; label: string }> = {
-  Home: { icon: 'home', label: 'Home' },
-  Chat: { icon: 'robot', label: 'Guide' },
-  Prep: { icon: 'bag-personal', label: 'Prep' },
-  Map: { icon: 'map', label: 'Map' },
-  Profile: { icon: 'account', label: 'Profile' },
+const TAB_CONFIG: Record<string, { activeIcon: string; inactiveIcon: string; label: string }> = {
+  Map: { activeIcon: 'map', inactiveIcon: 'map-outline', label: 'Map' },
+  Prep: { activeIcon: 'bag-personal', inactiveIcon: 'bag-personal-outline', label: 'Prep' },
+  Profile: { activeIcon: 'account', inactiveIcon: 'account-outline', label: 'Profile' },
 };
 
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
-  const cfg = TAB_CONFIG[name] ?? { icon: 'circle-medium', label: name };
+  const cfg = TAB_CONFIG[name] ?? { activeIcon: 'circle-medium', inactiveIcon: 'circle-outline', label: name };
+  const iconName = focused ? cfg.activeIcon : cfg.inactiveIcon;
   return (
-    <View
-      style={[tabStyles.iconWrapper, focused && tabStyles.iconWrapperActive]}
-    >
+    <View style={tabStyles.iconWrapper}>
       <Icon 
-        name={cfg.icon} 
+        name={iconName} 
         size={24} 
-        color={focused ? COLORS.primaryGreen : COLORS.darkGreen} 
+        color={focused ? COLORS.primaryGreen : '#4B5563'} 
       />
-      <Text style={[tabStyles.iconLabel, focused && tabStyles.iconLabelActive]}>
+      <Text 
+        style={[tabStyles.iconLabel, focused && tabStyles.iconLabelActive]}
+        numberOfLines={1}
+      >
         {cfg.label}
       </Text>
     </View>
@@ -68,21 +68,17 @@ const tabStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    gap: 3,
-    minWidth: 58,
-  },
-  iconWrapperActive: {
-    backgroundColor: COLORS.lightGreen,
+    gap: 2,
+    minWidth: 72,
   },
   iconLabel: {
     fontFamily: FONTS.primarySemiBold,
     fontSize: 11,
-    color: COLORS.gray,
+    color: '#4B5563',
   },
   iconLabelActive: {
     color: COLORS.primaryGreen,
+    fontFamily: FONTS.primaryBold,
   },
 });
 
@@ -99,9 +95,9 @@ function MainTabs() {
           backgroundColor: COLORS.white,
           borderTopColor: COLORS.lightGreen,
           borderTopWidth: 1.5,
-          height: Platform.OS === 'ios' ? 92 : 76,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 10,
-          paddingTop: 8,
+          height: Platform.OS === 'ios' ? 84 : 60,
+          paddingBottom: Platform.OS === 'ios' ? 24 : 6,
+          paddingTop: 4,
           paddingHorizontal: 4,
           elevation: 12,
           shadowColor: COLORS.darkGreen,
@@ -109,13 +105,11 @@ function MainTabs() {
           shadowOpacity: 0.08,
           shadowRadius: 12,
         },
-        tabBarItemStyle: { paddingVertical: 4 },
+        tabBarItemStyle: { paddingVertical: 3 },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Chat" component={ChatScreen} />
-      <Tab.Screen name="Prep" component={PrepScreen} />
       <Tab.Screen name="Map" component={MapScreen} />
+      <Tab.Screen name="Prep" component={PrepScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -123,13 +117,26 @@ function MainTabs() {
 
 export const AppNavigator: React.FC = () => {
   const [initialRoute, setInitialRoute] = useState<
-    'Onboarding' | 'Main' | null
+    'Onboarding' | 'Setup' | 'Main' | null
   >(null);
 
   useEffect(() => {
-    isOnboardingComplete().then(done =>
-      setInitialRoute(done ? 'Main' : 'Onboarding'),
-    );
+    (async () => {
+      // Hydrate Zustand from AsyncStorage so the AI and routing see the
+      // canonical profile captured during onboarding, not just defaults.
+      const persisted = await loadProfile();
+      if (persisted) {
+        useAppStore.getState().updateProfile(persisted);
+      }
+
+      const onboardingDone = await isOnboardingComplete();
+      if (!onboardingDone) {
+        setInitialRoute('Onboarding');
+        return;
+      }
+      const setupDone = await isSetupComplete();
+      setInitialRoute(setupDone ? 'Main' : 'Setup');
+    })();
   }, []);
 
   if (!initialRoute) {
@@ -143,6 +150,11 @@ export const AppNavigator: React.FC = () => {
           gap: 12,
         }}
       >
+        {/* <Image
+          source={{ uri: 'ic_launcher_round' }}
+          style={{ width: 120, height: 120, marginBottom: 16 }}
+          resizeMode="contain"
+        /> */}
         <ActivityIndicator color={COLORS.accentGreen} size="large" />
         <Text
           style={{
@@ -164,6 +176,7 @@ export const AppNavigator: React.FC = () => {
         screenOptions={{ headerShown: false, animation: 'fade' }}
       >
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+        <Stack.Screen name="Setup" component={SetupScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>
