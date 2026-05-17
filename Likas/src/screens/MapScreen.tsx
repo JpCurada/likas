@@ -14,6 +14,7 @@ import {
   Platform,
   Alert,
   PermissionsAndroid,
+  Animated,
 } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -167,6 +168,9 @@ export const MapScreen: React.FC = () => {
 
   const [assetMissing, setAssetMissing] = useState(false);
   const [isRerouting, setIsRerouting] = useState(false);
+  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const [calcDestName, setCalcDestName] = useState('');
+  const calcPillAnim = useRef(new Animated.Value(400)).current;
   const activeRoute = useAppStore(s => s.activeRoute);
   const setActiveRoute = useAppStore(s => s.setActiveRoute);
 
@@ -228,6 +232,16 @@ export const MapScreen: React.FC = () => {
       default:             return [];
     }
   }, [evacuationGeoJSON, hospitalGeoJSON, gymnasiumGeoJSON, schoolGeoJSON, multiPurposeGeoJSON, coveredCourtGeoJSON]);
+
+  // Slide route-calc pill up into view when calculating, drop it back off-screen when done
+  useEffect(() => {
+    Animated.spring(calcPillAnim, {
+      toValue: isCalculatingRoute ? 0 : 400,
+      useNativeDriver: true,
+      tension: 68,
+      friction: 12,
+    }).start();
+  }, [isCalculatingRoute, calcPillAnim]);
 
   useEffect(() => {
     const initializeMap = async () => {
@@ -518,6 +532,10 @@ export const MapScreen: React.FC = () => {
 
   const handleGetDirections = useCallback(async (dest: TooltipData) => {
     if (!dest.latitude || !dest.longitude) return;
+
+    setIsCalculatingRoute(true);
+    setCalcDestName(dest.name);
+
     const origin = userLocation
       ? { latitude: userLocation[1], longitude: userLocation[0] }
       : await new Promise<{ latitude: number; longitude: number }>((resolve, reject) =>
@@ -529,6 +547,7 @@ export const MapScreen: React.FC = () => {
         ).catch(() => null);
 
     if (!origin) {
+      setIsCalculatingRoute(false);
       Alert.alert('Location unavailable', 'Could not determine your current location.');
       return;
     }
@@ -571,6 +590,8 @@ export const MapScreen: React.FC = () => {
           err?.message ?? 'Could not calculate a walking route to this location.',
         );
       }
+    } finally {
+      setIsCalculatingRoute(false);
     }
   }, [userLocation, setActiveRoute]);
 
@@ -1072,6 +1093,23 @@ export const MapScreen: React.FC = () => {
           </View>
         ) : null}
 
+        {/* Route calculation loading pill */}
+        <Animated.View
+          style={[
+            styles.routeCalcPill,
+            { transform: [{ translateY: calcPillAnim }] },
+          ]}
+          pointerEvents="none"
+        >
+          <ActivityIndicator size="small" color={COLORS.primaryGreen} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.routeCalcLabel}>Calculating route</Text>
+            <Text style={styles.routeCalcDest} numberOfLines={1}>
+              {calcDestName}
+            </Text>
+          </View>
+        </Animated.View>
+
         {/* Find Nearest Safe Zone FAB */}
         <TouchableOpacity
           style={styles.fabNearest}
@@ -1377,6 +1415,41 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
+  },
+  routeCalcPill: {
+    position: 'absolute',
+    bottom: 236,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    borderRadius: 32,
+    gap: 12,
+    maxWidth: 280,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 14,
+    borderWidth: 1,
+    borderColor: COLORS.lightGreen,
+  },
+  routeCalcLabel: {
+    fontFamily: FONTS.primaryMedium,
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.primaryGreen,
+    textTransform: 'uppercase',
+    letterSpacing: 0.9,
+  },
+  routeCalcDest: {
+    fontFamily: FONTS.primaryBold,
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.darkGreen,
+    marginTop: 1,
   },
 });
 
