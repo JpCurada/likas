@@ -1,30 +1,77 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {defaultCoordinates} from '../data/seedData';
 
 const KEYS = {
   USER_PROFILE: 'likas_user_profile',
   ONBOARDING_COMPLETE: 'likas_onboarding_complete',
   PREP_CHECKLIST: 'likas_prep_checklist',
-  SETUP_COMPLETE: 'likas_setup_complete',
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-// Re-export the canonical types from src/types.ts. Kept here for backwards
-// compatibility with onboarding/profile screens that already import them
-// from this module.
-export type {
-  Companion,
-  PetSize,
-  PetEntry,
-  Pet,
-  MedicalCondition,
-  MeetingPoint,
-  UserLocation as Location,
-  EmergencyContact,
-  UserProfile,
-} from '../types';
-import type {PetEntry, MeetingPoint, UserProfile} from '../types';
+export interface Companion {
+  infants: number;
+  children: number;
+  elderly: number;
+  pwd: number;
+}
+
+export type PetSize = 'Small' | 'Medium' | 'Large';
+
+export interface PetEntry {
+  count: number;
+  size: PetSize;
+}
+
+export interface Pet {
+  hasPets: boolean;
+  dogs: PetEntry;
+  cats: PetEntry;
+  birds: PetEntry;
+  rabbits: PetEntry;
+  reptiles: PetEntry;
+  others: PetEntry;
+}
+
+export interface MedicalCondition {
+  asthma: boolean;
+  diabetes: boolean;
+  heartCondition: boolean;
+  hypertension: boolean;
+  epilepsy: boolean;
+  kidneydisease: boolean;
+  none: boolean;
+  other: string;
+}
+
+export interface MeetingPoint {
+  landmark: string; // e.g. "Basketball Court"
+  streetAddress: string; // e.g. "Rizal St., Brgy. Commonwealth"
+  notes: string; // e.g. "Near the sari-sari store with red roof"
+}
+
+export interface Location {
+  city: string;
+  barangay: string;
+  streetAddress: string; // user's home address
+  primaryMeeting: MeetingPoint;
+  secondaryMeeting: MeetingPoint;
+}
+
+export interface EmergencyContact {
+  name: string;
+  phone: string;
+  relationship: string;
+}
+
+export interface UserProfile {
+  name: string;
+  ageGroup: 'Under 18' | '18-35' | '36-55' | '56+' | '';
+  companions: Companion;
+  pets: Pet;
+  medicalConditions: MedicalCondition;
+  location: Location;
+  emergencyContacts: EmergencyContact[];
+}
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
@@ -63,7 +110,6 @@ export const DEFAULT_PROFILE: UserProfile = {
     city: '',
     barangay: '',
     streetAddress: '',
-    coordinates: defaultCoordinates,
     primaryMeeting: { ...DEFAULT_MEETING },
     secondaryMeeting: { ...DEFAULT_MEETING },
   },
@@ -96,17 +142,6 @@ export const setOnboardingComplete = async (): Promise<void> => {
 
 export const isOnboardingComplete = async (): Promise<boolean> => {
   const val = await AsyncStorage.getItem(KEYS.ONBOARDING_COMPLETE);
-  return val === 'true';
-};
-
-// ─── Setup (post-onboarding asset download) ───────────────────────────────────
-
-export const setSetupComplete = async (): Promise<void> => {
-  await AsyncStorage.setItem(KEYS.SETUP_COMPLETE, 'true');
-};
-
-export const isSetupComplete = async (): Promise<boolean> => {
-  const val = await AsyncStorage.getItem(KEYS.SETUP_COMPLETE);
   return val === 'true';
 };
 

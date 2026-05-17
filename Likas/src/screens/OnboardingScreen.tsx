@@ -17,7 +17,6 @@ import {
   setOnboardingComplete,
 } from '../database/storage';
 import { RootStackParamList } from '../navigation/AppNavigator';
-import { useAppStore } from '../stores/appStore';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
 
@@ -56,9 +55,8 @@ export const OnboardingScreen: React.FC<Props> = ({ navigation }) => {
     setIsSaving(true);
     try {
       await saveProfile(profile);
-      useAppStore.getState().updateProfile(profile);
       await setOnboardingComplete();
-      navigation.replace('Setup');
+      navigation.replace('Main');
     } catch (error) {
       Alert.alert(
         'Oops!',

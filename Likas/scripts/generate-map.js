@@ -58,23 +58,15 @@ async function runPlanetiler(pbfFile) {
         fs.mkdirSync(MAPS_DIR, { recursive: true });
     }
 
-    // Skip if we already have real tiles (anything >10MB is a real build,
-    // not an empty SQLite header from an interrupted previous run).
+    // Ensure output is clean
     if (fs.existsSync(OUTPUT_MBTILES)) {
-        const sizeMB = fs.statSync(OUTPUT_MBTILES).size / 1024 / 1024;
-        if (sizeMB > 10) {
-            console.log(`✅ MBTiles already exists (${sizeMB.toFixed(1)} MB). Skipping rebuild.`);
-            console.log(`   Pass --force to regenerate, or delete the file manually first.`);
-            if (!process.argv.includes('--force')) return;
-            console.log('   --force flag detected, regenerating...');
-        }
         fs.unlinkSync(OUTPUT_MBTILES);
     }
 
     return new Promise((resolve, reject) => {
-        // Prefer JAVA_HOME, fall back to whatever 'java' resolves on PATH.
-        const javaExe = process.env.JAVA_HOME
-            ? path.join(process.env.JAVA_HOME, 'bin', 'java')
+        // Attempt to find Java
+        const javaExe = fs.existsSync('C:\\Program Files\\Android\\Android Studio\\jbr\\bin\\java.exe') 
+            ? 'C:\\Program Files\\Android\\Android Studio\\jbr\\bin\\java.exe' 
             : 'java';
 
         const args = [

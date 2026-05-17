@@ -1,15 +1,13 @@
 import React, { useMemo, useEffect, useState, useCallback, useRef } from 'react';
-import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, Text, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Map, Camera, GeoJSONSource, Layer, Images } from '@maplibre/maplibre-react-native';
 import type { CameraRef } from '@maplibre/maplibre-react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS } from '../theme';
 import { getEvacuationGeoJSON, getHospitalGeoJSON, getGymnasiumGeoJSON, getSchoolGeoJSON, getMultiPurposeGeoJSON, getCoveredCourtGeoJSON } from '../utils/geoUtils';
-import { prepareOfflineMap, prepareGlyphs, MapAssetMissingError } from '../utils/mapAssetManager';
+import { prepareOfflineMap } from '../utils/mapAssetManager';
 import { MapTooltip, TooltipData } from '../components/MapTooltip';
-import { AssetMissingPrompt } from '../components/AssetMissingPrompt';
-import { useAppStore } from '../stores/appStore';
 import activeFaultsGeoJSON from '../data/gem_active_faults_harmonized.json';
 
 // Metro Manila center
@@ -59,28 +57,6 @@ export const MapScreen: React.FC = () => {
   const [baseStyle, setBaseStyle] = useState<any>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('2D');
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
-
-  const [assetMissing, setAssetMissing] = useState(false);
-  const activeRoute = useAppStore(s => s.activeRoute);
-  const setActiveRoute = useAppStore(s => s.setActiveRoute);
-
-  const routeGeoJSON = useMemo(() => {
-    if (!activeRoute || activeRoute.polyline.length < 2) return null;
-    return {
-      type: 'FeatureCollection',
-      features: [
-        {
-          type: 'Feature',
-          properties: {},
-          geometry: {
-            type: 'LineString',
-            coordinates: activeRoute.polyline.map(p => [p.longitude, p.latitude]),
-          },
-        },
-      ],
-    };
-  }, [activeRoute]);
-
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   const [icons, setIcons] = useState<any>({});
 
@@ -100,12 +76,14 @@ export const MapScreen: React.FC = () => {
   useEffect(() => {
     const initializeMap = async () => {
       try {
-        const [absoluteMbtilesUrl, glyphsPath] = await Promise.all([
-          prepareOfflineMap(),
-          prepareGlyphs(),
-        ]);
+        const absoluteMbtilesUrl = await prepareOfflineMap();
         const newStyle = JSON.parse(JSON.stringify(baseOfflineStyle));
         newStyle.sources.openmaptiles.url = absoluteMbtilesUrl;
+        
+        const glyphsPath = Platform.OS === 'android' 
+          ? "asset://glyphs/{fontstack}/{range}.pbf" 
+          : "glyphs/{fontstack}/{range}.pbf";
+        
         newStyle.glyphs = glyphsPath;
         
         if (__DEV__) {
@@ -117,10 +95,6 @@ export const MapScreen: React.FC = () => {
         setBaseStyle(newStyle);
         setIsMapReady(true);
       } catch (error) {
-        if (error instanceof MapAssetMissingError) {
-          setAssetMissing(true);
-          return;
-        }
         console.error('Failed to initialize offline map:', error);
       }
     };
@@ -148,26 +122,6 @@ export const MapScreen: React.FC = () => {
     initializeMap();
     loadIcons();
   }, []);
-
-  useEffect(() => {
-    if (!activeRoute || !isMapReady) return;
-    const coords = activeRoute.polyline;
-    if (coords.length === 0) return;
-    let minLon = coords[0].longitude;
-    let maxLon = coords[0].longitude;
-    let minLat = coords[0].latitude;
-    let maxLat = coords[0].latitude;
-    for (const c of coords) {
-      if (c.longitude < minLon) minLon = c.longitude;
-      if (c.longitude > maxLon) maxLon = c.longitude;
-      if (c.latitude < minLat) minLat = c.latitude;
-      if (c.latitude > maxLat) maxLat = c.latitude;
-    }
-    cameraRef.current?.fitBounds([minLon, minLat, maxLon, maxLat], {
-      padding: {top: 120, bottom: 80, left: 60, right: 60},
-      duration: 900,
-    });
-  }, [activeRoute, isMapReady]);
 
   const handleToggleView = useCallback(() => {
     const next: ViewMode = viewMode === '2D' ? '3D' : '2D';
@@ -329,19 +283,6 @@ export const MapScreen: React.FC = () => {
     );
   };
 
-  if (assetMissing) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <AssetMissingPrompt
-          iconName="map-marker-off"
-          title="Offline maps not installed"
-          body="Download the offline map data to see evacuation centers, hospitals, and routes without internet."
-          ctaLabel="Download maps"
-        />
-      </SafeAreaView>
-    );
-  }
-
   if (!isMapReady || !dynamicStyle) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -424,50 +365,7 @@ export const MapScreen: React.FC = () => {
           {renderPoiSource('multipurposeSource', multiPurposeGeoJSON, '#9C27B0', 'multipurpose')}
           {renderPoiSource('coveredCourtSource', coveredCourtGeoJSON, '#9C27B0', 'multipurpose')}
 
-          {routeGeoJSON ? (
-            <GeoJSONSource id="activeRouteSource" data={routeGeoJSON as any}>
-              <Layer
-                id="activeRouteCasing"
-                type="line"
-                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-                paint={{
-                  'line-color': '#091610',
-                  'line-width': 7,
-                  'line-opacity': 0.55,
-                }}
-              />
-              <Layer
-                id="activeRouteLine"
-                type="line"
-                layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-                paint={{
-                  'line-color': COLORS.primaryGreen,
-                  'line-width': 4,
-                }}
-              />
-            </GeoJSONSource>
-          ) : null}
         </Map>
-
-        {activeRoute ? (
-          <View style={styles.routeBanner}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.routeBannerTitle}>
-                Route to {activeRoute.destinationName}
-              </Text>
-              <Text style={styles.routeBannerSub}>
-                {(activeRoute.distanceMeters / 1000).toFixed(2)} km · ~
-                {activeRoute.durationMinutesWalking} min walking
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.routeBannerClose}
-              onPress={() => setActiveRoute(null)}
-            >
-              <Text style={styles.routeBannerCloseText}>Clear</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
 
         {/* ─── 2D / 3D View Toggle ──────────────────────────────────────── */}
         <View style={styles.viewToggleContainer}>
@@ -552,40 +450,6 @@ const styles = StyleSheet.create({
   },
   viewToggleTextActive: {
     color: '#ffffff',
-  },
-  routeBanner: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    left: 78,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(9,22,16,0.88)',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 10,
-  },
-  routeBannerTitle: {
-    color: COLORS.white,
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  routeBannerSub: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  routeBannerClose: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-  },
-  routeBannerCloseText: {
-    color: COLORS.white,
-    fontWeight: '700',
-    fontSize: 12,
   },
 });
 

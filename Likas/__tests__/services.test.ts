@@ -22,8 +22,8 @@ describe('LIKAS domain services', () => {
       origin: {latitude: 14.5995, longitude: 120.9842},
       profile: {
         ...defaultProfile,
-        pets: {
-          ...defaultProfile.pets,
+        dependents: {
+          ...defaultProfile.dependents,
           hasPets: true,
         },
       },

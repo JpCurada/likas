@@ -4,19 +4,18 @@
 
 LIKAS (Filipino for "nature" and "to evacuate") is an offline-first, AI-powered disaster companion mobile application for Filipino communities in disaster-prone areas. The Philippines experiences approximately 20 typhoons per year, 100–150 perceptible earthquakes, and multiple active volcanic events annually. When these disasters strike, cell towers fail and internet access disappears — precisely when people need life-saving information most.
 
-LIKAS transforms a smartphone into a self-contained survival tool by pre-loading all critical data (maps, evacuation centers, disaster protocols) and running an on-device AI assistant powered by **Gemma 4 E2B** via **llama.rn** (React Native bindings for `llama.cpp`). The Gemma 4 E2B Q4_K_XL GGUF weights are downloaded once during the first-run Setup screen and stored on-device thereafter. Every runtime feature works fully offline, with zero dependency on network connectivity, cloud services, or external APIs.
+LIKAS transforms a smartphone into a self-contained survival tool by pre-loading all critical data (maps, evacuation centers, disaster protocols) and running an on-device AI assistant powered by **Gemma 4** via **Google AI Edge's LiteRT** (formerly TensorFlow Lite Runtime). Every feature works fully offline, with zero dependency on network connectivity, cloud services, or external APIs at runtime.
 
-The centerpiece of the app is the **Always-On AI Assistant** — a context-aware, conversational guide that runs entirely on-device, providing NDRRMC-aligned disaster guidance even when power grids and cell networks are down. The assistant uses a GBNF grammar-constrained JSON envelope to invoke a small set of offline tools (`get_protocol`, `route_to_nearest_evacuation`, `find_nearby`, `get_user_profile`) and quote authority-aligned protocol text verbatim.
+The centerpiece of the app is the **Always-On AI Assistant** — a context-aware, conversational guide that runs entirely on-device using LiteRT inference, providing NDRRMC-aligned disaster guidance even when power grids and cell networks are down.
 
 ---
 
 ## Glossary
 
 - **App**: The LIKAS mobile application running on Android or iOS.
-- **AI_Assistant**: The on-device conversational AI component powered by Gemma 4 E2B via llama.rn.
-- **LLM_Runtime**: The `llama.rn` React Native bindings to `llama.cpp` that perform inference on the bundled GGUF model on-device.
-- **Gemma_4_Model**: The Gemma 4 E2B instruction-tuned model in 4-bit GGUF quantization (`gemma-4-E2B-it-UD-Q4_K_XL.gguf`, ~3.2 GB), downloaded once from Hugging Face during first-run Setup and run via LLM_Runtime.
-- **AI_Tools**: The four offline, in-process tools the AI_Assistant can invoke — `get_protocol`, `route_to_nearest_evacuation`, `find_nearby`, `get_user_profile` — each returning data sourced from bundled JSON/GeoJSON or the on-device User_Profile.
+- **AI_Assistant**: The on-device conversational AI component powered by Gemma 4 via LiteRT.
+- **LiteRT_Runtime**: Google AI Edge's LiteRT (formerly TensorFlow Lite Runtime) inference engine embedded in the App.
+- **Gemma_4_Model**: The Gemma 4 language model, quantized and bundled with the App for fully on-device inference via LiteRT_Runtime.
 - **Evacuation_Module**: The App component responsible for displaying offline evacuation routes and centers.
 - **Volcano_Module**: The App component providing PHIVOLCS-based volcanic emergency guidance.
 - **Earthquake_Module**: The App component providing PHIVOLCS-based earthquake survival guidance.
@@ -43,34 +42,31 @@ The centerpiece of the app is the **Always-On AI Assistant** — a context-aware
 
 #### Acceptance Criteria
 
-1. THE App SHALL bundle disaster data — Evacuation_Center records, hospital/school/gymnasium POIs (GeoJSON), and PAGASA/PHIVOLCS-aligned protocol JSON — within the application package at install time. THE Offline_Map (MBTiles), Noto Sans glyph PBFs, and the Gemma_4_Model SHALL be provisioned during the first-run Setup screen via the asset manager, downloaded once over the network from their respective sources (OpenMapTiles CDN, Hugging Face) and stored on-device thereafter.
-2. WHEN the App is launched with no active network connection AFTER first-run Setup has completed, THE App SHALL present all core features — Evacuation_Module, Volcano_Module, Earthquake_Module, and AI_Assistant — as fully functional within 5 seconds of launch.
+1. THE App SHALL bundle all disaster data — including Offline_Map tiles, Evacuation_Center records, Fault_Line_Data, Ashfall_Zone polygons, PAGASA-consistent typhoon protocols, PHIVOLCS-based volcanic and earthquake protocols, and the Gemma_4_Model weights — within the application package at install time.
+2. WHEN the App is launched with no active network connection, THE App SHALL present all core features — Evacuation_Module, Volcano_Module, Earthquake_Module, and AI_Assistant — as fully functional within 5 seconds of launch.
 3. WHILE the device has no network connectivity, THE App SHALL perform all AI inference, map rendering, route calculation, and protocol display without making any outbound network requests.
-4. IF a network connection becomes available, THEN THE App SHALL continue to operate using locally stored data and SHALL NOT require a network connection to maintain any active session.
+4. IF a network connection becomes available, THEN THE App SHALL continue to operate using locally bundled data and SHALL NOT require a network connection to maintain any active session.
 5. THE App SHALL display a persistent, visible indicator showing the User that the App is operating in offline mode.
-6. WHEN the App is launched for the first time, THE App SHALL guide the User through the Setup screen to download and verify all required assets (MBTiles, glyphs, Gemma_4_Model) before unlocking the AI_Assistant; AFTER Setup completes successfully, no further network access SHALL be required.
+6. WHEN the App is first installed, THE App SHALL complete all required data initialization — including LiteRT_Runtime setup and Gemma_4_Model loading — without requiring a network connection after the initial download.
 
 ---
 
-### Requirement 2: Always-On AI Assistant (llama.rn + Gemma 4 E2B)
+### Requirement 2: Always-On AI Assistant (LiteRT + Gemma 4)
 
 **User Story:** As a User, I want to ask disaster-related questions in natural language and receive accurate, context-aware guidance instantly, so that I can make life-saving decisions even when there is no internet connection.
 
 #### Acceptance Criteria
 
-1. THE AI_Assistant SHALL run all language model inference exclusively on-device using LLM_Runtime with the locally stored Gemma_4_Model, with no data sent to any external server at any time once the model has been downloaded.
-2. WHEN the User submits a text query to the AI_Assistant, THE AI_Assistant SHALL produce a response within 10 seconds on a device meeting the minimum hardware specification (3 GB RAM, ARM Cortex-A55 or equivalent). Trivial greetings (e.g., "hi", "hello", "kumusta", "salamat") SHALL be short-circuited to a canned response without invoking the LLM, returning within 100 ms.
+1. THE AI_Assistant SHALL run all language model inference exclusively on-device using LiteRT_Runtime with the bundled Gemma_4_Model, with no data sent to any external server at any time.
+2. WHEN the User submits a text query to the AI_Assistant, THE AI_Assistant SHALL produce a response within 10 seconds on a device meeting the minimum hardware specification (3 GB RAM, ARM Cortex-A55 or equivalent).
 3. WHEN the User selects a Disaster_Context before querying (e.g., by tapping a "Big Button" on the dashboard), THE AI_Assistant SHALL instantly display a bold, actionable first step (e.g., "DROP, COVER, AND HOLD ON!") before continuing the chat.
 4. THE AI_Assistant SHALL provide "Contextual Chips" (suggested quick-reply buttons) based on the active disaster (e.g., "I am trapped," "Someone is bleeding") to minimize typing under stress.
 5. WHILE a Disaster_Context is active, THE AI_Assistant SHALL prioritize evacuation, safety, and first-aid guidance over general information in all responses.
-6. THE AI_Assistant SHALL be constrained to emit a single JSON envelope per turn — either `{"action":"speak","text":"..."}` or `{"action":"tool","name":"<tool>","args":{...}}` — enforced by a GBNF grammar passed to LLM_Runtime. Tool calls SHALL be resolved against the AI_Tools registry, the result injected back into the conversation, and the model SHALL be invoked again, up to a maximum of three tool turns per user query.
-7. WHEN the User asks about the nearest Evacuation_Center, THE AI_Assistant SHALL invoke the `route_to_nearest_evacuation` tool, which returns the top three centers ranked by distance and profile-aware scoring, optionally including a walkable road-following polyline from the pre-computed pedestrian graph when available.
-8. WHEN the User asks a safety-critical "what to do" question, THE AI_Assistant SHALL invoke the `get_protocol` tool and quote its returned authority-aligned text verbatim, without paraphrasing.
-9. IF the User's query is outside the scope of disaster preparedness or emergency response, THEN THE AI_Assistant SHALL inform the User that it is specialized for disaster guidance and redirect the User to relevant disaster topics.
-10. THE AI_Assistant SHALL support queries written in English, Filipino (Tagalog), and Taglish, and SHALL respond in the language the User used.
-11. WHEN the AI_Assistant generates a response, THE AI_Assistant SHALL clearly attribute guidance to the relevant authority (NDRRMC, PAGASA, or PHIVOLCS) where applicable.
-12. WHEN the device battery level falls below 15%, THE AI_Assistant SHALL refuse generative inference and SHALL display a rule-based fallback response in place of generative output. The AI_Assistant SHALL also fall back to rule-based responses if the LLM_Runtime fails to initialize or emits an unparseable response.
-13. THE Chat UI SHALL render a visible tool-call trail (one chip per tool invocation, indicating running/done/error status) so the User can see which lookups the AI_Assistant performed for each response.
+6. WHEN the User asks about the nearest Evacuation_Center, THE AI_Assistant SHALL retrieve and present the relevant Evacuation_Center data from the pre-loaded dataset and include distance and estimated travel time based on the User's last known location.
+7. IF the User's query is outside the scope of disaster preparedness or emergency response, THEN THE AI_Assistant SHALL inform the User that it is specialized for disaster guidance and redirect the User to relevant disaster topics.
+8. THE AI_Assistant SHALL support queries written in both Filipino (Tagalog) and English.
+9. WHEN the AI_Assistant generates a response, THE AI_Assistant SHALL clearly attribute guidance to the relevant authority (NDRRMC, PAGASA, or PHIVOLCS) where applicable.
+10. WHEN the device's available RAM falls below 512 MB during an active AI_Assistant session, THE AI_Assistant SHALL display a warning to the User and SHALL gracefully degrade by providing pre-written protocol summaries in place of generative responses.
 
 ---
 
@@ -180,7 +176,7 @@ The centerpiece of the app is the **Always-On AI Assistant** — a context-aware
 3. THE App SHALL function on devices with a minimum of 4 GB of available internal storage.
 4. WHEN the device battery level falls below 15%, THE App SHALL display a low-battery warning and SHALL recommend switching to a lower-power mode (disabling generative AI).
 5. THE App SHALL render all non-AI screens within 3 seconds on the minimum supported hardware.
-6. WHEN the LLM_Runtime encounters an unrecoverable error, THE App SHALL log it locally and continue to provide access to all non-AI features (maps, protocols, prep checklist, profile).
+6. WHEN the LiteRT_Runtime encounters an unrecoverable error, THE App SHALL log it locally and continue to provide access to all non-AI features.
 
 ---
 

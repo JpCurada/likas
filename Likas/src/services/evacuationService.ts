@@ -38,7 +38,7 @@ export const evacuationService = {
     type?: EvacuationType;
   }): EvacuationRanking[] => {
     const profileNeedsPwd =
-      profile.companions.pwd > 0 || profile.companions.elderly > 0;
+      profile.dependents.pwd > 0 || profile.dependents.elderly > 0;
     const maxCapacity = Math.max(
       ...evacuationCenters.map(center => center.capacity),
     );
@@ -58,9 +58,9 @@ export const evacuationService = {
               ? 0
               : 0.7;
         const petScore =
-          profile.pets.hasPets && center.isPetFriendly
+          profile.dependents.hasPets && center.isPetFriendly
             ? 1
-            : profile.pets.hasPets
+            : profile.dependents.hasPets
               ? 0
               : 0.7;
         const capacityScore = center.capacity / maxCapacity;
