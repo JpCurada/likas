@@ -31,7 +31,7 @@ import type {
 } from '@maplibre/maplibre-react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import BottomSheet from '@gorhom/bottom-sheet';
-import { COLORS } from '../theme';
+import { COLORS, FONTS, SIZES } from '../theme';
 import {
   getEvacuationGeoJSON,
   getHospitalGeoJSON,
@@ -50,6 +50,8 @@ import {
 import { MapTooltip, TooltipData } from '../components/MapTooltip';
 import { AssetMissingPrompt } from '../components/AssetMissingPrompt';
 import { useAppStore } from '../stores/appStore';
+import { loadProfile, UserProfile } from '../database/storage';
+import { useFocusEffect } from '@react-navigation/native';
 import { routingService, GraphNotLoadedError } from '../services/routingService';
 import activeFaultsGeoJSON from '../data/gem_active_faults_harmonized.json';
 import { ChatScreen } from './ChatScreen';
@@ -131,7 +133,6 @@ export const MapScreen: React.FC = () => {
   const [cameraKey, setCameraKey] = useState(0);
   const [isMapReady, setIsMapReady] = useState(false);
   const [baseStyle, setBaseStyle] = useState<any>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('3D');
 
   const [activeFilters, setActiveFilters] = useState<Record<string, boolean>>({
     // flood: true,
@@ -145,16 +146,19 @@ export const MapScreen: React.FC = () => {
   });
   const [showLayersMenu, setShowLayersMenu] = useState(false);
 
-  // undefined = user panned freely; 'default' = camera follows user location
-  const [trackUser, setTrackUser] = useState<TrackUserLocation | undefined>(
-    'default',
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile().then(setProfile);
+    }, []),
   );
+
+  const [trackUser, setTrackUser] = useState<TrackUserLocation | undefined>('default');
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [isChatVisible, setIsChatVisible] = useState(false);
   const [icons, setIcons] = useState<any>({});
-  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(
-    null,
-  );
+  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
 
   const snapPoints = useMemo(() => ['15%', '50%', '90%'], []);
 
@@ -190,11 +194,11 @@ export const MapScreen: React.FC = () => {
   const multiPurposeGeoJSON = useMemo(() => getMultiPurposeGeoJSON(), []);
   const coveredCourtGeoJSON = useMemo(() => getCoveredCourtGeoJSON(), []);
 
-  // Derive the active style from base + current viewMode + filters
+  // Derive the active style from base + filters, hardcoded to 3D mode
   const dynamicStyle = useMemo(() => {
     if (!baseStyle) return null;
-    return buildStyle(baseStyle, viewMode === '3D', activeFilters);
-  }, [baseStyle, viewMode, activeFilters]);
+    return buildStyle(baseStyle, true, activeFilters);
+  }, [baseStyle, activeFilters]);
 
   useEffect(() => {
     const initializeMap = async () => {
@@ -431,10 +435,6 @@ export const MapScreen: React.FC = () => {
       duration: 900,
     });
   }, [activeRoute, isMapReady]);
-
-  const handleToggleView = useCallback(() => {
-    setViewMode(prev => (prev === '2D' ? '3D' : '2D'));
-  }, []);
 
   const toggleFilter = useCallback((id: string) => {
     setActiveFilters(prev => ({ ...prev, [id]: !prev[id] }));
@@ -758,8 +758,28 @@ export const MapScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      {/* Welcome & Meeting Point Header */}
+      <View style={styles.welcomeBanner}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={styles.welcomeGreeting}>
+            Mabuhay, {profile?.name || 'Friend'}
+          </Text>
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusDot}>●</Text>
+            <Text style={styles.statusTxt}>Ready</Text>
+          </View>
+        </View>
+        {profile?.location.primaryMeeting.landmark ? (
+          <View style={styles.meetBanner}>
+            <Icon name="map-marker" size={14} color={COLORS.lightGreen} />
+            <Text style={styles.meetTxt} numberOfLines={1}>
+              Meeting: {profile.location.primaryMeeting.landmark}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
       <View style={styles.container}>
-        
         <Map
           style={styles.map}
           mapStyle={dynamicStyle}
@@ -954,19 +974,6 @@ export const MapScreen: React.FC = () => {
           </View>
         ) : null}
 
-        {/* ─── 2D / 3D View Toggle ──────────────────────────────────────── */}
-        <View style={styles.viewToggleContainer}>
-          <TouchableOpacity
-            style={[styles.viewToggleOption, styles.viewToggleActive]}
-            onPress={handleToggleView}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.viewToggleTextActive}>
-              {viewMode}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Find Nearest Safe Zone FAB */}
         <TouchableOpacity
           style={styles.fabNearest}
@@ -1123,9 +1130,52 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.5,
   },
+  welcomeBanner: {
+    backgroundColor: COLORS.darkGreen,
+    paddingHorizontal: SIZES.padding,
+    paddingVertical: 10,
+    gap: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.primaryGreen,
+  },
+  welcomeGreeting: {
+    fontFamily: FONTS.primaryBold,
+    fontSize: SIZES.h3,
+    color: COLORS.white,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 100,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  statusDot: { color: COLORS.accentGreen, fontSize: 10 },
+  statusTxt: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 12,
+    color: COLORS.white,
+  },
+  meetBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  meetTxt: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 12,
+    color: COLORS.lightGreen,
+    flex: 1,
+  },
   routeBanner: {
     position: 'absolute',
-    top: 70,
+    top: 14,
     right: 14,
     left: 14,
     flexDirection: 'row',

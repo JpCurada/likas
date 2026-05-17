@@ -6,12 +6,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   TextInput,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, FONTS, SIZES } from '../theme';
 import { Icon } from '../components/Icon';
 import { loadPrepChecklist, savePrepChecklist } from '../database/storage';
+import { EARTHQUAKE_STEPS, TYPHOON_STEPS } from '../data/disasterSteps';
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -290,13 +292,14 @@ const FIRST_AID: FirstAidGuide[] = [
 
 export const PrepScreen: React.FC = () => {
   const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<'checklist' | 'firstaid'>(
+  const [activeTab, setActiveTab] = useState<'checklist' | 'firstaid' | 'education'>(
     'checklist',
   );
   const [expandedSection, setExpandedSection] = useState<string | null>(
     'gobag',
   );
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
+  const [expandedPhase, setExpandedPhase] = useState<string | null>(null);
   const [searchFA, setSearchFA] = useState('');
 
   useFocusEffect(
@@ -360,6 +363,16 @@ export const PrepScreen: React.FC = () => {
             First Aid
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[st.tabBtn, activeTab === 'education' && st.tabBtnActive]}
+          onPress={() => setActiveTab('education')}
+        >
+          <Text
+            style={[st.tabTxt, activeTab === 'education' && st.tabTxtActive]}
+          >
+            Education
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {activeTab === 'checklist' ? (
@@ -367,6 +380,29 @@ export const PrepScreen: React.FC = () => {
           contentContainerStyle={st.scroll}
           showsVerticalScrollIndicator={false}
         >
+          {/* Emergency numbers */}
+          <View style={st.emrgCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+              <Icon name="phone-classic" size={16} color={COLORS.darkGreen} style={{ marginRight: 6 }} />
+              <Text style={[st.emrgTitle, { marginBottom: 0 }]}>Emergency Hotlines</Text>
+            </View>
+            {[
+              { label: 'NDRRMC', number: '8911' },
+              { label: 'Red Cross', number: '143' },
+              { label: 'Bureau of Fire', number: '8-426-0219' },
+              { label: 'PNP Hotline', number: '117' },
+            ].map(({ label, number }) => (
+              <TouchableOpacity
+                key={label}
+                style={st.emrgRow}
+                onPress={() => Linking.openURL(`tel:${number}`)}
+              >
+                <Text style={st.emrgLabel}>{label}</Text>
+                <Text style={st.emrgNum}>{number} <Icon name="phone" size={14} color={COLORS.primaryGreen} /></Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
           {/* Overall progress */}
           <View style={st.overallCard}>
             <View style={st.overallTop}>
@@ -468,7 +504,7 @@ export const PrepScreen: React.FC = () => {
           })}
           <View style={{ height: 30 }} />
         </ScrollView>
-      ) : (
+      ) : activeTab === 'firstaid' ? (
         <ScrollView
           contentContainerStyle={st.scroll}
           showsVerticalScrollIndicator={false}
@@ -526,6 +562,39 @@ export const PrepScreen: React.FC = () => {
           )}
           <View style={{ height: 30 }} />
         </ScrollView>
+      ) : (
+        <ScrollView
+          contentContainerStyle={st.scroll}
+          showsVerticalScrollIndicator={false}
+        >
+          {[
+            { title: 'Earthquake', data: EARTHQUAKE_STEPS },
+            { title: 'Typhoon', data: TYPHOON_STEPS },
+          ].map((cat, i) => (
+             <View key={i} style={st.section}>
+                <View style={{ padding: 16 }}>
+                    <Text style={{ fontFamily: FONTS.primaryBold, fontSize: SIZES.body, color: COLORS.darkGreen }}>{cat.title} Preparedness</Text>
+                </View>
+                {cat.data.map((section, idx) => (
+                    <View key={idx} style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+                        <View style={[st.phaseTag, { backgroundColor: section.color }]}>
+                            <Text style={st.phaseTagTxt}>{section.phase}</Text>
+                        </View>
+                        {section.items.map((item, idy) => (
+                            <View key={idy} style={st.stepCard}>
+                                <Icon name={item.icon} size={28} color={COLORS.darkGreen} style={{ marginTop: 2 }} />
+                                <View style={st.stepBody}>
+                                    <Text style={st.stepTitle}>{item.title}</Text>
+                                    <Text style={st.stepDesc}>{item.desc}</Text>
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                ))}
+             </View>
+          ))}
+          <View style={{ height: 30 }} />
+        </ScrollView>
       )}
     </SafeAreaView>
   );
@@ -556,6 +625,7 @@ const st = StyleSheet.create({
     backgroundColor: COLORS.white,
     paddingHorizontal: SIZES.padding,
     paddingBottom: 12,
+    paddingTop: 12,
     gap: 10,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.lightGreen,
@@ -575,6 +645,39 @@ const st = StyleSheet.create({
   },
   tabTxtActive: { color: COLORS.white },
   scroll: { padding: SIZES.padding, gap: 10 },
+  emrgCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: SIZES.radius,
+    padding: 16,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: COLORS.lightGreen,
+    marginBottom: 6,
+  },
+  emrgTitle: {
+    fontFamily: FONTS.primaryBold,
+    fontSize: SIZES.small,
+    color: COLORS.darkGreen,
+    marginBottom: 6,
+  },
+  emrgRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGreen,
+  },
+  emrgLabel: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: SIZES.small,
+    color: COLORS.darkGreen,
+  },
+  emrgNum: {
+    fontFamily: FONTS.primaryBold,
+    fontSize: SIZES.small,
+    color: COLORS.primaryGreen,
+  },
   overallCard: {
     backgroundColor: COLORS.darkGreen,
     borderRadius: SIZES.radius + 4,
@@ -782,6 +885,41 @@ const st = StyleSheet.create({
     textAlign: 'center',
     marginTop: 20,
     fontStyle: 'italic',
+  },
+  phaseTag: {
+    alignSelf: 'flex-start',
+    borderRadius: 100,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    marginBottom: 10,
+  },
+  phaseTagTxt: {
+    fontFamily: FONTS.primaryExtraBold,
+    fontSize: 12,
+    color: COLORS.white,
+    letterSpacing: 1.5,
+  },
+  stepCard: {
+    flexDirection: 'row',
+    gap: 14,
+    backgroundColor: COLORS.white,
+    borderRadius: SIZES.radius,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.lightGreen,
+    marginBottom: 10,
+  },
+  stepBody: { flex: 1, gap: 4 },
+  stepTitle: {
+    fontFamily: FONTS.primaryBold,
+    fontSize: SIZES.small,
+    color: COLORS.darkGreen,
+  },
+  stepDesc: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: SIZES.small,
+    color: COLORS.gray,
+    lineHeight: 20,
   },
 });
 
