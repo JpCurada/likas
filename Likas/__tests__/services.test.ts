@@ -3,18 +3,20 @@ import {evacuationService} from '../src/services/evacuationService';
 import {defaultProfile} from '../src/stores/appStore';
 
 describe('LIKAS domain services', () => {
-  it('formats SOS messages with name, context, and coordinates', () => {
+  it('formats SOS messages with name, context, coordinates, and map link', () => {
     const message = formatSOSMessage({
       location: {latitude: 14.59951, longitude: 120.98422},
       profile: {...defaultProfile, name: 'Maria'},
       disasterContext: 'typhoon',
+      at: new Date('2024-06-15T06:30:00.000Z'),
     });
 
-    expect(message).toContain('SOS');
+    expect(message).toContain('[LIKAS] SOS');
     expect(message).toContain('Maria');
     expect(message).toContain('14.59951');
     expect(message).toContain('120.98422');
-    expect(message).toContain('TYPHOON emergency');
+    expect(message).toMatch(/typhoon/i);
+    expect(message).toContain('google.com/maps');
   });
 
   it('prioritizes pet-friendly centers when the household has pets', () => {

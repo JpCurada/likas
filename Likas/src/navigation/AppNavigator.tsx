@@ -84,33 +84,33 @@ const tabStyles = StyleSheet.create({
 function MainTabs() {
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarShowLabel: false,
-        tabBarIcon: ({ focused }) => (
-          <TabIcon name={route.name} focused={focused} />
-        ),
-        tabBarStyle: {
-          backgroundColor: COLORS.white,
-          borderTopColor: COLORS.lightGreen,
-          borderTopWidth: 1.5,
-          height: Platform.OS === 'ios' ? 84 : 60,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 6,
-          paddingTop: 4,
-          paddingHorizontal: 4,
-          elevation: 12,
-          shadowColor: COLORS.darkGreen,
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.08,
-          shadowRadius: 12,
-        },
-        tabBarItemStyle: { paddingVertical: 3 },
-      })}
-    >
-      <Tab.Screen name="Map" component={MapScreen} />
-      <Tab.Screen name="Prep" component={PrepScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
-    </Tab.Navigator>
+        screenOptions={({ route }) => ({
+          headerShown: false,
+          tabBarShowLabel: false,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name={route.name} focused={focused} />
+          ),
+          tabBarStyle: {
+            backgroundColor: COLORS.white,
+            borderTopColor: COLORS.lightGreen,
+            borderTopWidth: 1.5,
+            height: Platform.OS === 'ios' ? 84 : 60,
+            paddingBottom: Platform.OS === 'ios' ? 24 : 6,
+            paddingTop: 4,
+            paddingHorizontal: 4,
+            elevation: 12,
+            shadowColor: COLORS.darkGreen,
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.08,
+            shadowRadius: 12,
+          },
+          tabBarItemStyle: { paddingVertical: 3 },
+        })}
+      >
+        <Tab.Screen name="Map" component={MapScreen} />
+        <Tab.Screen name="Prep" component={PrepScreen} />
+        <Tab.Screen name="Profile" component={ProfileScreen} />
+      </Tab.Navigator>
   );
 }
 

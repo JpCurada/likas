@@ -15,6 +15,7 @@ import {
   Alert,
   PermissionsAndroid,
   Animated,
+  Linking,
 } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -57,6 +58,12 @@ import { routingService, GraphNotLoadedError, NoRouteError } from '../services/r
 import activeFaultsGeoJSON from '../data/gem_active_faults_harmonized.json';
 import { ChatScreen } from './ChatScreen';
 import { Icon } from '../components/Icon';
+import { SosFab } from '../components/SosFab';
+import {
+  ANDROID_LOCATION_PERMISSION_MESSAGE,
+  geolocationIssueFromError,
+  type GeolocationUserIssue,
+} from '../utils/geolocationUserMessages';
 
 // Metro Manila center
 const INITIAL_COORDINATES = [121.0509, 14.5823];
@@ -156,13 +163,30 @@ export const MapScreen: React.FC = () => {
 
   const [trackUser, setTrackUser] = useState<TrackUserLocation | undefined>('default');
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
-  const [isChatVisible, setIsChatVisible] = useState(false);
+  const [chatSheetIndex, setChatSheetIndex] = useState(-1);
+  const [mapAreaHeight, setMapAreaHeight] = useState(0);
   const [icons, setIcons] = useState<any>({});
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   const [nearbyList, setNearbyList] = useState<any[]>([]);
   const [nearbyIndex, setNearbyIndex] = useState(0);
 
   const snapPoints = useMemo(() => ['15%', '50%', '90%'], []);
+
+  const chatSheetSnapFractions = useMemo(
+    () => snapPoints.map(s => Number(String(s).replace(/%/g, '')) / 100),
+    [snapPoints],
+  );
+
+  const sosLiftForChatSheetPx = useMemo(() => {
+    if (chatSheetIndex < 0 || mapAreaHeight <= 0) {
+      return 0;
+    }
+    const f = chatSheetSnapFractions[chatSheetIndex];
+    if (f == null || Number.isNaN(f)) {
+      return 0;
+    }
+    return f * mapAreaHeight;
+  }, [chatSheetIndex, mapAreaHeight, chatSheetSnapFractions]);
 
   const [assetMissing, setAssetMissing] = useState(false);
   const [isRerouting, setIsRerouting] = useState(false);
@@ -443,12 +467,24 @@ export const MapScreen: React.FC = () => {
   }, []);
 
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [locationIssue, setLocationIssue] = useState<GeolocationUserIssue | null>(
+    null,
+  );
+  const [geoSession, setGeoSession] = useState(0);
 
-  // Request permission then watch GPS position
+  const retryLocationAccess = useCallback(() => {
+    setLocationIssue(null);
+    setGeoSession(k => k + 1);
+  }, []);
+
+  // Request permission then watch GPS — geoSession bump retries after the user fixes settings.
   useEffect(() => {
     let watchId: number | null = null;
+    let cancelled = false;
 
     const publish = (longitude: number, latitude: number) => {
+      if (cancelled) return;
+      setLocationIssue(null);
       setUserLocation([longitude, latitude]);
       // Also publish to the global store so AI tools (find_nearby /
       // route_to_nearest_evacuation) can use the user's CURRENT position
@@ -458,44 +494,66 @@ export const MapScreen: React.FC = () => {
       setLiveLocation({latitude, longitude});
     };
 
+    const onHardFailure = (error: { code: number; message: string }) => {
+      if (cancelled) return;
+      setLocationIssue(geolocationIssueFromError(error.code, error.message));
+      setLiveLocation(null);
+    };
+
     const startTracking = () => {
-      // Immediately get current position for a fast first fix
       Geolocation.getCurrentPosition(
-        position => publish(position.coords.longitude, position.coords.latitude),
-        error => console.warn('[MapScreen] getCurrentPosition error:', error),
-        { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 },
+        position =>
+          publish(position.coords.longitude, position.coords.latitude),
+        err => onHardFailure(err),
+        {
+          enableHighAccuracy: false,
+          timeout: 15000,
+          maximumAge: 30000,
+        },
       );
-      // Then keep watching for updates
       watchId = Geolocation.watchPosition(
-        position => publish(position.coords.longitude, position.coords.latitude),
-        error => console.warn('[MapScreen] watchPosition error:', error),
+        position =>
+          publish(position.coords.longitude, position.coords.latitude),
+        err => {
+          console.warn('[MapScreen] watchPosition error:', err);
+          setUserLocation(prev => {
+            if (prev === null && !cancelled) {
+              onHardFailure(err);
+            }
+            return prev;
+          });
+        },
         { enableHighAccuracy: false, distanceFilter: 5 },
       );
     };
 
-    if (Platform.OS === 'android') {
-      PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        {
-          title: 'Location Permission',
-          message: 'LIKAS needs your location to find nearby safe zones.',
-          buttonPositive: 'Allow',
-        },
-      ).then(result => {
-        if (result === PermissionsAndroid.RESULTS.GRANTED) {
-          startTracking();
-        } else {
-          console.warn('[MapScreen] Location permission denied');
+    const run = async () => {
+      if (Platform.OS === 'android') {
+        const result = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'Location for offline map',
+            message: ANDROID_LOCATION_PERMISSION_MESSAGE,
+            buttonPositive: 'Allow',
+            buttonNegative: 'Not now',
+          },
+        );
+        if (cancelled) return;
+        if (result !== PermissionsAndroid.RESULTS.GRANTED) {
+          onHardFailure({ code: 1, message: 'permission_denied' });
+          return;
         }
-      });
-    } else {
+      }
       startTracking();
-    }
+    };
+
+    void run();
 
     return () => {
+      cancelled = true;
       if (watchId !== null) Geolocation.clearWatch(watchId);
     };
-  }, []);
+  }, [setLiveLocation, geoSession]);
 
   useEffect(() => {
     if (!activeRoute || !isMapReady) return;
@@ -584,11 +642,9 @@ export const MapScreen: React.FC = () => {
         setUserLocation([longitude, latitude]);
         findAndNavigateToSafeZone(longitude, latitude);
       },
-      () => {
-        Alert.alert(
-          'Location unavailable',
-          'Unable to determine your location. Please ensure location services are enabled.',
-        );
+      err => {
+        const issue = geolocationIssueFromError(err.code, err.message);
+        Alert.alert(issue.title, issue.message);
       },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 },
     );
@@ -614,11 +670,22 @@ export const MapScreen: React.FC = () => {
               { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 },
             );
             controller.signal.addEventListener('abort', () => reject(new Error('Aborted')));
-          }).catch(() => null);
+          }).catch((e: unknown) => {
+            if (e instanceof Error && e.message === 'Aborted') return null;
+            const geo = e as { code?: number; message?: string };
+            const issue =
+              typeof geo?.code === 'number'
+                ? geolocationIssueFromError(geo.code, geo.message)
+                : null;
+            Alert.alert(
+              issue?.title ?? 'Location unavailable',
+              issue?.message ?? 'Could not determine your current location.',
+            );
+            return null;
+          });
 
       if (!origin) {
         setIsCalculatingRoute(false);
-        Alert.alert('Location unavailable', 'Could not determine your current location.');
         return;
       }
 
@@ -992,6 +1059,40 @@ export const MapScreen: React.FC = () => {
             Mabuhay, {profile?.name || 'Friend'}
           </Text>
         </View>
+        {locationIssue ? (
+          <View
+            style={styles.locationIssueBanner}
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite">
+            <Icon
+              name="crosshairs-question"
+              size={18}
+              color={COLORS.accentGreen}
+            />
+            <View style={styles.locationIssueTextCol}>
+              <Text style={styles.locationIssueTitle}>{locationIssue.title}</Text>
+              <Text style={styles.locationIssueBody}>{locationIssue.message}</Text>
+            </View>
+            <View style={styles.locationIssueActions}>
+              <TouchableOpacity
+                style={styles.locationIssueBtn}
+                onPress={retryLocationAccess}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.locationIssueBtnTxt}>Retry</Text>
+              </TouchableOpacity>
+              {locationIssue.code === 'permission_denied' ? (
+                <TouchableOpacity
+                  style={styles.locationIssueBtn}
+                  onPress={() => {
+                    void Linking.openSettings();
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={styles.locationIssueBtnTxt}>Settings</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
         {profile?.location.primaryMeeting.landmark ? (
           <View style={styles.meetBanner}>
             <Icon name="map-marker" size={14} color={COLORS.lightGreen} />
@@ -1011,7 +1112,9 @@ export const MapScreen: React.FC = () => {
         ) : null}
       </View>
 
-      <View style={styles.container}>
+      <View
+        style={styles.container}
+        onLayout={e => setMapAreaHeight(e.nativeEvent.layout.height)}>
         <Map
           style={styles.map}
           mapStyle={dynamicStyle}
@@ -1315,12 +1418,15 @@ export const MapScreen: React.FC = () => {
           <Icon name="robot" size={28} color={COLORS.white} />
         </TouchableOpacity>
 
+        <SosFab liftForSheetPx={0} />
+
         {/* AI Chat Bottom Sheet */}
         <BottomSheet
           ref={bottomSheetRef}
           index={-1}
           snapPoints={snapPoints}
           enablePanDownToClose={true}
+          onChange={setChatSheetIndex}
           handleIndicatorStyle={{ backgroundColor: COLORS.lightGreen }}
           backgroundStyle={{ backgroundColor: '#f0fdf4' }}
         >
@@ -1449,6 +1555,48 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.primaryBold,
     fontSize: SIZES.h3,
     color: COLORS.white,
+  },
+  locationIssueBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 6,
+    padding: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  locationIssueTextCol: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  locationIssueTitle: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 13,
+    color: COLORS.white,
+  },
+  locationIssueBody: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.78)',
+    lineHeight: 16,
+  },
+  locationIssueActions: {
+    flexDirection: 'column',
+    gap: 6,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  locationIssueBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  locationIssueBtnTxt: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 12,
+    color: COLORS.accentGreen,
   },
   statusBadge: {
     flexDirection: 'row',

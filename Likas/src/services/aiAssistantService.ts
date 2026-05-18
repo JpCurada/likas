@@ -426,6 +426,18 @@ const createSpeakStreamer = (emit: (chunk: string) => void) => {
 // Extract the first balanced JSON object from a string, ignoring junk before/after.
 // Handles cases where Gemma 4 emits reasoning prefixes like `<think>...</think>{...}`
 // or chat-template artifacts that shouldn't be there but sometimes are.
+
+/**
+ * Fixes occasional malformed tool envelopes from grammar/token boundaries
+ * (e.g. `{"action":"tool",...,"args:{}}` with a missing `"` before `args`).
+ */
+const repairAssistantJson = (s: string): string => {
+  let out = s;
+  out = out.replace(/"args:\{/g, '"args":{');
+  out = out.replace(/,args:\{/g, ',"args":{');
+  return out;
+};
+
 const extractJsonObject = (raw: string): string | null => {
   const start = raw.indexOf('{');
   if (start === -1) return null;
@@ -511,7 +523,7 @@ const parseAction = (raw: string): ParsedAction => {
   const jsonCandidate = extracted ?? trimmed;
 
   try {
-    const obj = JSON.parse(jsonCandidate);
+    const obj = JSON.parse(repairAssistantJson(jsonCandidate));
     if (obj?.action === 'speak' && typeof obj.text === 'string') {
       return {kind: 'speak', text: obj.text};
     }
