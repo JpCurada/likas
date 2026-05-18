@@ -12,7 +12,7 @@ import {NativeStackScreenProps} from '@react-navigation/native-stack';
 
 import {COLORS, FONTS, SIZES} from '../theme';
 import {Icon} from '../components/Icon';
-import {setSetupComplete} from '../database/storage';
+import {isOnboardingComplete, setSetupComplete} from '../database/storage';
 import {RootStackParamList} from '../navigation/AppNavigator';
 import {
   AssetDownloadError,
@@ -43,18 +43,13 @@ const ASSET_DISPLAY: Record<
     icon: 'map',
     description: 'Philippines base map with evacuation routes & POIs',
   },
-  'map-glyphs': {
-    label: 'Map Labels',
-    icon: 'format-text',
-    description: 'Font glyphs for rendering text on the offline map',
-  },
   'pedestrian-graph-db': {
     label: 'Walking Routes',
     icon: 'walk',
     description: 'Offline pedestrian navigation graph for routing',
   },
   'ai-model-gemma-4-e2b': {
-    label: 'AI Guide (Gemma 4)',
+    label: 'AI Guide (Gemma 4 Finetuned)',
     icon: 'robot-happy',
     description: 'On-device disaster advisor in Filipino & English',
   },
@@ -157,7 +152,11 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
 
   const handleContinue = async () => {
     await setSetupComplete();
-    navigation.replace('Main');
+    // Move on to onboarding (which now uses the offline map for the
+    // meeting-point picker), unless the user is re-entering Setup after
+    // already having completed onboarding (asset wipe / OTA refresh).
+    const onboardingDone = await isOnboardingComplete();
+    navigation.replace(onboardingDone ? 'Main' : 'Onboarding');
   };
 
   // Every manifest asset is required for offline operation; we treat the full

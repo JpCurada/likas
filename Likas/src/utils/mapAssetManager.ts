@@ -3,7 +3,6 @@ import {Platform} from 'react-native';
 import {assetManager, type ManifestAsset} from '../services/assetManager';
 
 const MAP_TILES_ASSET_ID = 'map-tiles';
-const MAP_GLYPHS_ASSET_ID = 'map-glyphs';
 const PEDESTRIAN_GRAPH_DB_ASSET_ID = 'pedestrian-graph-db';
 
 const SIDELOAD_DIR =
@@ -24,7 +23,13 @@ const tryImportSideload = async (
   filename: string,
 ): Promise<string | null> => {
   const source = sideloadPath(filename);
-  if (!(await RNFS.exists(source))) return null;
+  const exists = await RNFS.exists(source);
+  if (__DEV__) {
+    console.log(
+      `[OfflineMap] tryImportSideload(${assetId}) — source=${source} exists=${exists}`,
+    );
+  }
+  if (!exists) return null;
   try {
     if (__DEV__) console.log(`[OfflineMap] Importing sideload ${source}`);
     return await assetManager.importFromPath(assetId, source);
@@ -50,7 +55,9 @@ const tryExtractBundledAsset = async (
       // Bundled at android/app/src/main/assets/custom/<filename>
       const bundledAssetPath = `custom/${asset.localFilename}`;
       if (__DEV__) {
-        console.log(`[OfflineMap] Extracting bundled APK asset: ${bundledAssetPath}`);
+        console.log(
+          `[OfflineMap] tryExtractBundledAsset(${assetId}) — attempting copyFileAssets("${bundledAssetPath}" → "${finalPath}")`,
+        );
       }
       await RNFS.mkdir(dir);
       await RNFS.copyFileAssets(bundledAssetPath, finalPath);
@@ -95,16 +102,29 @@ const ensureAsset = async (
   assetId: string,
   filename: string,
 ): Promise<string> => {
+  if (__DEV__) console.log(`[OfflineMap] ensureAsset(${assetId}) — checking installed.json`);
   let path = await assetManager.getLocalPath(assetId);
-  if (path) return path;
+  if (path) {
+    if (__DEV__) console.log(`[OfflineMap] ensureAsset(${assetId}) — found locally at ${path}`);
+    return path;
+  }
+  if (__DEV__) console.log(`[OfflineMap] ensureAsset(${assetId}) — not installed, trying sideload`);
   path = await tryImportSideload(assetId, filename);
-  if (path) return path;
+  if (path) {
+    if (__DEV__) console.log(`[OfflineMap] ensureAsset(${assetId}) — sideload succeeded → ${path}`);
+    return path;
+  }
+  if (__DEV__) console.log(`[OfflineMap] ensureAsset(${assetId}) — no sideload, checking bundle`);
   const manifest = await assetManager.fetchManifest();
   const asset = manifest.assets[assetId];
   if (asset) {
     path = await tryExtractBundledAsset(assetId, asset);
-    if (path) return path;
+    if (path) {
+      if (__DEV__) console.log(`[OfflineMap] ensureAsset(${assetId}) — bundled extract succeeded → ${path}`);
+      return path;
+    }
   }
+  if (__DEV__) console.warn(`[OfflineMap] ensureAsset(${assetId}) — exhausted all sources, throwing MapAssetMissingError`);
   throw new MapAssetMissingError(assetId);
 };
 
@@ -124,43 +144,47 @@ export const isOfflineMapReady = async (): Promise<boolean> => {
  * for offline-install scenarios documented for LGU/NGO deployments.
  */
 export const prepareOfflineMap = async (): Promise<string> => {
+  const t0 = Date.now();
+  if (__DEV__) console.log('[OfflineMap] prepareOfflineMap → fetching manifest');
   const manifest = await assetManager.fetchManifest();
+  if (__DEV__) {
+    console.log(
+      `[OfflineMap] prepareOfflineMap → manifest fetched in ${Date.now() - t0} ms (version ${manifest.manifestVersion})`,
+    );
+  }
   const asset = manifest.assets[MAP_TILES_ASSET_ID];
   if (!asset) {
+    if (__DEV__) console.warn(`[OfflineMap] prepareOfflineMap → manifest has no '${MAP_TILES_ASSET_ID}' entry`);
     throw new MapAssetMissingError(MAP_TILES_ASSET_ID);
   }
 
   const destPath = await ensureAsset(MAP_TILES_ASSET_ID, asset.localFilename);
   const absolutePrefix = destPath.startsWith('/') ? 'mbtiles://' : 'mbtiles:///';
-  return `${absolutePrefix}${destPath}`;
+  const url = `${absolutePrefix}${destPath}`;
+  if (__DEV__) {
+    console.log(
+      `[OfflineMap] prepareOfflineMap → ${url}  (total ${Date.now() - t0} ms)`,
+    );
+  }
+  return url;
 };
 
 /**
  * Returns a glyph URL pattern suitable for a MapLibre style.json `glyphs`
- * property. Falls back to bundled APK glyphs when nothing is installed and
- * no sideload archive exists.
+ * property. Glyphs are bundled into the APK at build time by
+ * `npm run bundle-glyphs` (which copies Likas/assets/glyphs/* into
+ * android/app/src/main/assets/glyphs/), so MapLibre reads them via the
+ * `asset://` scheme. No download or unzip is performed at runtime, which
+ * guarantees offline-first map text rendering and avoids the EACCES
+ * errors we previously hit unzipping directory names containing spaces
+ * (e.g. "Noto Sans Bold") on Android.
+ *
+ * iOS note: this expects the `glyphs` folder to be added to the Xcode
+ * project as a folder reference (blue folder icon) so the nested
+ * fontstack subdirectories survive bundling. See bundle-glyphs script
+ * documentation.
  */
 export const prepareGlyphs = async (): Promise<string> => {
-  const manifest = await assetManager.fetchManifest();
-  const asset = manifest.assets[MAP_GLYPHS_ASSET_ID];
-
-  if (asset) {
-    try {
-      const installed = await ensureAsset(MAP_GLYPHS_ASSET_ID, asset.localFilename);
-      const glyphDir = `${RNFS.DocumentDirectoryPath}/${asset.localSubdir}/extracted`;
-      if (await RNFS.exists(glyphDir)) {
-        return `file://${glyphDir}/{fontstack}/{range}.pbf`;
-      }
-      if (__DEV__) {
-        console.log(
-          `[OfflineMap] Glyph archive installed at ${installed} but not extracted; using bundled fallback`,
-        );
-      }
-    } catch {
-      // Fall through to bundled glyph path.
-    }
-  }
-
   return Platform.OS === 'android'
     ? 'asset://glyphs/{fontstack}/{range}.pbf'
     : 'glyphs/{fontstack}/{range}.pbf';

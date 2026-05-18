@@ -58,7 +58,9 @@ export const OnboardingScreen: React.FC<Props> = ({ navigation }) => {
       await saveProfile(profile);
       useAppStore.getState().updateProfile(profile);
       await setOnboardingComplete();
-      navigation.replace('Setup');
+      // First-launch flow is Setup → Onboarding → Main, so we now land
+      // on the main app instead of bouncing back to Setup.
+      navigation.replace('Main');
     } catch (error) {
       Alert.alert(
         'Oops!',

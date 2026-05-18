@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   View,
   Text,
   StyleSheet,
   Platform,
-  Image,
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -13,6 +11,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 import { COLORS, FONTS } from '../theme';
 import { Icon } from '../components/Icon';
+import { BrandedLoader } from '../components/BrandedLoader';
 import { isOnboardingComplete, isSetupComplete, loadProfile } from '../database/storage';
 import { useAppStore } from '../stores/appStore';
 
@@ -121,7 +120,16 @@ export const AppNavigator: React.FC = () => {
   >(null);
 
   useEffect(() => {
-    (async () => {
+    // Hold the branded splash for at least MIN_SPLASH_MS so the liquid-rise
+    // animation gets one full cycle on-screen even if storage I/O resolves
+    // instantly. The real bootstrap work races this timer; whichever wins
+    // last is what unblocks navigation.
+    const MIN_SPLASH_MS = 2000;
+    const minDelay = new Promise<void>(resolve =>
+      setTimeout(resolve, MIN_SPLASH_MS),
+    );
+
+    const bootstrap = (async () => {
       // Hydrate Zustand from AsyncStorage so the AI and routing see the
       // canonical profile captured during onboarding, not just defaults.
       const persisted = await loadProfile();
@@ -129,46 +137,24 @@ export const AppNavigator: React.FC = () => {
         useAppStore.getState().updateProfile(persisted);
       }
 
-      const onboardingDone = await isOnboardingComplete();
-      if (!onboardingDone) {
-        setInitialRoute('Onboarding');
-        return;
-      }
+      // First-launch flow is Setup → Onboarding → Main. Setup downloads
+      // the offline tiles so the meeting-point map picker in Onboarding
+      // Step 4 has a real basemap to drop a pin on. If setup ever
+      // regresses (e.g. user wiped the asset cache) we land back there
+      // before re-running onboarding.
       const setupDone = await isSetupComplete();
-      // If setup isn't done, return to Setup screen so the user can
-      // resume downloading maps / skipping the AI model intentionally.
-      setInitialRoute(setupDone ? 'Main' : 'Setup');
+      if (!setupDone) return 'Setup' as const;
+      const onboardingDone = await isOnboardingComplete();
+      return onboardingDone ? ('Main' as const) : ('Onboarding' as const);
     })();
+
+    Promise.all([bootstrap, minDelay]).then(([route]) => {
+      setInitialRoute(route);
+    });
   }, []);
 
   if (!initialRoute) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: COLORS.darkGreen,
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 12,
-        }}
-      >
-        {/* <Image
-          source={{ uri: 'ic_launcher_round' }}
-          style={{ width: 120, height: 120, marginBottom: 16 }}
-          resizeMode="contain"
-        /> */}
-        <ActivityIndicator color={COLORS.accentGreen} size="large" />
-        <Text
-          style={{
-            color: COLORS.accentGreen,
-            fontFamily: FONTS.primaryRegular,
-            fontSize: 14,
-          }}
-        >
-          Loading Likas...
-        </Text>
-      </View>
-    );
+    return <BrandedLoader />;
   }
 
   return (

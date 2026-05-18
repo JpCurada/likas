@@ -14,11 +14,14 @@ export const SetupLoadingScreen = () => {
 
   useEffect(() => {
     const runSetup = async () => {
+      console.log('[SetupLoadingScreen] Starting runSetup...');
       try {
         // 1. Fetch live manifest
         setCurrentStep('Fetching remote manifest...');
+        console.log(`[SetupLoadingScreen] Fetching manifest from ${MANIFEST_URL}`);
         const response = await fetch(MANIFEST_URL);
         const manifest = await response.json();
+        console.log('[SetupLoadingScreen] Manifest fetched successfully:', Object.keys(manifest.assets));
 
         const assetIds = Object.keys(manifest.assets);
 
@@ -26,27 +29,43 @@ export const SetupLoadingScreen = () => {
           const id = assetIds[i];
           const asset = manifest.assets[id];
 
-          if (await assetManager.isInstalled(id)) continue;
+          console.log(`[SetupLoadingScreen] Checking if asset is installed: ${id}`);
+          if (await assetManager.isInstalled(id)) {
+            console.log(`[SetupLoadingScreen] Asset already installed: ${id}`);
+            continue;
+          }
 
           setCurrentStep(`Downloading ${id.replace(/-/g, ' ')}...`);
+          console.log(`[SetupLoadingScreen] Starting download for asset: ${id}`);
 
           // Download and verify
           await assetManager.downloadAsset(id, (p) => {
             const currentAssetWeight = 1 / assetIds.length;
             const completedWeight = i / assetIds.length;
-            setProgress(completedWeight + (p.percent * currentAssetWeight));
+            const totalProgress = completedWeight + (p.percent * currentAssetWeight);
+            setProgress(totalProgress);
+            
+            // Log every 10% or so to avoid spamming the console too much
+            if (p.percent === 0 || p.percent === 1 || Math.round(p.percent * 100) % 10 === 0) {
+              console.log(`[SetupLoadingScreen] Download progress for ${id}: ${Math.round(p.percent * 100)}%`);
+            }
           });
+
+          console.log(`[SetupLoadingScreen] Download complete for asset: ${id}`);
 
           // Auto-decompress archives
           if (asset.localFilename.endsWith('.zip')) {
             setCurrentStep(`Extracting ${id}...`);
+            console.log(`[SetupLoadingScreen] Extracting asset: ${id}`);
             await assetManager.decompressArchive(asset, await assetManager.getLocalPath(id) as string);
+            console.log(`[SetupLoadingScreen] Extraction complete for asset: ${id}`);
           }
         }
 
+        console.log('[SetupLoadingScreen] All assets processed. Navigating to OnboardingScreen.');
         navigation.navigate('OnboardingScreen' as never);
       } catch (error) {
-        console.error('Setup failed:', error);
+        console.error('[SetupLoadingScreen] Setup failed:', error);
         setCurrentStep('Setup Failed. Please check your connection.');
       }
     };

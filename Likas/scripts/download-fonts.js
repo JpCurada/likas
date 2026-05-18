@@ -22,11 +22,25 @@ const FONT_STACKS = [
   'Noto Sans Italic',
 ];
 
-// Glyph ranges: each range covers 256 Unicode code-points (0-255, 256-511, …)
-const RANGES = [];
-for (let start = 0; start <= 65280; start += 256) {
-  RANGES.push(`${start}-${start + 255}`);
-}
+// Glyph ranges to bundle. The basemap only renders English + Filipino
+// place names, both of which use Latin script — so we trim the default
+// "every Unicode range" set (256 ranges, ~33 MB per font stack) down to
+// just what we actually need. Total bundled glyphs drop from ~99 MB to
+// ~1.1 MB without losing any visible character coverage.
+//
+// Ranges kept:
+// - 0-255       Basic Latin + Latin-1 Supplement (ASCII, ñ Ñ, á é í ó ú,
+//               ü, basic punctuation — covers 99% of Tagalog/English).
+// - 256-511     Latin Extended-A (Š š, ą ē — rare diacritics in
+//               loanwords and academic Filipino).
+// - 7680-7935   Latin Extended Additional (ḑ ḷ ṅ — Spanish-derived
+//               and historic Filipino spellings).
+// - 8192-8447   General Punctuation (em/en dashes, smart quotes,
+//               ellipsis used in OSM name tags).
+//
+// To re-enable a wider range (e.g. for Arabic or CJK rendering), just
+// add the `start-end` string here and re-run `npm run bundle-glyphs`.
+const RANGES = ['0-255', '256-511', '7680-7935', '8192-8447'];
 
 // Source of truth (shared assets)
 const SHARED_ASSETS_DIR = path.join(__dirname, '..', 'assets', 'glyphs');
@@ -129,6 +143,34 @@ function copyDirSync(src, dest) {
   }
 }
 
+/**
+ * Removes any .pbf file from `dir` whose `<basename>.pbf` is not in the
+ * provided allowlist of range strings. Leaves non-pbf files (e.g. .zip
+ * archives) untouched so other tooling doesn't break. Returns the number
+ * of files removed and their cumulative size in bytes.
+ */
+function prunePbfsToAllowlist(dir, allowedRanges) {
+  if (!fs.existsSync(dir)) return { removed: 0, freed: 0 };
+  const allowed = new Set(allowedRanges);
+  let removed = 0;
+  let freed = 0;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    if (!entry.name.endsWith('.pbf')) continue;
+    const range = entry.name.slice(0, -'.pbf'.length);
+    if (allowed.has(range)) continue;
+    const p = path.join(dir, entry.name);
+    try {
+      freed += fs.statSync(p).size;
+      fs.unlinkSync(p);
+      removed++;
+    } catch {
+      /* noop */
+    }
+  }
+  return { removed, freed };
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -161,10 +203,51 @@ async function main() {
     console.log('✅ All glyph files already in shared assets.');
   }
 
+  // Prune any out-of-allowlist PBFs left over from previous runs. This
+  // keeps both the source dir and the Android assets dir aligned with
+  // the current RANGES list, so shrinking the allowlist later actually
+  // shrinks the APK without manual cleanup.
+  console.log('\n🧹 Pruning out-of-allowlist glyph ranges…');
+  let totalPruned = 0;
+  let totalFreed = 0;
+  for (const stack of FONT_STACKS) {
+    const stackDir = path.join(SHARED_ASSETS_DIR, stack);
+    const { removed, freed } = prunePbfsToAllowlist(stackDir, RANGES);
+    totalPruned += removed;
+    totalFreed += freed;
+    if (removed > 0) {
+      console.log(`   ${stack}: removed ${removed} files (${(freed / 1024 / 1024).toFixed(1)} MB)`);
+    }
+  }
+  if (totalPruned === 0) {
+    console.log('   Source already trimmed; nothing to prune.');
+  } else {
+    console.log(`   Freed ${(totalFreed / 1024 / 1024).toFixed(1)} MB from source.`);
+  }
+
   if (linkAndroid) {
     console.log(`\n🔗 Linking glyphs to Android native assets…`);
-    copyDirSync(SHARED_ASSETS_DIR, ANDROID_ASSETS_DIR);
-    console.log(`   Done! Android glyphs at: ${ANDROID_ASSETS_DIR}`);
+    // Wipe the destination first so removed stacks/ranges don't linger
+    // and so non-glyph cruft (e.g. an old noto-sans-vX.zip from the
+    // legacy download flow) doesn't sneak into the APK.
+    if (fs.existsSync(ANDROID_ASSETS_DIR)) {
+      fs.rmSync(ANDROID_ASSETS_DIR, { recursive: true, force: true });
+    }
+    let linkedBytes = 0;
+    for (const stack of FONT_STACKS) {
+      const stackDest = path.join(ANDROID_ASSETS_DIR, stack);
+      fs.mkdirSync(stackDest, { recursive: true });
+      for (const range of RANGES) {
+        const src = path.join(SHARED_ASSETS_DIR, stack, `${range}.pbf`);
+        if (!fs.existsSync(src)) continue;
+        const dest = path.join(stackDest, `${range}.pbf`);
+        fs.copyFileSync(src, dest);
+        linkedBytes += fs.statSync(dest).size;
+      }
+    }
+    console.log(
+      `   Done! ${(linkedBytes / 1024).toFixed(1)} KB across ${FONT_STACKS.length} font stacks → ${ANDROID_ASSETS_DIR}`,
+    );
   }
 
   console.log('\n✨ Asset preparation complete.');

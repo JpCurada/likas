@@ -99,38 +99,86 @@ export const MeetingPointPickerModal: React.FC<Props> = ({
     let cancelled = false;
     setIsBootstrapping(true);
     setBootstrapError(null);
+
+    // Wall-clock safety net: if any step in the chain hangs (e.g. a
+    // fetch that doesn't honor its AbortSignal, or a stuck RNFS call),
+    // surface a generic error after 10 s instead of spinning forever.
+    const startedAt = Date.now();
+    const watchdog = setTimeout(() => {
+      if (cancelled) return;
+      console.warn(
+        `[MeetingPointPicker] ⏰ Bootstrap watchdog fired after ${Date.now() - startedAt} ms — forcing error state`,
+      );
+      cancelled = true;
+      setBootstrapError(
+        'Could not load the offline map within 10 seconds. Check that the Map Tiles download finished in Setup, then try again.',
+      );
+      setIsBootstrapping(false);
+    }, 10000);
+
+    const elapsed = () => `${Date.now() - startedAt} ms`;
+    console.log('[MeetingPointPicker] 🚀 Bootstrap start');
+
     (async () => {
       try {
+        console.log(`[MeetingPointPicker] ▶ prepareOfflineMap()  t=${elapsed()}`);
         const mbtilesUrl = await prepareOfflineMap();
+        console.log(
+          `[MeetingPointPicker] ✓ prepareOfflineMap → ${mbtilesUrl}  t=${elapsed()}`,
+        );
+
+        console.log(`[MeetingPointPicker] ▶ prepareGlyphs()  t=${elapsed()}`);
         let glyphsPath: string;
         try {
           glyphsPath = await prepareGlyphs();
-        } catch {
+        } catch (glyphErr) {
+          console.warn(
+            `[MeetingPointPicker] ⚠ prepareGlyphs failed, using fallback path:`,
+            glyphErr,
+          );
           glyphsPath =
             Platform.OS === 'android'
               ? 'asset://glyphs/{fontstack}/{range}.pbf'
               : 'glyphs/{fontstack}/{range}.pbf';
         }
-        if (cancelled) return;
+        console.log(
+          `[MeetingPointPicker] ✓ prepareGlyphs → ${glyphsPath}  t=${elapsed()}`,
+        );
+
+        if (cancelled) {
+          console.log('[MeetingPointPicker] ⨯ Cancelled before style commit');
+          return;
+        }
+
         const style = buildMinimalStyle(mbtilesUrl, glyphsPath);
         setOfflineMapStyle(style);
+        console.log(
+          `[MeetingPointPicker] 🏁 Bootstrap complete (style committed)  t=${elapsed()}`,
+        );
       } catch (err) {
         if (cancelled) return;
+        console.error(
+          `[MeetingPointPicker] ✗ Bootstrap failed at t=${elapsed()}:`,
+          err,
+        );
         if (err instanceof MapAssetMissingError) {
           setBootstrapError(
             'Offline maps are not installed yet. Finish downloading the Map Tiles asset in Setup, then pin your meeting point.',
           );
         } else {
+          const msg = err instanceof Error ? err.message : String(err);
           setBootstrapError(
-            'Could not load the offline map. Please try again after restarting the app.',
+            `Could not load the offline map.\n\nDetails: ${msg}`,
           );
         }
       } finally {
+        clearTimeout(watchdog);
         if (!cancelled) setIsBootstrapping(false);
       }
     })();
     return () => {
       cancelled = true;
+      clearTimeout(watchdog);
     };
   }, [visible, offlineMapStyle, isBootstrapping, setOfflineMapStyle]);
 
