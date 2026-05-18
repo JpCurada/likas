@@ -1,0 +1,43 @@
+{
+  "total": 769,
+  "train": 692,
+  "test": 77,
+  "unique_questions": 398,
+  "train_unique_questions": 359,
+  "test_unique_questions": 39,
+  "by_category": {
+    "protocol_qa": {
+      "kept": 190,
+      "rejected": 0
+    },
+    "evacuation": {
+      "kept": 200,
+      "rejected": 0
+    },
+    "nearby_poi": {
+      "kept": 200,
+      "rejected": 0
+    },
+    "profile_aware": {
+      "kept": 100,
+      "rejected": 0
+    },
+    "direct_speak": {
+      "kept": 16,
+      "rejected": 0
+    },
+    "multi_tool": {
+      "kept": 30,
+      "rejected": 0
+    },
+    "multi_turn": {
+      "kept": 30,
+      "rejected": 0
+    },
+    "tool_error": {
+      "kept": 3,
+      "rejected": 0
+    }
+  },
+  "rejected_count": 0
+}
