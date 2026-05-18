@@ -14,11 +14,11 @@
     "map-glyphs": {
       "kind": "glyphs",
       "version": "1.0.0",
-      "url": "https://cdn.example.invalid/likas/glyphs/noto-sans-v1.0.0.tar.gz",
+      "url": "https://cdn.example.invalid/likas/glyphs/noto-sans-v1.0.0.zip",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "size": 50000000,
       "required": true,
-      "localFilename": "noto-sans-v1.0.0.tar.gz",
+      "localFilename": "noto-sans-v1.0.0.zip",
       "localSubdir": "glyphs"
     },
     "pedestrian-graph": {

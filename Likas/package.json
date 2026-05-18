@@ -8,6 +8,7 @@
     "lint": "eslint .",
     "prepare-assets": "node scripts/download-fonts.js --link-android && npx react-native-asset",
     "link-assets": "npx react-native-asset",
+    "package-glyphs": "node scripts/package-glyphs.js",
     "generate-map": "node scripts/generate-map.js",
     "generate-graph": "node scripts/generate-pedestrian-graph.js",
     "generate-graph-db": "node scripts/generate-pedestrian-graph-db.js",
@@ -36,6 +37,7 @@
     "react-native-vector-icons": "^10.3.0",
     "react-native-worklets": "^0.8.3",
     "react-native-worklets-core": "^1.6.3",
+    "react-native-zip-archive": "^6.0.0",
     "whisper.rn": "^0.5.5",
     "zustand": "^5.0.12"
   },
@@ -61,6 +63,7 @@
     "osm-pbf-parser": "^2.3.0",
     "prettier": "2.8.8",
     "react-native-asset": "^2.3.0",
+    "adm-zip": "^0.5.10",
     "react-test-renderer": "19.2.3",
     "sql.js": "^1.14.1",
     "typescript": "^5.8.3"

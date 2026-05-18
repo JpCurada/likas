@@ -1,4 +1,5 @@
 import RNFS from 'react-native-fs';
+import {unzip} from 'react-native-zip-archive';
 import devManifest from './manifest.dev.json'; // Cache buster
 
 export type AssetKind = 'model' | 'mbtiles' | 'glyphs' | 'data';
@@ -138,6 +139,21 @@ export const assetManager = {
     return actual.toLowerCase() === expectedSha256.toLowerCase();
   },
 
+  async decompressArchive(asset: ManifestAsset, filePath: string): Promise<void> {
+    if (asset.localFilename.endsWith('.zip')) {
+      const targetDir = `${RNFS.DocumentDirectoryPath}/${asset.localSubdir}/extracted`;
+      if (__DEV__) console.log(`[assetManager] Decompressing ${filePath} to ${targetDir}`);
+      
+      await RNFS.mkdir(targetDir);
+      try {
+        await unzip(filePath, targetDir);
+        if (__DEV__) console.log(`[assetManager] Decompression complete: ${targetDir}`);
+      } catch (error) {
+        throw new AssetDownloadError(`Decompression failed for ${asset.localFilename}`, error);
+      }
+    }
+  },
+
   async downloadAsset(
     assetId: string,
     onProgress?: (p: DownloadProgress) => void,
@@ -195,6 +211,9 @@ export const assetManager = {
     }
     await RNFS.moveFile(partialPath, finalPath);
 
+    // Auto-extract if it's an archive
+    await this.decompressArchive(asset, finalPath);
+
     const index = await this.readInstalled();
     index.records[assetId] = {
       id: assetId,
@@ -229,6 +248,9 @@ export const assetManager = {
       await RNFS.unlink(finalPath);
     }
     await RNFS.copyFile(sourcePath, finalPath);
+
+    // Auto-extract if it's an archive
+    await this.decompressArchive(asset, finalPath);
 
     const index = await this.readInstalled();
     index.records[assetId] = {

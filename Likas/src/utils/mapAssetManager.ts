@@ -79,6 +79,9 @@ const tryExtractBundledAsset = async (
     index.manifestVersion = manifest.manifestVersion;
     await assetManager.writeInstalled(index);
 
+    // Auto-extract if it's an archive
+    await assetManager.decompressArchive(asset, finalPath);
+
     if (__DEV__) {
       console.log(`[OfflineMap] ✅ Bundled asset extracted to ${finalPath}`);
     }
