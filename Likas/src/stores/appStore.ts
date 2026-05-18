@@ -73,6 +73,12 @@ type AppState = {
   chatMessages: ChatMessage[];
   activeRoute: ActiveRoute | null;
   nearbyPins: NearbyPin[];
+  /**
+   * Set when a chat-driven tool produces a route or pins, so MapScreen can
+   * auto-present the map (snap the chat sheet to its half-screen point) the
+   * moment the result lands. Consumed and cleared by MapScreen.
+   */
+  pendingMapFocus: 'route' | 'nearby' | null;
   /** The fully processed MapLibre style object — set by MapScreen on first init. */
   offlineMapStyle: any | null;
   setActiveContext: (context: DisasterContext) => void;
@@ -82,6 +88,7 @@ type AppState = {
   addChatMessage: (message: ChatMessage) => void;
   setActiveRoute: (route: ActiveRoute | null) => void;
   setNearbyPins: (pins: NearbyPin[]) => void;
+  setPendingMapFocus: (focus: 'route' | 'nearby' | null) => void;
   setOfflineMapStyle: (style: any) => void;
 };
 
@@ -111,8 +118,10 @@ export const useAppStore = create<AppState>(set => ({
     set(state => ({chatMessages: [...state.chatMessages, message]})),
   activeRoute: null,
   nearbyPins: [],
+  pendingMapFocus: null,
   offlineMapStyle: null,
   setActiveRoute: route => set({activeRoute: route, nearbyPins: []}),
   setNearbyPins: pins => set({nearbyPins: pins, activeRoute: null}),
+  setPendingMapFocus: focus => set({pendingMapFocus: focus}),
   setOfflineMapStyle: style => set({offlineMapStyle: style}),
 }));

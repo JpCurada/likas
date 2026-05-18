@@ -173,6 +173,8 @@ export const MapScreen: React.FC = () => {
   const activeRoute = useAppStore(s => s.activeRoute);
   const setActiveRoute = useAppStore(s => s.setActiveRoute);
   const nearbyPins = useAppStore(s => s.nearbyPins);
+  const pendingMapFocus = useAppStore(s => s.pendingMapFocus);
+  const setPendingMapFocus = useAppStore(s => s.setPendingMapFocus);
   const setOfflineMapStyle = useAppStore(s => s.setOfflineMapStyle);
 
   const handleCancelCalculation = useCallback(() => {
@@ -529,6 +531,16 @@ export const MapScreen: React.FC = () => {
       duration: 1200,
     });
   }, [nearbyPins, isMapReady]);
+
+  // A chat-driven tool produced a route or pins. Snap the chat sheet to its
+  // half-screen point (index 1 = 50%) so the map stays dominant on top while
+  // the conversation — still streaming — remains visible below. The fitBounds
+  // effects above animate the camera to the new geometry in parallel.
+  useEffect(() => {
+    if (!pendingMapFocus || !isMapReady) return;
+    bottomSheetRef.current?.snapToIndex(1);
+    setPendingMapFocus(null);
+  }, [pendingMapFocus, isMapReady, setPendingMapFocus]);
 
   const toggleFilter = useCallback((id: string) => {
     setActiveFilters(prev => ({ ...prev, [id]: !prev[id] }));

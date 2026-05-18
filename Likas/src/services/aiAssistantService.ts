@@ -401,6 +401,53 @@ const extractJsonObject = (raw: string): string | null => {
 
 const KNOWN_TOOL_NAMES = new Set(TOOL_REGISTRY.map(t => t.name));
 
+/**
+ * Deterministic intent detector for the rescue path.
+ *
+ * The fine-tuned model is reliable but *inconsistent*: for evacuation / POI
+ * questions it sometimes emits a clean tool envelope and sometimes narrates
+ * the tool inside a `speak` reply ("...kailangan kong gamitin ang
+ * route_to_nearest_evacuation"). When it narrates, no tool runs and nothing
+ * reaches the map. This maps the same casual English/Filipino phrasing the
+ * no-model fallback already handles to a concrete tool call, so the route /
+ * pins land on the map regardless of which shape the model chose.
+ *
+ * Returns null for anything that isn't an unambiguous evac/POI ask — refusals
+ * ("write me a poem"), protocol questions, and profile questions are left to
+ * the model so we never force a tool onto an off-topic turn.
+ */
+const POI_KEYWORD_MAP: Array<{re: RegExp; category: string; label: string}> = [
+  {re: /(hospital|ospital|emergency room|\ber\b)/i, category: 'hospital', label: 'hospitals'},
+  {re: /(school|paaralan|eskwela)/i, category: 'school', label: 'schools'},
+  {re: /(gym|gymnasium|himnasyo)/i, category: 'gymnasium', label: 'gymnasiums'},
+  {re: /(covered court|kubierta)/i, category: 'covered_court', label: 'covered courts'},
+  {re: /(multi[- ]?purpose|hall)/i, category: 'multi_purpose_hall', label: 'multi purpose halls'},
+];
+
+const EVAC_RE =
+  /(evac|shelter|lilikas|lumikas|pupunta|saan.*(pumunta|ligtas|safe)|nearest evacuation|pinakamalapit na evac)/i;
+
+export type ForcedTool =
+  | {tool: 'route_to_nearest_evacuation'; args: Record<string, never>}
+  | {tool: 'find_nearby'; args: {category: string}; label: string};
+
+const detectForcedTool = (userMessage: string): ForcedTool | null => {
+  const msg = userMessage.toLowerCase();
+  if (EVAC_RE.test(msg)) {
+    return {tool: 'route_to_nearest_evacuation', args: {}};
+  }
+  const asksNearest = /(nearest|closest|nearby|pinakamalapit|malapit|saan|where)/i.test(
+    userMessage,
+  );
+  if (asksNearest) {
+    const hit = POI_KEYWORD_MAP.find(p => p.re.test(userMessage));
+    if (hit) {
+      return {tool: 'find_nearby', args: {category: hit.category}, label: hit.label};
+    }
+  }
+  return null;
+};
+
 const parseAction = (raw: string): ParsedAction => {
   const json = extractJsonObject(raw) ?? raw.trim();
   try {
@@ -440,6 +487,11 @@ export const aiAssistantService = {
   },
 
   release: async () => {
+    // Always clear the in-flight init promise so a failed/again-needed load
+    // can be retried — otherwise a single early failure (e.g. model not yet
+    // downloaded) would cache a null context for the rest of the process and
+    // the AI would never come back even after the asset is installed.
+    initPromise = null;
     if (!llamaContext) return;
     try {
       await releaseAllLlama();
@@ -593,6 +645,9 @@ export const aiAssistantService = {
 
     const messages = seedMessages(params, params.profile);
     const toolContext = {profile: params.profile, activeContext: params.context};
+    // Tools the model actually invoked this query — used to decide whether the
+    // deterministic rescue needs to fire when the model ends on a speak turn.
+    const calledTools = new Set<string>();
 
     for (let turn = 0; turn <= MAX_TOOL_CALLS_PER_TURN; turn++) {
       console.log(`[AI] Starting turn ${turn}...`);
@@ -688,6 +743,32 @@ export const aiAssistantService = {
         // characters the streamer missed (cheap idempotency guard).
         const remaining = streamer.remainder(action.text);
         if (remaining) yield remaining;
+
+        // Rescue: the model chose to *narrate* a tool instead of emitting the
+        // envelope (a known inconsistency — see detectForcedTool). If the user
+        // clearly asked for evacuation/POI and the matching tool never ran,
+        // run it deterministically so the route/pins still reach the map.
+        const forced = detectForcedTool(params.userMessage);
+        if (forced && !calledTools.has(forced.tool)) {
+          const tool = findTool(forced.tool);
+          if (tool) {
+            onEvent?.({kind: 'tool_call', name: forced.tool, args: forced.args});
+            let rescued: ToolResult;
+            try {
+              rescued = await tool.handler(forced.args, toolContext);
+            } catch (err) {
+              rescued = {
+                summary: `Tool ${forced.tool} failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+              };
+            }
+            onEvent?.({kind: 'tool_result', name: forced.tool, result: rescued});
+            const note =
+              forced.tool === 'route_to_nearest_evacuation'
+                ? "\n\nI've drawn the route on the map — it's shown beside this chat."
+                : `\n\nI've placed the nearby ${forced.label} as pins on the map beside this chat.`;
+            yield note;
+          }
+        }
         return;
       }
       if (action.kind === 'invalid') {
@@ -710,6 +791,7 @@ export const aiAssistantService = {
         });
         continue;
       }
+      calledTools.add(action.name);
       onEvent?.({kind: 'tool_call', name: action.name, args: action.args});
       let toolResult: ToolResult;
       try {
@@ -742,4 +824,15 @@ export const aiAssistantService = {
 
     yield fallbackResponse(params);
   },
+};
+
+/**
+ * Internal helpers exposed for unit tests only. Not part of the public API —
+ * do not import this from product code.
+ */
+export const __testables = {
+  parseAction,
+  extractJsonObject,
+  createSpeakStreamer,
+  detectForcedTool,
 };
