@@ -139,8 +139,21 @@ describe('parseAction', () => {
     expect(a.kind).toBe('invalid');
   });
 
-  it('returns invalid for non-JSON garbage', () => {
-    expect(parseAction('totally not json').kind).toBe('invalid');
+  it('treats plain prose (no JSON) as speak — models often skip the envelope for refusal lines', () => {
+    expect(parseAction('totally not json')).toEqual({
+      kind: 'speak',
+      text: 'totally not json',
+    });
+    expect(
+      parseAction("I can't verify that protocol — contact NDRRMC at 911."),
+    ).toEqual({
+      kind: 'speak',
+      text: "I can't verify that protocol — contact NDRRMC at 911.",
+    });
+  });
+
+  it('returns invalid for malformed JSON that starts with {', () => {
+    expect(parseAction('{broken incomplete').kind).toBe('invalid');
   });
 
   it('extractJsonObject returns the first balanced object only', () => {

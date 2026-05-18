@@ -81,6 +81,14 @@ type AppState = {
   pendingMapFocus: 'route' | 'nearby' | null;
   /** The fully processed MapLibre style object — set by MapScreen on first init. */
   offlineMapStyle: any | null;
+  /**
+   * Live GPS position from MapScreen's watcher. Null until permissions are
+   * granted and the first fix arrives. AI tools (find_nearby /
+   * route_to_nearest_evacuation) prefer this over the onboarded home
+   * coordinates so "nearest X" reflects where the user actually is right
+   * now, not where they registered the app.
+   */
+  liveLocation: LatLng | null;
   setActiveContext: (context: DisasterContext) => void;
   updateProfile: (profile: UserProfile) => void;
   completeOnboarding: () => void;
@@ -90,6 +98,7 @@ type AppState = {
   setNearbyPins: (pins: NearbyPin[]) => void;
   setPendingMapFocus: (focus: 'route' | 'nearby' | null) => void;
   setOfflineMapStyle: (style: any) => void;
+  setLiveLocation: (loc: LatLng | null) => void;
 };
 
 export const useAppStore = create<AppState>(set => ({
@@ -120,8 +129,10 @@ export const useAppStore = create<AppState>(set => ({
   nearbyPins: [],
   pendingMapFocus: null,
   offlineMapStyle: null,
+  liveLocation: null,
   setActiveRoute: route => set({activeRoute: route, nearbyPins: []}),
   setNearbyPins: pins => set({nearbyPins: pins, activeRoute: null}),
   setPendingMapFocus: focus => set({pendingMapFocus: focus}),
   setOfflineMapStyle: style => set({offlineMapStyle: style}),
+  setLiveLocation: loc => set({liveLocation: loc}),
 }));

@@ -26,7 +26,7 @@ const FONT_STACKS = [
 // place names, both of which use Latin script — so we trim the default
 // "every Unicode range" set (256 ranges, ~33 MB per font stack) down to
 // just what we actually need. Total bundled glyphs drop from ~99 MB to
-// ~1.1 MB without losing any visible character coverage.
+// ~1.2 MB without losing any visible character coverage.
 //
 // Ranges kept:
 // - 0-255       Basic Latin + Latin-1 Supplement (ASCII, ñ Ñ, á é í ó ú,
@@ -37,10 +37,24 @@ const FONT_STACKS = [
 //               and historic Filipino spellings).
 // - 8192-8447   General Punctuation (em/en dashes, smart quotes,
 //               ellipsis used in OSM name tags).
+// - 8448-8703   Letterlike Symbols + Number Forms (Roman numerals
+//               Ⅰ Ⅱ Ⅻ used in admin names like "Region XII", fractions
+//               ⅓ ⅔, the °F/°C symbol family). MapLibre logs
+//               "Failed to load glyph range" without this on PH tiles.
+// - 9984-10239  Dingbats / decorative symbols (U+2700–U+27FF) — some POI /
+//               admin labels use ✓, ★, etc.; MapLibre requests this range
+//               for Noto Sans Regular on Philippines tiles.
 //
 // To re-enable a wider range (e.g. for Arabic or CJK rendering), just
 // add the `start-end` string here and re-run `npm run bundle-glyphs`.
-const RANGES = ['0-255', '256-511', '7680-7935', '8192-8447'];
+const RANGES = [
+  '0-255',
+  '256-511',
+  '7680-7935',
+  '8192-8447',
+  '8448-8703',
+  '9984-10239',
+];
 
 // Source of truth (shared assets)
 const SHARED_ASSETS_DIR = path.join(__dirname, '..', 'assets', 'glyphs');
@@ -59,36 +73,61 @@ const ANDROID_ASSETS_DIR = path.join(
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function downloadFile(url, destPath) {
-  return new Promise((resolve) => {
-    const request = (currentUrl) => {
-      https
-        .get(currentUrl, (res) => {
-          if (res.statusCode === 301 || res.statusCode === 302) {
-            return request(res.headers.location);
-          }
-          if (res.statusCode === 404 || res.statusCode === 204) {
-            res.resume();
-            return resolve(false);
-          }
-          if (res.statusCode !== 200) {
-            res.resume();
-            return resolve(false);
-          }
-          const contentType = String(res.headers['content-type'] || '').toLowerCase();
-          if (contentType.includes('text/html')) {
-            res.resume();
-            return resolve(false);
-          }
-          const file = fs.createWriteStream(destPath);
-          res.pipe(file);
-          file.on('finish', () => file.close(() => resolve(true)));
-          file.on('error', () => resolve(false));
-        })
-        .on('error', () => resolve(false));
-    };
-    request(url);
-  });
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Downloads one URL to destPath. Retries on 429/503 with exponential backoff
+ * (demotiles.maplibre.org rate-limits parallel requests).
+ */
+async function downloadFile(url, destPath) {
+  const maxAttempts = 6;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const result = await new Promise((resolve) => {
+      const request = (currentUrl) => {
+        https
+          .get(currentUrl, (res) => {
+            if (res.statusCode === 301 || res.statusCode === 302) {
+              return request(res.headers.location);
+            }
+            if (res.statusCode === 429 || res.statusCode === 503) {
+              res.resume();
+              return resolve({kind: 'retry'});
+            }
+            if (res.statusCode === 404 || res.statusCode === 204) {
+              res.resume();
+              return resolve({kind: 'fail'});
+            }
+            if (res.statusCode !== 200) {
+              res.resume();
+              return resolve({kind: 'fail'});
+            }
+            const contentType = String(res.headers['content-type'] || '').toLowerCase();
+            if (contentType.includes('text/html')) {
+              res.resume();
+              return resolve({kind: 'fail'});
+            }
+            const file = fs.createWriteStream(destPath);
+            res.pipe(file);
+            file.on('finish', () => file.close(() => resolve({kind: 'ok'})));
+            file.on('error', () => resolve({kind: 'fail'}));
+          })
+          .on('error', () => resolve({kind: 'fail'}));
+      };
+      request(url);
+    });
+
+    if (result.kind === 'ok') return true;
+    if (result.kind === 'retry' && attempt < maxAttempts) {
+      const delay = 800 * Math.pow(2, attempt - 1);
+      process.stdout.write(`\n  (rate limited, waiting ${delay}ms before retry ${attempt + 1}/${maxAttempts})`);
+      await sleep(delay);
+      continue;
+    }
+    return false;
+  }
+  return false;
 }
 
 function isHtmlDisguisedAsPbf(filePath) {
@@ -101,7 +140,7 @@ function isHtmlDisguisedAsPbf(filePath) {
   }
 }
 
-async function downloadBatch(tasks, concurrency = 10) {
+async function downloadBatch(tasks, concurrency = 4) {
   let index = 0;
   let downloaded = 0;
   let skipped = 0;

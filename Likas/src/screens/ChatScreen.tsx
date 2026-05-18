@@ -89,6 +89,7 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
   const addChatMessage = useAppStore(s => s.addChatMessage);
   const setActiveRoute = useAppStore(s => s.setActiveRoute);
   const setNearbyPins = useAppStore(s => s.setNearbyPins);
+  const setPendingMapFocus = useAppStore(s => s.setPendingMapFocus);
   const {
     isReady,
     isInitializing,
@@ -127,7 +128,12 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
     addChatMessage(userMsg);
     setInput('');
 
-    const historyForCall = [...chatMessages, userMsg];
+    // History must be prior turns only. `aiAssistantService.seedMessages` always
+    // appends `params.userMessage` as the final user message — including the
+    // current message here too creates two consecutive `user` roles, which
+    // breaks llama.rn's Gemma Jinja formatter ("roles must alternate") and
+    // can yield empty / invalid completions.
+    const historyForCall = chatMessages;
     try {
       const reply = await send(trimmed, {
         context: activeContext,
@@ -149,33 +155,42 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
     (msg: ChatMessage) => {
       if (msg.attachment?.kind !== 'route') return;
       const a = msg.attachment;
+      // Always publish a fresh object so the route useEffect re-runs even if
+      // an identical route is already on-screen — keeps "Show" working a
+      // second time and after the chat sheet collapses.
       setActiveRoute({
         destinationName: a.destinationName,
         destination: a.destination,
-        polyline: a.polyline,
+        polyline: [...a.polyline],
         distanceMeters: a.distanceMeters,
         durationMinutesWalking: a.durationMinutesWalking,
       });
+      setPendingMapFocus('route');
       if (onClose) {
         onClose();
       } else {
         navigation.navigate('Main', {screen: 'Map'});
       }
     },
-    [navigation, setActiveRoute, onClose],
+    [navigation, setActiveRoute, setPendingMapFocus, onClose],
   );
 
   const openNearbyOnMap = useCallback(
     (msg: ChatMessage) => {
       if (msg.attachment?.kind !== 'nearby') return;
-      setNearbyPins(msg.attachment.pins);
+      // Clone the array so Zustand publishes a NEW reference even if the
+      // same pins are already staged — that way `fitBounds` re-runs and the
+      // camera actually flies to them when the user taps Show a second time
+      // or after collapsing the chat sheet.
+      setNearbyPins([...msg.attachment.pins]);
+      setPendingMapFocus('nearby');
       if (onClose) {
         onClose();
       } else {
         navigation.navigate('Main', {screen: 'Map'});
       }
     },
-    [navigation, setNearbyPins, onClose],
+    [navigation, setNearbyPins, setPendingMapFocus, onClose],
   );
 
   if (!isReady && !isInitializing) {

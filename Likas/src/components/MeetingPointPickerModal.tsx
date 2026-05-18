@@ -27,17 +27,38 @@ import {
 const baseOfflineStyle = require('../../assets/maps/style.json');
 const OFFLINE_GLYPH_FONT_STACK = ['Noto Sans Regular'];
 
+// Match MapScreen's 3D camera defaults so the picker looks visually
+// identical to the main map (parity matters — users have already learned
+// what "their" map looks like during the rest of onboarding).
+const CAMERA_PITCH = 58;
+const CAMERA_BEARING = 20;
+const CAMERA_ZOOM = 17;
+
 const buildMinimalStyle = (mbtilesUrl: string, glyphsPath: string): any => {
   const clone = JSON.parse(JSON.stringify(baseOfflineStyle));
   clone.sources.openmaptiles.url = mbtilesUrl;
   clone.glyphs = glyphsPath;
-  // Force the offline font stack on every symbol layer — these are the only
-  // glyphs we ship.
+  // (a) Force the offline font stack on every symbol layer — these are
+  // the only glyphs we ship.
+  // (b) Toggle the building layers so 3D extrusions render and the flat
+  // 2D footprint is hidden, mirroring MapScreen's hardcoded 3D mode.
   clone.layers = clone.layers.map((layer: any) => {
     if (layer.type === 'symbol') {
       return {
         ...layer,
         layout: { ...layer.layout, 'text-font': OFFLINE_GLYPH_FONT_STACK },
+      };
+    }
+    if (layer.id === 'building-2d') {
+      return {
+        ...layer,
+        layout: { ...layer.layout, visibility: 'none' },
+      };
+    }
+    if (layer.id === 'building-3d') {
+      return {
+        ...layer,
+        layout: { ...layer.layout, visibility: 'visible' },
       };
     }
     return layer;
@@ -183,13 +204,17 @@ export const MeetingPointPickerModal: React.FC<Props> = ({
   }, [visible, offlineMapStyle, isBootstrapping, setOfflineMapStyle]);
 
   // Fly to the initial position 120 ms after the map mounts
-  // (gives MapLibre time to finish rendering before animating)
+  // (gives MapLibre time to finish rendering before animating).
+  // Pitch + bearing match MapScreen so the picker preview is 3D-identical
+  // to what the user sees on the main Map tab.
   useEffect(() => {
     if (!visible || !offlineMapStyle) return;
     const t = setTimeout(() => {
       cameraRef.current?.flyTo({
         center: [center.longitude, center.latitude],
-        zoom: 16,
+        zoom: CAMERA_ZOOM,
+        pitch: CAMERA_PITCH,
+        bearing: CAMERA_BEARING,
         duration: 800,
       });
     }, 120);
@@ -262,7 +287,8 @@ export const MeetingPointPickerModal: React.FC<Props> = ({
             </View>
           )}
 
-          {/* Map ready — reuse the style built by MapScreen (correct glyphs, no re-init) */}
+          {/* Map ready — reuse the style built by MapScreen (correct glyphs, no re-init).
+              Tilt + bearing intentionally match MapScreen's 3D defaults. */}
           {!!offlineMapStyle && (
             <Map
               style={s.map}
@@ -273,7 +299,9 @@ export const MeetingPointPickerModal: React.FC<Props> = ({
             >
               <Camera
                 ref={cameraRef}
-                zoom={16}
+                zoom={CAMERA_ZOOM}
+                pitch={CAMERA_PITCH}
+                bearing={CAMERA_BEARING}
                 duration={600}
               />
             </Map>

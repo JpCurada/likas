@@ -6,6 +6,7 @@ import type {
   ChatMessage,
   DisasterContext,
   EvacuationRanking,
+  LatLng,
   UserProfile,
 } from '../types';
 import {assetManager} from './assetManager';
@@ -15,6 +16,13 @@ import {routingService, GraphNotLoadedError, NoRouteError} from './routingServic
 
 const AI_MODEL_ASSET_ID = 'ai-model-gemma-4-e2b';
 const BATTERY_FLOOR = 0.15;
+
+// Total KV-cache window. Must comfortably hold:
+//   system prompt (~1.5k tokens) + recent history + user turn +
+//   tool call + tool result + speak reply.
+// Matches notebooks/Likas_Sample_Prompts.ipynb (n_ctx=4096) so on-device
+// behavior mirrors the GPU reference. 2048 was overflowing on tool-result
+// turns and producing truncated / silent generations.
 const DEFAULT_CONTEXT_SIZE = 4096;
 const MAX_TOOL_CALLS_PER_TURN = 3;
 const SAMPLING = {
@@ -22,7 +30,13 @@ const SAMPLING = {
   top_p: 0.85,
   top_k: 40,
   repeat_penalty: 1.1,
-  n_predict: 512,
+  // Generation cap per turn. Doubled from 512 → 1024 so multi-paragraph
+  // protocol answers + Tagalog/English bilingual replies don't get cut
+  // off mid-sentence. We deliberately keep an upper bound (vs. -1 =
+  // unlimited): on-device CPU runs ~5 tok/sec, so an unbounded reply
+  // could hang for 3+ minutes on a complex question. 1024 tokens =
+  // ~3 minutes worst case, ~30 s typical.
+  n_predict: 1024,
 };
 
 export class BatteryTooLowError extends Error {
@@ -130,6 +144,14 @@ type QueryParams = {
   userMessage: string;
   context: DisasterContext;
   conversationHistory: ChatMessage[];
+  /**
+   * The user's current GPS position, when available. Tools that rank
+   * "nearest X" prefer this over the onboarded home coordinates so the
+   * ranking reflects where the user actually is. Null/undefined when
+   * location permission is denied or no fix has arrived yet — callers
+   * must tolerate the absence.
+   */
+  liveLocation?: LatLng | null;
 };
 
 export type ToolCallEvent = {
@@ -215,7 +237,7 @@ const ensureContext = async (): Promise<LlamaContext | null> => {
       console.log(`[aiAssistantService] Native initLlama start with model: ${modelPath}`);
       const ctx = await initLlama({
         model: modelPath,
-        n_ctx: 2048,
+        n_ctx: DEFAULT_CONTEXT_SIZE,
         n_threads: 4,
         n_gpu_layers: 99,
       });
@@ -232,13 +254,26 @@ const ensureContext = async (): Promise<LlamaContext | null> => {
   return initPromise;
 };
 
-type ChatRole = 'system' | 'user' | 'assistant' | 'tool';
+// Gemma's chat template only knows `user` and `assistant` roles, strictly
+// alternating. There is NO `system` role and NO `tool` role — sending either
+// raises `Conversation roles must alternate user/assistant/...` from Jinja
+// the moment a follow-up turn is rendered. So we mirror the reference
+// notebook (notebooks/Likas_Sample_Prompts.ipynb, dispatch / dispatch_loop):
+//
+//   - System prompt is PREPENDED to the first user message.
+//   - Tool results are injected as a `user` turn with an explicit prefix
+//     ("Tool result for X: ... Now respond to my original request using
+//     this result.") instead of a `tool` role.
+type ChatRole = 'user' | 'assistant';
 type ChatMsg = {role: ChatRole; content: string};
+
+const SYSTEM_USER_SEPARATOR = '\n\n---\n\n';
 
 const seedMessages = (
   params: QueryParams,
   profile: UserProfile,
 ): ChatMsg[] => {
+  const systemPrompt = buildSystemPrompt(profile, params.context);
   const history = params.conversationHistory
     .filter(m => m.id !== 'welcome')
     .slice(-8)
@@ -246,11 +281,30 @@ const seedMessages = (
       role: m.role === 'user' ? 'user' : 'assistant',
       content: m.text,
     }));
-  return [
-    {role: 'system', content: buildSystemPrompt(profile, params.context)},
-    ...history,
-    {role: 'user', content: params.userMessage},
-  ];
+
+  const messages: ChatMsg[] = [];
+
+  if (history.length === 0) {
+    // No prior conversation: this user turn carries the system prompt.
+    messages.push({
+      role: 'user',
+      content: `${systemPrompt}${SYSTEM_USER_SEPARATOR}${params.userMessage}`,
+    });
+    return messages;
+  }
+
+  // History exists: prepend the system prompt to whichever message is first.
+  // Per the notebook, this guarantees the system context still reaches the
+  // model and the user/assistant alternation that Gemma requires stays
+  // intact regardless of where the user picks up the conversation.
+  const [head, ...rest] = history;
+  messages.push({
+    role: head.role,
+    content: `${systemPrompt}${SYSTEM_USER_SEPARATOR}${head.content}`,
+  });
+  messages.push(...rest);
+  messages.push({role: 'user', content: params.userMessage});
+  return messages;
 };
 
 type ParsedAction =
@@ -449,9 +503,15 @@ const detectForcedTool = (userMessage: string): ForcedTool | null => {
 };
 
 const parseAction = (raw: string): ParsedAction => {
-  const json = extractJsonObject(raw) ?? raw.trim();
+  const trimmed = raw.trim();
+  if (!trimmed) return {kind: 'invalid', raw};
+
+  // Prefer a balanced {...} span; Gemma sometimes prefixes thinking/whitespace.
+  const extracted = extractJsonObject(trimmed);
+  const jsonCandidate = extracted ?? trimmed;
+
   try {
-    const obj = JSON.parse(json);
+    const obj = JSON.parse(jsonCandidate);
     if (obj?.action === 'speak' && typeof obj.text === 'string') {
       return {kind: 'speak', text: obj.text};
     }
@@ -472,6 +532,14 @@ const parseAction = (raw: string): ParsedAction => {
     }
     return {kind: 'invalid', raw};
   } catch {
+    // The system prompt tells the model to say e.g. "I can't verify that protocol..."
+    // for safety — models often emit that line as plain prose instead of wrapping
+    // it in {"action":"speak","text":"..."}. If there is no JSON object to parse at
+    // all, treat the whole string as spoken text so the user still sees the reply.
+    const looksLikeProse = extracted === null && !trimmed.startsWith('{');
+    if (looksLikeProse) {
+      return {kind: 'speak', text: trimmed};
+    }
     return {kind: 'invalid', raw};
   }
 };
@@ -553,11 +621,10 @@ export const aiAssistantService = {
           };
           let route = null;
           let routeNote = '';
+          const evacOrigin =
+            params.liveLocation ?? params.profile.location.coordinates;
           try {
-            route = await routingService.route(
-              params.profile.location.coordinates,
-              destination,
-            );
+            route = await routingService.route(evacOrigin, destination);
             routeNote = `\n\nRoute to ${best.center.name}: ${(route.distanceMeters / 1000).toFixed(2)} km along walkable roads, ~${route.durationMinutesWalking} min walking.`;
           } catch (err) {
             if (err instanceof GraphNotLoadedError) {
@@ -617,7 +684,11 @@ export const aiAssistantService = {
             try {
               const toolResult = await tool.handler(
                 {category: hit.category},
-                {profile: params.profile, activeContext: params.context},
+                {
+                  profile: params.profile,
+                  activeContext: params.context,
+                  liveLocation: params.liveLocation ?? null,
+                },
               );
               onEvent?.({
                 kind: 'tool_result',
@@ -644,7 +715,11 @@ export const aiAssistantService = {
     }
 
     const messages = seedMessages(params, params.profile);
-    const toolContext = {profile: params.profile, activeContext: params.context};
+    const toolContext = {
+      profile: params.profile,
+      activeContext: params.context,
+      liveLocation: params.liveLocation ?? null,
+    };
     // Tools the model actually invoked this query — used to decide whether the
     // deterministic rescue needs to fire when the model ends on a speak turn.
     const calledTools = new Set<string>();
@@ -785,9 +860,11 @@ export const aiAssistantService = {
       }
       const tool = findTool(action.name);
       if (!tool) {
+        // Gemma only knows user/assistant. Surface the unknown-tool error
+        // as a user observation so role alternation stays valid.
         messages.push({
-          role: 'tool',
-          content: JSON.stringify({error: `Unknown tool: ${action.name}`}),
+          role: 'user',
+          content: `Tool result for ${action.name}:\n(unknown tool — no such handler registered)\n\nNow respond to my original request using this result.`,
         });
         continue;
       }
@@ -803,8 +880,12 @@ export const aiAssistantService = {
       }
       onEvent?.({kind: 'tool_result', name: action.name, result: toolResult});
 
-      // Inject the tool call we made + its result back into the dialog so the
-      // next generation sees them.
+      // Mirror the production loop documented in
+      // notebooks/Likas_Sample_Prompts.ipynb (Section IX dispatch_loop):
+      //   - The model's tool call is echoed back as the `assistant` turn.
+      //   - The tool's textual `summary` comes back as a `user` turn with
+      //     an explicit "Now respond..." nudge so the model knows the next
+      //     valid envelope is a `speak`, not another tool call.
       messages.push({
         role: 'assistant',
         content: JSON.stringify({
@@ -814,11 +895,8 @@ export const aiAssistantService = {
         }),
       });
       messages.push({
-        role: 'tool',
-        content: JSON.stringify({
-          name: action.name,
-          result: toolResult.summary,
-        }),
+        role: 'user',
+        content: `Tool result for ${action.name}:\n${toolResult.summary}\n\nNow respond to my original request using this result.`,
       });
     }
 

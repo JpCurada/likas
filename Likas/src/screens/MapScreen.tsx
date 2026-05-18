@@ -176,6 +176,7 @@ export const MapScreen: React.FC = () => {
   const pendingMapFocus = useAppStore(s => s.pendingMapFocus);
   const setPendingMapFocus = useAppStore(s => s.setPendingMapFocus);
   const setOfflineMapStyle = useAppStore(s => s.setOfflineMapStyle);
+  const setLiveLocation = useAppStore(s => s.setLiveLocation);
 
   const handleCancelCalculation = useCallback(() => {
     if (abortControllerRef.current) {
@@ -447,20 +448,26 @@ export const MapScreen: React.FC = () => {
   useEffect(() => {
     let watchId: number | null = null;
 
+    const publish = (longitude: number, latitude: number) => {
+      setUserLocation([longitude, latitude]);
+      // Also publish to the global store so AI tools (find_nearby /
+      // route_to_nearest_evacuation) can use the user's CURRENT position
+      // as the "nearest from" origin instead of the onboarded home
+      // coordinates. Without this, every AI-suggested location is ranked
+      // relative to where the user lived when they set up the app.
+      setLiveLocation({latitude, longitude});
+    };
+
     const startTracking = () => {
       // Immediately get current position for a fast first fix
       Geolocation.getCurrentPosition(
-        position => {
-          setUserLocation([position.coords.longitude, position.coords.latitude]);
-        },
+        position => publish(position.coords.longitude, position.coords.latitude),
         error => console.warn('[MapScreen] getCurrentPosition error:', error),
         { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 },
       );
       // Then keep watching for updates
       watchId = Geolocation.watchPosition(
-        position => {
-          setUserLocation([position.coords.longitude, position.coords.latitude]);
-        },
+        position => publish(position.coords.longitude, position.coords.latitude),
         error => console.warn('[MapScreen] watchPosition error:', error),
         { enableHighAccuracy: false, distanceFilter: 5 },
       );
@@ -963,10 +970,6 @@ export const MapScreen: React.FC = () => {
           <Text style={styles.welcomeGreeting}>
             Mabuhay, {profile?.name || 'Friend'}
           </Text>
-          <View style={styles.statusBadge}>
-            <Text style={styles.statusDot}>●</Text>
-            <Text style={styles.statusTxt}>Ready</Text>
-          </View>
         </View>
         {profile?.location.primaryMeeting.landmark ? (
           <View style={styles.meetBanner}>

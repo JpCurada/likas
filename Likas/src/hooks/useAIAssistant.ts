@@ -38,6 +38,7 @@ type State = {
 
 export const useAIAssistant = () => {
   const profile = useAppStore(s => s.profile);
+  const liveLocation = useAppStore(s => s.liveLocation);
   const setActiveRoute = useAppStore(s => s.setActiveRoute);
   const setNearbyPins = useAppStore(s => s.setNearbyPins);
   const setPendingMapFocus = useAppStore(s => s.setPendingMapFocus);
@@ -92,8 +93,13 @@ export const useAIAssistant = () => {
         error: null,
       }));
 
+      // Prefer the user's live GPS position so "nearest X" is ranked from
+      // where they actually are, not from the address they registered
+      // during onboarding. Falls back to the profile coordinates while
+      // the GPS watcher is still warming up (or if permission was denied).
+      const origin = liveLocation ?? profile.location.coordinates;
       const nearestCenters = evacuationService.getRankedCenters({
-        origin: profile.location.coordinates,
+        origin,
         profile,
       });
 
@@ -155,6 +161,7 @@ export const useAIAssistant = () => {
             conversationHistory: opts.history,
             profile,
             nearestCenters,
+            liveLocation,
           },
           handleEvent,
         );
@@ -187,7 +194,7 @@ export const useAIAssistant = () => {
         }
       }
     },
-    [profile, setActiveRoute, setNearbyPins, setPendingMapFocus],
+    [profile, liveLocation, setActiveRoute, setNearbyPins, setPendingMapFocus],
   );
 
   return {

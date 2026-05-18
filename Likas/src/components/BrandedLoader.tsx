@@ -2,28 +2,18 @@ import React, {useEffect} from 'react';
 import {Dimensions, StyleSheet, Text, View} from 'react-native';
 import Animated, {
   Easing,
-  useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, {
-  ClipPath,
-  Circle,
-  Defs,
-  G,
-  Path,
-  Rect,
-} from 'react-native-svg';
+import Svg, {Circle, Defs, G, Path, LinearGradient, Stop} from 'react-native-svg';
 
 import {COLORS, FONTS} from '../theme';
 
 // ─── SVG geometry ─────────────────────────────────────────────────────────
 // Sourced 1:1 from the brand wordmark at repo-root with_text_black.svg.
-// viewBox dimensions are required for the clip-rect math (the "water level"
-// in the liquid-rise animation).
 const VIEW_W = 1500.95;
 const VIEW_H = 441.76;
 
@@ -47,59 +37,10 @@ const S_D =
 const A_D =
   'M1269.42,203c-8.35-13.5-20.53-23.59-36.55-30.27-16-6.68-35.71-10.03-59.1-10.03-8.08,0-16.71.15-25.9.41-9.19.29-18.1.7-26.72,1.26-8.65.56-16.15,1.11-22.56,1.67v56.38c8.62-.56,18.23-1.11,28.81-1.67,10.58-.56,20.89-.97,30.91-1.24,10.03-.28,18.1-.43,24.23-.43,12.25,0,21.15,2.93,26.73,8.78,5.55,5.85,8.34,14.61,8.34,26.31v.84h-41.35c-20.33,0-38.28,2.57-53.88,7.73-15.59,5.14-27.72,13.09-36.33,23.8-8.63,10.73-12.96,24.44-12.96,41.15,0,15.32,3.49,28.47,10.45,39.46,6.95,11.01,16.63,19.43,29.03,25.28,12.38,5.85,26.8,8.76,43.23,8.76s29.31-2.92,40.3-8.76c11.01-5.85,19.64-14.2,25.9-25.06,2.78-4.82,5.08-10.11,6.9-15.91v43.88h53.04v-140.33c0-21.16-4.18-38.49-12.53-52.01ZM1207.32,322.8c-8.73,10.36-21.36,12.33-27.38,13.26-7.17,1.11-9.25-.07-17.69.4-11.91.66-21.48,3.78-27.9,6.44,4.22-20.66,11.04-35.39,15.31-41.06,3.56-4.73,7.63-8.57,7.63-8.57,2.37-2.23,4.49-3.87,6.21-5.17,5.2-3.93,11.21-6.95,17.66-7.9,5.68-.84,11.47-.02,16.89,1.77,1.66.55,13.33,5.02,12.41,6.63-.36.63-5.91.41-6.84.54,0,0-3.06.37-6.85,1.58-9.38,3-20.09,15.58-19.24,16.49.39.41,2.83-1.94,6.77-4.29,6.22-3.71,15.95-7.29,31.22-6.43.21,3.99.31,16.24-8.2,26.33Z';
 
-// ─── Animated SVG primitives ──────────────────────────────────────────────
-const AnimatedRect = Animated.createAnimatedComponent(Rect);
-
 // ─── Wordmark component ───────────────────────────────────────────────────
 type WordmarkProps = {width: number};
 
 const Wordmark: React.FC<WordmarkProps> = ({width}) => {
-  // 0 = empty (no fill visible), 1 = full (logo entirely filled).
-  const fill = useSharedValue(0);
-
-  useEffect(() => {
-    fill.value = withRepeat(
-      withSequence(
-        // Rise from empty to full — cubic ease for a "settling water" feel.
-        withTiming(1, {
-          duration: 1800,
-          easing: Easing.inOut(Easing.cubic),
-        }),
-        // Hold at full so the brand reads cleanly for a beat.
-        withTiming(1, {duration: 450}),
-        // Drain a bit faster than the rise.
-        withTiming(0, {
-          duration: 600,
-          easing: Easing.in(Easing.cubic),
-        }),
-        // Brief held-empty before the next cycle.
-        withTiming(0, {duration: 250}),
-      ),
-      -1,
-      false,
-    );
-  }, [fill]);
-
-  // The clip rect grows upward from the bottom of the viewBox.
-  const fillClipProps = useAnimatedProps(() => ({
-    y: VIEW_H * (1 - fill.value),
-    height: VIEW_H * fill.value,
-  }));
-
-  // A thin highlight band hugging the rising surface (the "waterline").
-  // ~14 svg-units tall in viewBox space — reads as ~4 px at typical sizes.
-  const SURFACE_BAND = 14;
-  const surfaceClipProps = useAnimatedProps(() => {
-    const top = VIEW_H * (1 - fill.value);
-    // Hide the band when empty or full so it doesn't sit awkwardly at the
-    // edges of the viewBox.
-    const visible = fill.value > 0.02 && fill.value < 0.98;
-    return {
-      y: visible ? top : -SURFACE_BAND - 1,
-      height: SURFACE_BAND,
-    };
-  });
-
   const height = width * (VIEW_H / VIEW_W);
 
   return (
@@ -109,47 +50,13 @@ const Wordmark: React.FC<WordmarkProps> = ({width}) => {
       viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
       preserveAspectRatio="xMidYMid meet">
       <Defs>
-        <ClipPath id="liquidFill">
-          <AnimatedRect
-            x={0}
-            width={VIEW_W}
-            animatedProps={fillClipProps}
-          />
-        </ClipPath>
-        <ClipPath id="liquidSurface">
-          <AnimatedRect
-            x={0}
-            width={VIEW_W}
-            animatedProps={surfaceClipProps}
-          />
-        </ClipPath>
+        <LinearGradient id="grad" x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0" stopColor={COLORS.darkGreen} stopOpacity="1" />
+          <Stop offset="1" stopColor={COLORS.primaryGreen} stopOpacity="1" />
+        </LinearGradient>
       </Defs>
 
-      {/* Base layer — the empty "container", low-opacity outline. */}
-      <G fill={COLORS.accentGreen} opacity={0.18}>
-        <Path d={GLYPH_D} />
-        <Circle cx={264.87} cy={56.95} r={56.95} />
-        <Path d={L_D} />
-        <Path d={I_D} />
-        <Path d={K_D} />
-        <Path d={A_D} />
-        <Path d={S_D} />
-      </G>
-
-      {/* Rising fill — primary brand green, clipped by the animated rect. */}
-      <G fill={COLORS.primaryGreen} clipPath="url(#liquidFill)">
-        <Path d={GLYPH_D} />
-        <Circle cx={264.87} cy={56.95} r={56.95} />
-        <Path d={L_D} />
-        <Path d={I_D} />
-        <Path d={K_D} />
-        <Path d={A_D} />
-        <Path d={S_D} />
-      </G>
-
-      {/* Waterline highlight — brighter accent stripe that tracks the
-          rising surface. Same paths, different clip, brighter fill. */}
-      <G fill={COLORS.accentGreen} clipPath="url(#liquidSurface)">
+      <G fill="url(#grad)">
         <Path d={GLYPH_D} />
         <Circle cx={264.87} cy={56.95} r={56.95} />
         <Path d={L_D} />
@@ -242,7 +149,7 @@ export const BrandedLoader: React.FC<BrandedLoaderProps> = ({logoWidth}) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: COLORS.darkGreen,
+    backgroundColor: COLORS.white, // Changed to white
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
@@ -251,7 +158,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.primaryRegular,
     fontSize: 13,
     letterSpacing: 0.3,
-    color: COLORS.accentGreen,
+    color: COLORS.darkGreen, // Changed to darkGreen for contrast on light background
     textAlign: 'center',
   },
   underlineWrap: {
@@ -265,8 +172,8 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     height: 2,
-    backgroundColor: COLORS.accentGreen,
-    opacity: 0.18,
+    backgroundColor: COLORS.primaryGreen, // Changed to primaryGreen
+    opacity: 0.2, // Adjusted opacity
     borderRadius: 1,
   },
   underlineSweep: {
@@ -274,7 +181,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     height: 2,
-    backgroundColor: COLORS.accentGreen,
+    backgroundColor: COLORS.primaryGreen, // Changed to primaryGreen
     borderRadius: 1,
   },
 });
