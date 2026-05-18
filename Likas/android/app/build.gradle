@@ -84,6 +84,12 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+
+        ndk {
+            // Debug: build only for real devices (arm64). Emulators can use arm64 via emulation.
+            // Release: abiSplits below ensure the Play Store delivers only the right ABI per device.
+            abiFilters "arm64-v8a"
+        }
     }
     signingConfigs {
         debug {

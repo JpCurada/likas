@@ -8,6 +8,8 @@ export type ManifestAsset = {
   kind: AssetKind;
   version: string;
   url: string;
+  /** Optional fallback URLs tried in order if the primary URL fails (DNS/network) */
+  mirrors?: string[];
   sha256: string;
   size: number;
   required: boolean;
@@ -60,6 +62,10 @@ export class ChecksumMismatchError extends AssetDownloadError {
 }
 
 const INSTALLED_INDEX_PATH = `${RNFS.DocumentDirectoryPath}/installed.json`;
+const MANIFEST_CACHE_PATH = `${RNFS.DocumentDirectoryPath}/manifest.json`;
+const MANIFEST_URL =
+  'https://pub-53341d238cbc41aa9b79be79ef34d866.r2.dev/likas/manifest.json';
+const MANIFEST_FETCH_TIMEOUT_MS = 5000;
 const STORAGE_SAFETY_MULTIPLIER = 1.2;
 const PROGRESS_REPORT_INTERVAL_MS = 500;
 const PLACEHOLDER_SHA = '0'.repeat(64);
@@ -82,6 +88,47 @@ const getAsset = (manifest: Manifest, assetId: string): ManifestAsset => {
 
 export const assetManager = {
   async fetchManifest(): Promise<Manifest> {
+    // 1. Try fetching the live manifest from CDN (allows OTA asset updates)
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(
+        () => controller.abort(),
+        MANIFEST_FETCH_TIMEOUT_MS,
+      );
+      const res = await fetch(MANIFEST_URL, {signal: controller.signal});
+      clearTimeout(timer);
+      if (res.ok) {
+        const text = await res.text();
+        // Cache to disk for offline fallback (fire-and-forget)
+        RNFS.writeFile(MANIFEST_CACHE_PATH, text, 'utf8').catch(() => {});
+        if (__DEV__) {
+          console.log('[assetManager] Manifest fetched from CDN');
+        }
+        return JSON.parse(text) as Manifest;
+      }
+    } catch {
+      // Network unavailable or timed out — fall through to cache
+    }
+
+    // 2. Try disk-cached manifest from a previous successful fetch
+    if (await RNFS.exists(MANIFEST_CACHE_PATH)) {
+      try {
+        const cached = await RNFS.readFile(MANIFEST_CACHE_PATH, 'utf8');
+        if (__DEV__) {
+          console.log('[assetManager] Using disk-cached manifest');
+        }
+        return JSON.parse(cached) as Manifest;
+      } catch {
+        // Corrupted cache — fall through to baked copy
+      }
+    }
+
+    // 3. Last resort: use the baked manifest bundled with the app
+    if (__DEV__) {
+      console.warn(
+        '[assetManager] Offline and no manifest cache — using baked manifest.dev.json',
+      );
+    }
     return devManifest as Manifest;
   },
 
@@ -158,56 +205,79 @@ export const assetManager = {
     const dir = `${RNFS.DocumentDirectoryPath}/${asset.localSubdir}`;
     await RNFS.mkdir(dir);
 
-    let lastReportAt = 0;
-    const result = await RNFS.downloadFile({
-      fromUrl: asset.url,
-      toFile: partialPath,
-      background: true,
-      discretionary: true,
-      progressDivider: 1,
-      progress: ({contentLength, bytesWritten}) => {
-        if (!onProgress) return;
-        const now = Date.now();
-        if (now - lastReportAt < PROGRESS_REPORT_INTERVAL_MS) return;
-        lastReportAt = now;
-        const total = contentLength > 0 ? contentLength : asset.size;
-        onProgress({
-          bytesDownloaded: bytesWritten,
-          totalBytes: total,
-          percent: total > 0 ? bytesWritten / total : 0,
-        });
-      },
-    }).promise;
+    // Try primary URL first, then each mirror in order
+    const candidates = [asset.url, ...(asset.mirrors ?? [])];
+    let lastError: Error = new AssetDownloadError('No download URLs available');
 
-    if (result.statusCode < 200 || result.statusCode >= 300) {
-      await RNFS.unlink(partialPath).catch(() => {});
-      throw new AssetDownloadError(`HTTP ${result.statusCode} downloading ${asset.url}`);
+    for (const url of candidates) {
+      try {
+        if (__DEV__ && url !== asset.url) {
+          console.log(`[assetManager] Primary URL failed, trying mirror: ${url}`);
+        }
+        let lastReportAt = 0;
+        const result = await RNFS.downloadFile({
+          fromUrl: url,
+          toFile: partialPath,
+          background: true,
+          discretionary: true,
+          progressDivider: 1,
+          progress: ({contentLength, bytesWritten}) => {
+            if (!onProgress) return;
+            const now = Date.now();
+            if (now - lastReportAt < PROGRESS_REPORT_INTERVAL_MS) return;
+            lastReportAt = now;
+            const total = contentLength > 0 ? contentLength : asset.size;
+            onProgress({
+              bytesDownloaded: bytesWritten,
+              totalBytes: total,
+              percent: total > 0 ? bytesWritten / total : 0,
+            });
+          },
+        }).promise;
+
+        if (result.statusCode < 200 || result.statusCode >= 300) {
+          await RNFS.unlink(partialPath).catch(() => {});
+          lastError = new AssetDownloadError(`HTTP ${result.statusCode} from ${url}`);
+          continue; // try next mirror
+        }
+
+        // Download succeeded — verify checksum
+        const matches = await this.verifyChecksum(partialPath, asset.sha256);
+        if (!matches) {
+          const actual = await RNFS.hash(partialPath, 'sha256');
+          await RNFS.unlink(partialPath).catch(() => {});
+          throw new ChecksumMismatchError(asset.sha256, actual);
+        }
+
+        if (await RNFS.exists(finalPath)) {
+          await RNFS.unlink(finalPath);
+        }
+        await RNFS.moveFile(partialPath, finalPath);
+
+        // Register in installed.json so next launch skips this download
+        const index = await this.readInstalled();
+        index.records[assetId] = {
+          id: assetId,
+          version: asset.version,
+          sha256: asset.sha256,
+          installedAt: new Date().toISOString(),
+          localPath: finalPath,
+        };
+        index.manifestVersion = manifest.manifestVersion;
+        await this.writeInstalled(index);
+
+        return finalPath; // ✅ done
+      } catch (err) {
+        if (err instanceof ChecksumMismatchError) throw err; // never retry on bad checksum
+        await RNFS.unlink(partialPath).catch(() => {});
+        lastError = err instanceof Error ? err : new AssetDownloadError(String(err));
+        if (__DEV__) {
+          console.warn(`[assetManager] Download failed from ${url}:`, lastError.message);
+        }
+      }
     }
 
-    const matches = await this.verifyChecksum(partialPath, asset.sha256);
-    if (!matches) {
-      const actual = await RNFS.hash(partialPath, 'sha256');
-      await RNFS.unlink(partialPath).catch(() => {});
-      throw new ChecksumMismatchError(asset.sha256, actual);
-    }
-
-    if (await RNFS.exists(finalPath)) {
-      await RNFS.unlink(finalPath);
-    }
-    await RNFS.moveFile(partialPath, finalPath);
-
-    const index = await this.readInstalled();
-    index.records[assetId] = {
-      id: assetId,
-      version: asset.version,
-      sha256: asset.sha256,
-      installedAt: new Date().toISOString(),
-      localPath: finalPath,
-    };
-    index.manifestVersion = manifest.manifestVersion;
-    await this.writeInstalled(index);
-
-    return finalPath;
+    throw lastError; // all URLs exhausted
   },
 
   async importFromPath(assetId: string, sourcePath: string): Promise<string> {

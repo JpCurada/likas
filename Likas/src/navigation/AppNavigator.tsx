@@ -18,7 +18,6 @@ import { useAppStore } from '../stores/appStore';
 
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { SetupScreen } from '../screens/SetupScreen';
-import { SetupLoadingScreen } from '../screens/SetupLoadingScreen';
 import { PrepScreen } from '../screens/PrepScreen';
 import { MapScreen } from '../screens/MapScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
@@ -26,7 +25,6 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 export type RootStackParamList = {
   Onboarding: undefined;
   Setup: undefined;
-  SetupLoading: undefined;
   Main: undefined;
 };
 
@@ -119,7 +117,7 @@ function MainTabs() {
 
 export const AppNavigator: React.FC = () => {
   const [initialRoute, setInitialRoute] = useState<
-    'Onboarding' | 'Setup' | 'SetupLoading' | 'Main' | null
+    'Onboarding' | 'Setup' | 'Main' | null
   >(null);
 
   useEffect(() => {
@@ -137,7 +135,9 @@ export const AppNavigator: React.FC = () => {
         return;
       }
       const setupDone = await isSetupComplete();
-      setInitialRoute(setupDone ? 'Main' : 'SetupLoading');
+      // If setup isn't done, return to Setup screen so the user can
+      // resume downloading maps / skipping the AI model intentionally.
+      setInitialRoute(setupDone ? 'Main' : 'Setup');
     })();
   }, []);
 
@@ -179,7 +179,6 @@ export const AppNavigator: React.FC = () => {
       >
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         <Stack.Screen name="Setup" component={SetupScreen} />
-        <Stack.Screen name="SetupLoading" component={SetupLoadingScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>
