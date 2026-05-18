@@ -101,10 +101,18 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
   } = useAIAssistant();
 
   const [input, setInput] = useState('');
-  const listRef = useRef<FlatList<ChatMessage>>(null);
+  // Holds either a FlatList or a BottomSheetFlatList depending on `isBottomSheet`.
+  // Both expose scrollToEnd, but the concrete type differs — keep it loose so
+  // the auto-scroll fires in the bottom-sheet (split-screen) case too.
+  const listRef = useRef<any>(null);
 
   useEffect(() => {
-    listRef.current?.scrollToEnd({animated: true});
+    // Defer to the next frame so the freshly appended/streamed text is laid
+    // out before we scroll — otherwise scrollToEnd lands short inside the sheet.
+    const id = setTimeout(() => {
+      listRef.current?.scrollToEnd?.({animated: true});
+    }, 0);
+    return () => clearTimeout(id);
   }, [chatMessages, streamingText]);
 
   const handleSend = useCallback(async () => {

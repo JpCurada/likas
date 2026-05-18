@@ -40,6 +40,7 @@ export const useAIAssistant = () => {
   const profile = useAppStore(s => s.profile);
   const setActiveRoute = useAppStore(s => s.setActiveRoute);
   const setNearbyPins = useAppStore(s => s.setNearbyPins);
+  const setPendingMapFocus = useAppStore(s => s.setPendingMapFocus);
   const [state, setState] = useState<State>({
     isReady: false,
     isInitializing: true,
@@ -130,6 +131,9 @@ export const useAIAssistant = () => {
                 distanceMeters: payload.route.distanceMeters,
                 durationMinutesWalking: payload.route.durationMinutesWalking,
               });
+              // Ask the map to present itself (chat sheet snaps to half) so the
+              // route is visible the instant it's computed.
+              setPendingMapFocus('route');
             } else if (payload?.kind === 'nearby' && payload.results.length > 0) {
               attachment = {
                 kind: 'nearby',
@@ -140,6 +144,7 @@ export const useAIAssistant = () => {
               // Pre-stage pins on the map so they appear immediately when the
               // user switches to the Map tab.
               setNearbyPins(payload.results);
+              setPendingMapFocus('nearby');
             }
           }
         };
@@ -182,7 +187,7 @@ export const useAIAssistant = () => {
         }
       }
     },
-    [profile, setActiveRoute, setNearbyPins],
+    [profile, setActiveRoute, setNearbyPins, setPendingMapFocus],
   );
 
   return {
