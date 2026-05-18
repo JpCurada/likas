@@ -441,12 +441,13 @@ const repairAssistantJson = (s: string): string => {
 
 /** Flatten nested enum shapes like {"type":"earthquake"} → "earthquake". */
 const normalizeToolArgValue = (value: unknown): unknown => {
+  if (typeof value === 'string') return value.trim();
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     const obj = value as Record<string, unknown>;
-    if (typeof obj.type === 'string') return obj.type;
-    if (typeof obj.disaster === 'string') return obj.disaster;
-    if (typeof obj.phase === 'string') return obj.phase;
-    if (typeof obj.category === 'string') return obj.category;
+    if (typeof obj.type === 'string') return obj.type.trim();
+    if (typeof obj.disaster === 'string') return obj.disaster.trim();
+    if (typeof obj.phase === 'string') return obj.phase.trim();
+    if (typeof obj.category === 'string') return obj.category.trim();
   }
   return value;
 };
@@ -461,17 +462,54 @@ const normalizeToolArgs = (
   return out;
 };
 
-/** Collect args from `args` or from top-level fields on malformed envelopes. */
+const parseArgsField = (value: unknown): Record<string, unknown> => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return normalizeToolArgs(value as Record<string, unknown>);
+  }
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return normalizeToolArgs(parsed as Record<string, unknown>);
+      }
+    } catch {
+      // ignore — fall through to empty
+    }
+  }
+  return {};
+};
+
+/** Collect args from `args`, top-level fields, or both (top-level wins). */
 const extractToolArgs = (obj: Record<string, unknown>): Record<string, unknown> => {
-  if (obj.args && typeof obj.args === 'object' && !Array.isArray(obj.args)) {
-    return normalizeToolArgs(obj.args as Record<string, unknown>);
-  }
   const reserved = new Set(['action', 'name', 'text', 'args']);
-  const args: Record<string, unknown> = {};
+  const topLevel: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
-    if (!reserved.has(key)) args[key] = normalizeToolArgValue(value);
+    if (!reserved.has(key)) topLevel[key] = normalizeToolArgValue(value);
   }
-  return args;
+  const nested = parseArgsField(obj.args);
+  return normalizeToolArgs({...nested, ...topLevel});
+};
+
+const KNOWN_TOOL_NAMES = new Set(TOOL_REGISTRY.map(t => t.name));
+
+const resolveKnownToolName = (name: unknown): string | null => {
+  if (typeof name !== 'string' || !name.trim()) return null;
+  const trimmed = name.trim();
+  if (KNOWN_TOOL_NAMES.has(trimmed)) return trimmed;
+  const lower = trimmed.toLowerCase();
+  for (const toolName of KNOWN_TOOL_NAMES) {
+    if (toolName === lower) return toolName;
+  }
+  return null;
+};
+
+const parseToolEnvelope = (
+  obj: Record<string, unknown>,
+  toolName: unknown,
+): ParsedAction | null => {
+  const name = resolveKnownToolName(toolName);
+  if (!name) return null;
+  return {kind: 'tool', name, args: extractToolArgs(obj)};
 };
 
 const extractJsonObject = (raw: string): string | null => {
@@ -500,8 +538,6 @@ const extractJsonObject = (raw: string): string | null => {
   }
   return null;
 };
-
-const KNOWN_TOOL_NAMES = new Set(TOOL_REGISTRY.map(t => t.name));
 
 /**
  * Deterministic intent detector for the rescue path.
@@ -559,49 +595,39 @@ const parseAction = (raw: string): ParsedAction => {
   const jsonCandidate = extracted ?? trimmed;
 
   try {
-    const obj = JSON.parse(repairAssistantJson(jsonCandidate));
+    const obj = JSON.parse(repairAssistantJson(jsonCandidate)) as Record<
+      string,
+      unknown
+    >;
     if (obj?.action === 'speak' && typeof obj.text === 'string') {
       return {kind: 'speak', text: obj.text};
     }
-    if (obj?.action === 'tool' && typeof obj.name === 'string') {
-      return {
-        kind: 'tool',
-        name: obj.name,
-        args: extractToolArgs(obj),
-      };
+    if (obj?.action === 'tool') {
+      const parsed = parseToolEnvelope(obj, obj.name);
+      if (parsed) return parsed;
     }
     // Tolerate {action: "<tool_name>", ...args} with args at the top level.
     if (
       typeof obj?.action === 'string' &&
-      KNOWN_TOOL_NAMES.has(obj.action) &&
       obj.action !== 'tool' &&
       obj.action !== 'speak'
     ) {
-      return {
-        kind: 'tool',
-        name: obj.action,
-        args: extractToolArgs(obj),
-      };
+      const parsed = parseToolEnvelope(obj, obj.action);
+      if (parsed) return parsed;
     }
-    // Tolerate the common malformed shape: {"action":"<tool_name>", "name":"<tool_name>", "args":{}}
+    // Tolerate {"action":"<tool_name>", "name":"<tool_name>", ...}
     if (
       typeof obj?.action === 'string' &&
       typeof obj?.name === 'string' &&
-      obj.action === obj.name &&
-      KNOWN_TOOL_NAMES.has(obj.name)
+      obj.action === obj.name
     ) {
-      return {
-        kind: 'tool',
-        name: obj.name,
-        args: extractToolArgs(obj),
-      };
+      const parsed = parseToolEnvelope(obj, obj.name);
+      if (parsed) return parsed;
     }
-    if (typeof obj?.name === 'string' && KNOWN_TOOL_NAMES.has(obj.name)) {
-      return {
-        kind: 'tool',
-        name: obj.name,
-        args: extractToolArgs(obj),
-      };
+    // Tolerate {"name":"<tool_name>", ...args} without action.
+    if (typeof obj?.name === 'string') {
+      const parsed = parseToolEnvelope(obj, obj.name);
+      if (parsed) return parsed;
     }
     return {kind: 'invalid', raw};
   } catch {
@@ -986,4 +1012,6 @@ export const __testables = {
   extractJsonObject,
   createSpeakStreamer,
   detectForcedTool,
+  repairAssistantJson,
+  extractToolArgs,
 };
