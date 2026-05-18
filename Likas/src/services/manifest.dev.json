@@ -4,9 +4,9 @@
     "map-tiles": {
       "kind": "mbtiles",
       "version": "2026.05",
-      "url": "https://cdn.example.invalid/likas/maps/philippines-extract.v2026.05.mbtiles",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-      "size": 850000000,
+      "url": "https://pub-53341d238cbc41aa9b79be79ef34d866.r2.dev/likas/maps/philippines-extract.v2026.05.mbtiles",
+      "sha256": "bddd5e415b1140baafa3c2541ad6197c56891437ea7f8af02563dc2f51c7cc98",
+      "size": 524279808,
       "required": true,
       "localFilename": "philippines-extract.mbtiles",
       "localSubdir": "maps"
@@ -14,19 +14,19 @@
     "map-glyphs": {
       "kind": "glyphs",
       "version": "1.0.0",
-      "url": "https://cdn.example.invalid/likas/glyphs/noto-sans-v1.0.0.tar.gz",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-      "size": 50000000,
+      "url": "https://pub-53341d238cbc41aa9b79be79ef34d866.r2.dev/likas/glyphs/noto-sans-v1.0.0.zip",
+      "sha256": "806e7cbc337788e1fbd4351d9ed53732ceeed482dba18a03202c6030cae2f95a",
+      "size": 125575567,
       "required": true,
-      "localFilename": "noto-sans-v1.0.0.tar.gz",
+      "localFilename": "noto-sans-v1.0.0.zip",
       "localSubdir": "glyphs"
     },
     "pedestrian-graph": {
       "kind": "data",
       "version": "2026.05",
-      "url": "https://cdn.example.invalid/likas/maps/pedestrian-graph.v2026.05.json",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-      "size": 40000000,
+      "url": "https://pub-53341d238cbc41aa9b79be79ef34d866.r2.dev/likas/maps/pedestrian-graph.v2026.05.json",
+      "sha256": "3cfdbb7965e030b74c210b1b3f6088b914f1280b30a6057e4be5b0891fd25794",
+      "size": 64773293,
       "required": false,
       "localFilename": "pedestrian-graph.json",
       "localSubdir": "maps"
@@ -34,9 +34,9 @@
     "pedestrian-graph-db": {
       "kind": "data",
       "version": "2026.05",
-      "url": "https://cdn.example.invalid/likas/maps/pedestrian-graph.v2026.05.db",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-      "size": 28000000,
+      "url": "https://pub-53341d238cbc41aa9b79be79ef34d866.r2.dev/likas/maps/pedestrian-graph.v2026.05.db",
+      "sha256": "293ba305982206052da259a212d8720191d4fe3da03bf47cb211482e95e7920b",
+      "size": 130998272,
       "required": true,
       "localFilename": "pedestrian-graph.db",
       "localSubdir": "maps"
