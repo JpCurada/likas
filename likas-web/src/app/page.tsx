@@ -194,9 +194,10 @@ const team = [
   },
 ];
 
-const youtubeEmbedUrl = "";
-const heroRouteMockup = "/mockups/hero_route.png";
-const heroAssistantMockup = "/mockups/hero_assistant.png";
+const youtubeEmbedUrl =
+  "https://drive.google.com/file/d/18ijXh90RTpf56Dx2Lop7UmW-MI4tgnwO/preview";
+const heroRouteMockup = "/mockups/mockup_1.jpg";
+const heroAssistantMockup = "/mockups/mockup_5.jpg";
 
 const navItems = [
   { href: "#features", label: "Features", icon: ShieldCheck },
@@ -502,6 +503,7 @@ function PhoneMockup({
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState("top");
+  const [showVideo, setShowVideo] = useState(false);
   const { scrollYProgress } = useScroll();
   const progressWidth = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
   const heroY = useTransform(scrollYProgress, [0, 0.35], [0, 74]);
@@ -650,7 +652,7 @@ export default function Home() {
             />
             <Reveal delay={0.08} className="lg:col-start-1">
               <a
-                href="/downloads/likas.apk"
+                href="https://cdn.likas-ai.com/apk/likas_v1.0.apk"
                 download
                 className={buttonVariants({
                   size: "lg",
@@ -668,13 +670,37 @@ export default function Home() {
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(116,231,184,0.42),transparent_32%),linear-gradient(135deg,#10251b,#04120c)]" />
               <div className="absolute inset-0 opacity-30 bg-[linear-gradient(90deg,rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(0deg,rgba(255,255,255,0.12)_1px,transparent_1px)] bg-[size:42px_42px]" />
               {youtubeEmbedUrl ? (
-                <iframe
-                  className="absolute inset-0 z-0 h-full w-full"
-                  src={youtubeEmbedUrl}
-                  title="LIKAS YouTube demo"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
+                showVideo ? (
+                  <iframe
+                    className="absolute inset-0 z-0 h-full w-full"
+                    src={`${youtubeEmbedUrl}?autoplay=1`}
+                    title="LIKAS demo"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                ) : (
+                  <div
+                    className="absolute inset-0 z-0 grid place-items-center cursor-pointer"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setShowVideo(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ")
+                        setShowVideo(true);
+                    }}
+                  >
+                    <img
+                      src="/thumbnail.svg"
+                      alt="LIKAS product demo thumbnail"
+                      className="absolute inset-0 h-full w-full p-16 object-contain opacity-90 transition-transform duration-500 group-hover:scale-105"
+                    />
+                    <div className="relative z-10 text-center text-white">
+                      <div className="mx-auto mb-5 grid size-24 place-items-center rounded-full bg-white text-emerald-700 shadow-2xl">
+                        <Play className="ml-1 size-9 fill-emerald-700" />
+                      </div>
+                    </div>
+                  </div>
+                )
               ) : (
                 <div className="absolute inset-0 z-0 grid place-items-center">
                   <div className="text-center text-white">
@@ -991,7 +1017,7 @@ export default function Home() {
                 <Separator className="my-6 bg-white/10" />
                 <Reveal delay={0.08} className="lg:col-start-1">
                   <a
-                    href="/downloads/likas.apk"
+                    href="https://cdn.likas-ai.com/apk/likas_v1.0.apk"
                     download
                     className={buttonVariants({
                       size: "lg",
