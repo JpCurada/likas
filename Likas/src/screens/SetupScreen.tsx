@@ -1,7 +1,6 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -145,13 +144,13 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
 
   const downloadAllRequired = useCallback(async () => {
     if (!manifest || downloadingId) return;
+    // Every manifest entry is required for offline operation, so we iterate
+    // all of them and keep going past individual errors — the user can retry
+    // failed cards individually.
     const pending = Object.entries(manifest.assets).filter(
-      ([id, asset]) =>
-        asset.required && assetStates[id]?.status !== 'ready',
+      ([id]) => assetStates[id]?.status !== 'ready',
     );
     for (const [id, asset] of pending) {
-      // Re-check state each iteration in case a previous download failed
-      if (assetStates[id]?.status === 'error') break;
       await downloadOne(id, asset);
     }
   }, [manifest, assetStates, downloadingId, downloadOne]);
@@ -161,32 +160,23 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
     navigation.replace('Main');
   };
 
-  const handleSkipOptional = (id: string, label: string) => {
-    Alert.alert(
-      `Skip ${label}?`,
-      'You can download it later from Profile → Offline Data.',
-      [
-        {text: 'Cancel', style: 'cancel'},
-        {
-          text: 'Skip for now',
-          style: 'destructive',
-          onPress: () => patchAsset(id, {status: 'pending', error: null}),
-        },
-      ],
-    );
-  };
-
-  // Derived counts for the progress summary header
-  const requiredIds = manifest
-    ? Object.entries(manifest.assets)
-        .filter(([, a]) => a.required)
-        .map(([id]) => id)
-    : [];
-  const readyRequired = requiredIds.filter(
+  // Every manifest asset is required for offline operation; we treat the full
+  // list as a single batch and don't expose a Skip path.
+  const allIds = manifest ? Object.keys(manifest.assets) : [];
+  const readyCount = allIds.filter(
     id => assetStates[id]?.status === 'ready',
   ).length;
-  const canContinue =
-    requiredIds.length > 0 && readyRequired === requiredIds.length;
+  const canContinue = allIds.length > 0 && readyCount === allIds.length;
+
+  // Bytes summary for the header — gives the user a sense of total work left.
+  const totalBytes = manifest
+    ? Object.values(manifest.assets).reduce((sum, a) => sum + a.size, 0)
+    : 0;
+  const remainingBytes = manifest
+    ? Object.entries(manifest.assets)
+        .filter(([id]) => assetStates[id]?.status !== 'ready')
+        .reduce((sum, [, a]) => sum + a.size, 0)
+    : 0;
 
   const renderCard = (id: string, asset: ManifestAsset) => {
     const state = assetStates[id] ?? {
@@ -224,21 +214,6 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
           <View style={styles.cardText}>
             <View style={styles.cardTitleRow}>
               <Text style={styles.cardLabel}>{display.label}</Text>
-              <View
-                style={[
-                  styles.badge,
-                  asset.required ? styles.badgeRequired : styles.badgeOptional,
-                ]}>
-                <Text
-                  style={[
-                    styles.badgeText,
-                    asset.required
-                      ? styles.badgeTextReq
-                      : styles.badgeTextOpt,
-                  ]}>
-                  {asset.required ? 'Required' : 'Optional'}
-                </Text>
-              </View>
             </View>
             <Text style={styles.cardDesc}>{display.description}</Text>
             <Text style={styles.cardSize}>{formatSize(asset.size)}</Text>
@@ -299,13 +274,6 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
                 {isError ? 'Retry' : 'Download'}
               </Text>
             </TouchableOpacity>
-            {!asset.required && (
-              <TouchableOpacity
-                style={styles.skipBtn}
-                onPress={() => handleSkipOptional(id, display.label)}>
-                <Text style={styles.skipText}>Skip</Text>
-              </TouchableOpacity>
-            )}
           </View>
         )}
       </View>
@@ -318,24 +286,26 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
       <View style={styles.header}>
         <Text style={styles.title}>Get Likas Ready</Text>
         <Text style={styles.subtitle}>
-          Download the data your device needs to work without internet.
+          All assets below are required to run Likas offline. Download once,
+          then the app works without internet.
         </Text>
-        {!loading && requiredIds.length > 0 && (
+        {!loading && allIds.length > 0 && (
           <View style={styles.summaryBlock}>
             <View style={styles.summaryTrack}>
               <View
                 style={[
                   styles.summaryFill,
                   {
-                    width: `${
-                      (readyRequired / requiredIds.length) * 100
-                    }%`,
+                    width: `${(readyCount / allIds.length) * 100}%`,
                   },
                 ]}
               />
             </View>
             <Text style={styles.summaryText}>
-              {readyRequired} of {requiredIds.length} required assets ready
+              {readyCount} of {allIds.length} ready
+              {remainingBytes > 0
+                ? ` · ${formatSize(remainingBytes)} left to download`
+                : ` · ${formatSize(totalBytes)} installed`}
             </Text>
           </View>
         )}
@@ -385,7 +355,11 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
               style={styles.dlAllBtn}
               onPress={downloadAllRequired}>
               <Icon name="download-multiple" size={18} color={COLORS.white} />
-              <Text style={styles.footerBtnText}>Download All Required</Text>
+              <Text style={styles.footerBtnText}>
+                {remainingBytes > 0
+                  ? `Download All · ${formatSize(remainingBytes)}`
+                  : 'Download All'}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -502,14 +476,6 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
 
-  // Badges
-  badge: {paddingHorizontal: 8, paddingVertical: 2, borderRadius: 99},
-  badgeRequired: {backgroundColor: '#fef3c7'},
-  badgeOptional: {backgroundColor: '#f1f5f9'},
-  badgeText: {fontFamily: FONTS.primarySemiBold, fontSize: 10},
-  badgeTextReq: {color: '#92400e'},
-  badgeTextOpt: {color: COLORS.gray},
-
   // Progress
   progressBlock: {gap: 6},
   progressTrack: {
@@ -560,12 +526,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.primarySemiBold,
     fontSize: 13,
     color: COLORS.white,
-  },
-  skipBtn: {paddingHorizontal: 8, paddingVertical: 8},
-  skipText: {
-    fontFamily: FONTS.primaryMedium,
-    fontSize: 13,
-    color: COLORS.gray,
   },
 
   // Footer

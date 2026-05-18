@@ -64,7 +64,7 @@ export class ChecksumMismatchError extends AssetDownloadError {
 const INSTALLED_INDEX_PATH = `${RNFS.DocumentDirectoryPath}/installed.json`;
 const MANIFEST_CACHE_PATH = `${RNFS.DocumentDirectoryPath}/manifest.json`;
 const MANIFEST_URL =
-  'https://pub-53341d238cbc41aa9b79be79ef34d866.r2.dev/likas/manifest.json';
+  'https://cdn.likas-ai.com/likas/manifest.json';
 const MANIFEST_FETCH_TIMEOUT_MS = 5000;
 const STORAGE_SAFETY_MULTIPLIER = 1.2;
 const PROGRESS_REPORT_INTERVAL_MS = 500;

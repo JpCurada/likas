@@ -5,7 +5,7 @@ import {useNavigation} from '@react-navigation/native';
 import {ProgressBar} from '../components/onboarding/ProgressBar';
 
 // Update this with your actual public R2 bucket manifest URL
-const MANIFEST_URL = 'https://pub-53341d238cbc41aa9b79be79ef34d866.r2.dev/likas/manifest.json';
+const MANIFEST_URL = 'https://cdn.likas-ai.com/likas/manifest.json';
 
 export const SetupLoadingScreen = () => {
   const [progress, setProgress] = useState(0);

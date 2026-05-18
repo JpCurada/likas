@@ -4,7 +4,7 @@
     "map-tiles": {
       "kind": "mbtiles",
       "version": "2026.05",
-      "url": "https://pub-53341d238cbc41aa9b79be79ef34d866.r2.dev/likas/maps/philippines-extract.v2026.05.mbtiles",
+      "url": "https://cdn.likas-ai.com/likas/maps/philippines-extract.v2026.05.mbtiles",
       "mirrors": [
         "https://github.com/JpCurada/likas/releases/download/assets-v2026.05/philippines-extract.mbtiles"
       ],
@@ -17,7 +17,7 @@
     "map-glyphs": {
       "kind": "glyphs",
       "version": "1.0.0",
-      "url": "https://pub-53341d238cbc41aa9b79be79ef34d866.r2.dev/likas/glyphs/noto-sans-v1.0.0.zip",
+      "url": "https://cdn.likas-ai.com/likas/glyphs/noto-sans-v1.0.0.zip",
       "mirrors": [
         "https://github.com/JpCurada/likas/releases/download/assets-v1.0.0/noto-sans-v1.0.0.zip"
       ],
@@ -30,7 +30,7 @@
     "pedestrian-graph-db": {
       "kind": "data",
       "version": "2026.05",
-      "url": "https://pub-53341d238cbc41aa9b79be79ef34d866.r2.dev/likas/maps/pedestrian-graph.v2026.05.db",
+      "url": "https://cdn.likas-ai.com/likas/maps/pedestrian-graph.v2026.05.db",
       "mirrors": [
         "https://github.com/JpCurada/likas/releases/download/assets-v2026.05/pedestrian-graph.db"
       ],
@@ -43,7 +43,7 @@
     "ai-model-gemma-4-e2b": {
       "kind": "model",
       "version": "1.0.0",
-      "url": "https://pub-53341d238cbc41aa9b79be79ef34d866.r2.dev/models/likas-q4_k_m.gguf",
+      "url": "https://cdn.likas-ai.com/models/likas-q4_k_m.gguf",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "size": 3186871552,
       "required": true,

@@ -1,10 +1,8 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
-  PermissionsAndroid,
   Platform,
   StyleSheet,
   Text,
@@ -21,7 +19,6 @@ import {Icon} from '../components/Icon';
 import {AssetMissingPrompt} from '../components/AssetMissingPrompt';
 import {useAppStore} from '../stores/appStore';
 import {useAIAssistant} from '../hooks/useAIAssistant';
-import {STTModelNotLoadedError, sttService} from '../services/sttService';
 import type {ChatMessage, ToolTraceEntry} from '../types';
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -104,68 +101,7 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
   } = useAIAssistant();
 
   const [input, setInput] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
-  const recordSessionRef = useRef<{stop: () => Promise<string>} | null>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
-
-  const requestMicPermission = useCallback(async (): Promise<boolean> => {
-    if (Platform.OS !== 'android') return true;
-    const granted = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-      {
-        title: 'Microphone access',
-        message: 'LIKAS needs the microphone to transcribe voice questions offline.',
-        buttonPositive: 'Allow',
-        buttonNegative: 'Cancel',
-      },
-    );
-    return granted === PermissionsAndroid.RESULTS.GRANTED;
-  }, []);
-
-  const handleMicPress = useCallback(async () => {
-    if (isRecording) {
-      try {
-        const session = recordSessionRef.current;
-        recordSessionRef.current = null;
-        setIsRecording(false);
-        const text = (await session?.stop()) ?? '';
-        if (text) setInput(prev => (prev ? `${prev} ${text}` : text));
-      } catch (err) {
-        console.warn('[ChatScreen] stop failed:', err);
-      }
-      return;
-    }
-    if (isProcessing) return;
-    const ok = await requestMicPermission();
-    if (!ok) {
-      Alert.alert(
-        'Microphone needed',
-        'Grant microphone permission in Settings to use voice input.',
-      );
-      return;
-    }
-    try {
-      const session = await sttService.startListening(partial => {
-        setInput(partial);
-      });
-      recordSessionRef.current = session;
-      setIsRecording(true);
-    } catch (err) {
-      let msg = 'Could not start voice input.';
-      if (err instanceof STTModelNotLoadedError) msg = err.message;
-      else if (err instanceof Error) msg = err.message;
-      Alert.alert('Voice unavailable', msg);
-    }
-  }, [isRecording, isProcessing, requestMicPermission]);
-
-  useEffect(
-    () => () => {
-      // Best-effort cleanup if user navigates away mid-recording.
-      recordSessionRef.current?.stop().catch(() => {});
-      recordSessionRef.current = null;
-    },
-    [],
-  );
 
   useEffect(() => {
     listRef.current?.scrollToEnd({animated: true});
@@ -373,36 +309,18 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
             style={styles.input}
             value={input}
             onChangeText={setInput}
-            placeholder={
-              isRecording
-                ? 'Listening… tap mic again to stop'
-                : 'Ask about evacuation, first aid, protocols…'
-            }
+            placeholder="Ask about evacuation, first aid, protocols…"
             placeholderTextColor={COLORS.gray}
-            editable={!isProcessing && !isRecording}
+            editable={!isProcessing}
             multiline
           />
           <TouchableOpacity
             style={[
-              styles.micButton,
-              isRecording && styles.micButtonActive,
-              isProcessing && styles.sendButtonDisabled,
-            ]}
-            onPress={handleMicPress}
-            disabled={isProcessing}>
-            <Icon
-              name={isRecording ? 'stop' : 'microphone'}
-              size={20}
-              color={COLORS.white}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
               styles.sendButton,
-              (!input.trim() || isProcessing || isRecording) && styles.sendButtonDisabled,
+              (!input.trim() || isProcessing) && styles.sendButtonDisabled,
             ]}
             onPress={handleSend}
-            disabled={!input.trim() || isProcessing || isRecording}>
+            disabled={!input.trim() || isProcessing}>
             <Icon name="send" size={20} color={COLORS.white} />
           </TouchableOpacity>
         </View>
@@ -588,17 +506,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryGreen,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  micButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.darkGreen,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  micButtonActive: {
-    backgroundColor: COLORS.error,
   },
   sendButtonDisabled: {
     backgroundColor: COLORS.gray,
