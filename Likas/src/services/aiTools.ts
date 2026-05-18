@@ -1,4 +1,9 @@
-import type {DisasterContext, EvacuationType, UserProfile} from '../types';
+import type {
+  DisasterContext,
+  EvacuationType,
+  LatLng,
+  UserProfile,
+} from '../types';
 import {evacuationService, getDistanceKm} from './evacuationService';
 import {
   GraphNotLoadedError,
@@ -27,7 +32,20 @@ const PROTOCOLS: Record<string, any> = {
 type ToolContext = {
   profile: UserProfile;
   activeContext: DisasterContext;
+  /**
+   * The user's CURRENT GPS position, when available. Tools that compute
+   * "nearest X" prefer this over `profile.location.coordinates` so the
+   * ranking reflects where the user is right now — not where they were
+   * when they onboarded. Null when location permission is denied or no
+   * fix has arrived yet; tools must fall back to the profile home in
+   * that case.
+   */
+  liveLocation?: LatLng | null;
 };
+
+/** Returns the best origin to rank "nearest" results from. */
+const resolveOrigin = (ctx: ToolContext): LatLng =>
+  ctx.liveLocation ?? ctx.profile.location.coordinates;
 
 export type ToolResult = {
   summary: string;
@@ -77,8 +95,9 @@ const routeToNearestEvacuation: ToolDefinition = {
   },
   handler: async (_args, ctx) => {
     const type = inferEvacuationType(ctx.activeContext);
+    const origin = resolveOrigin(ctx);
     const ranked = evacuationService.getRankedCenters({
-      origin: ctx.profile.location.coordinates,
+      origin,
       profile: ctx.profile,
       type,
     });
@@ -105,10 +124,7 @@ const routeToNearestEvacuation: ToolDefinition = {
     let route = null;
     let routeNote = '';
     try {
-      route = await routingService.route(
-        ctx.profile.location.coordinates,
-        destination,
-      );
+      route = await routingService.route(origin, destination);
       routeNote = `\n\nRoute to ${best.center.name}: ${(route.distanceMeters / 1000).toFixed(2)} km along walkable roads, ~${route.durationMinutesWalking} min walking.`;
     } catch (err) {
       if (err instanceof GraphNotLoadedError) {
@@ -218,7 +234,7 @@ const findNearby: ToolDefinition = {
       return {summary: `Unknown category: ${category}.`};
     }
     const fc = getter();
-    const origin = ctx.profile.location.coordinates;
+    const origin = resolveOrigin(ctx);
     const sorted = fc.features
       .map((f: any) => ({
         name: f.properties?.name ?? 'Unnamed',

@@ -861,11 +861,13 @@ export const ProfileScreen: React.FC = () => {
           ))}
           {!manifest && <ActivityIndicator color={COLORS.primaryGreen} />}
 
+          {/*
           <Text style={ps.dataHint}>
             <Text style={{ fontWeight: 'bold' }}>Sideload Path:</Text>{`\n`}
             Android/data/com.likas/files/{`\n\n`}
             Place files here via USB and click the sideload icon to install them into protected storage.
           </Text>
+          */}
         </SectionCard>
 
         {/* Reset */}

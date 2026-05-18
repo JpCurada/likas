@@ -88,25 +88,46 @@ const getAsset = (manifest: Manifest, assetId: string): ManifestAsset => {
 
 export const assetManager = {
   async fetchManifest(): Promise<Manifest> {
+    const t0 = Date.now();
     // 1. Try fetching the live manifest from CDN (allows OTA asset updates)
     try {
       const controller = new AbortController();
-      const timer = setTimeout(
-        () => controller.abort(),
-        MANIFEST_FETCH_TIMEOUT_MS,
-      );
+      const timer = setTimeout(() => {
+        if (__DEV__) {
+          console.warn(
+            `[assetManager] fetchManifest CDN abort timer fired @ ${Date.now() - t0}ms`,
+          );
+        }
+        controller.abort();
+      }, MANIFEST_FETCH_TIMEOUT_MS);
+      if (__DEV__) {
+        console.log(`[assetManager] fetchManifest → GET ${MANIFEST_URL}`);
+      }
       const res = await fetch(MANIFEST_URL, {signal: controller.signal});
       clearTimeout(timer);
+      if (__DEV__) {
+        console.log(
+          `[assetManager] fetchManifest CDN responded ${res.status} in ${Date.now() - t0}ms`,
+        );
+      }
       if (res.ok) {
         const text = await res.text();
         // Cache to disk for offline fallback (fire-and-forget)
         RNFS.writeFile(MANIFEST_CACHE_PATH, text, 'utf8').catch(() => {});
         if (__DEV__) {
-          console.log('[assetManager] Manifest fetched from CDN');
+          console.log(
+            `[assetManager] fetchManifest using CDN (total ${Date.now() - t0}ms)`,
+          );
         }
         return JSON.parse(text) as Manifest;
       }
-    } catch {
+    } catch (err) {
+      if (__DEV__) {
+        console.warn(
+          `[assetManager] fetchManifest CDN failed in ${Date.now() - t0}ms:`,
+          err instanceof Error ? `${err.name}: ${err.message}` : err,
+        );
+      }
       // Network unavailable or timed out — fall through to cache
     }
 
@@ -115,7 +136,9 @@ export const assetManager = {
       try {
         const cached = await RNFS.readFile(MANIFEST_CACHE_PATH, 'utf8');
         if (__DEV__) {
-          console.log('[assetManager] Using disk-cached manifest');
+          console.log(
+            `[assetManager] fetchManifest using disk cache (total ${Date.now() - t0}ms)`,
+          );
         }
         return JSON.parse(cached) as Manifest;
       } catch {
@@ -126,7 +149,7 @@ export const assetManager = {
     // 3. Last resort: use the baked manifest bundled with the app
     if (__DEV__) {
       console.warn(
-        '[assetManager] Offline and no manifest cache — using baked manifest.dev.json',
+        `[assetManager] fetchManifest using baked manifest.dev.json (total ${Date.now() - t0}ms)`,
       );
     }
     return devManifest as Manifest;
@@ -159,8 +182,19 @@ export const assetManager = {
   async getLocalPath(assetId: string): Promise<string | null> {
     const index = await this.readInstalled();
     const record = index.records[assetId];
-    if (!record) return null;
-    return (await RNFS.exists(record.localPath)) ? record.localPath : null;
+    if (!record) {
+      if (__DEV__) {
+        console.log(`[assetManager] getLocalPath(${assetId}) → no record in installed.json`);
+      }
+      return null;
+    }
+    const fileExists = await RNFS.exists(record.localPath);
+    if (__DEV__) {
+      console.log(
+        `[assetManager] getLocalPath(${assetId}) → record at ${record.localPath} (exists=${fileExists})`,
+      );
+    }
+    return fileExists ? record.localPath : null;
   },
 
   async checkStorage(requiredBytes: number): Promise<StorageCheck> {
@@ -190,11 +224,13 @@ export const assetManager = {
     assetId: string,
     onProgress?: (p: DownloadProgress) => void,
   ): Promise<string> {
+    console.log(`[assetManager] downloadAsset called for: ${assetId}`);
     const manifest = await this.fetchManifest();
     const asset = getAsset(manifest, assetId);
 
     const storage = await this.checkStorage(asset.size);
     if (!storage.sufficient) {
+      console.error(`[assetManager] Insufficient storage for ${assetId}`);
       throw new AssetDownloadError(
         `Insufficient storage: need ${storage.required} bytes, have ${storage.available}`,
       );
@@ -211,9 +247,7 @@ export const assetManager = {
 
     for (const url of candidates) {
       try {
-        if (__DEV__ && url !== asset.url) {
-          console.log(`[assetManager] Primary URL failed, trying mirror: ${url}`);
-        }
+        console.log(`[assetManager] Attempting to download ${assetId} from URL: ${url}`);
         let lastReportAt = 0;
         const result = await RNFS.downloadFile({
           fromUrl: url,
@@ -236,23 +270,28 @@ export const assetManager = {
         }).promise;
 
         if (result.statusCode < 200 || result.statusCode >= 300) {
+          console.warn(`[assetManager] HTTP ${result.statusCode} from ${url} for ${assetId}`);
           await RNFS.unlink(partialPath).catch(() => {});
           lastError = new AssetDownloadError(`HTTP ${result.statusCode} from ${url}`);
           continue; // try next mirror
         }
 
+        console.log(`[assetManager] Download finished for ${assetId}, verifying checksum...`);
         // Download succeeded — verify checksum
         const matches = await this.verifyChecksum(partialPath, asset.sha256);
         if (!matches) {
           const actual = await RNFS.hash(partialPath, 'sha256');
+          console.error(`[assetManager] Checksum mismatch for ${assetId}. Expected: ${asset.sha256}, Actual: ${actual}`);
           await RNFS.unlink(partialPath).catch(() => {});
           throw new ChecksumMismatchError(asset.sha256, actual);
         }
+        console.log(`[assetManager] Checksum verified for ${assetId}`);
 
         if (await RNFS.exists(finalPath)) {
           await RNFS.unlink(finalPath);
         }
         await RNFS.moveFile(partialPath, finalPath);
+        console.log(`[assetManager] File moved to final path: ${finalPath}`);
 
         // Register in installed.json so next launch skips this download
         const index = await this.readInstalled();
@@ -265,18 +304,18 @@ export const assetManager = {
         };
         index.manifestVersion = manifest.manifestVersion;
         await this.writeInstalled(index);
+        console.log(`[assetManager] Successfully registered ${assetId} in installed.json`);
 
         return finalPath; // ✅ done
       } catch (err) {
         if (err instanceof ChecksumMismatchError) throw err; // never retry on bad checksum
         await RNFS.unlink(partialPath).catch(() => {});
         lastError = err instanceof Error ? err : new AssetDownloadError(String(err));
-        if (__DEV__) {
-          console.warn(`[assetManager] Download failed from ${url}:`, lastError.message);
-        }
+        console.warn(`[assetManager] Download failed from ${url} for ${assetId}:`, lastError.message);
       }
     }
 
+    console.error(`[assetManager] All download URLs exhausted for ${assetId}`);
     throw lastError; // all URLs exhausted
   },
 
