@@ -131,6 +131,7 @@ TOOL-PICKING EXAMPLES:
 - User: "find the closest school" → {"action":"tool","name":"find_nearby","args":{"category":"school"}}
 - User: "pinakamalapit na gym/covered court" → {"action":"tool","name":"find_nearby","args":{"category":"gymnasium"}} (or "covered_court")
 - User: "where should I evacuate?" / "saan pupunta?" → {"action":"tool","name":"route_to_nearest_evacuation","args":{}}
+- User: "family meeting point / communication plan" → {"action":"tool","name":"get_protocol","args":{"disaster":"earthquake","phase":"before"}}
 - After a find_nearby or route_to_nearest_evacuation result, ALWAYS speak with a short summary AND tell the user the pins/route are already shown on the Map tab. Example speak text: "I found 3 nearby hospitals. The closest is X (1.2 km). I've placed pins on the map — open the Map tab to see them."
 
 AVAILABLE TOOLS:
@@ -438,6 +439,79 @@ const repairAssistantJson = (s: string): string => {
   return out;
 };
 
+/** Flatten nested enum shapes like {"type":"earthquake"} → "earthquake". */
+const normalizeToolArgValue = (value: unknown): unknown => {
+  if (typeof value === 'string') return value.trim();
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.type === 'string') return obj.type.trim();
+    if (typeof obj.disaster === 'string') return obj.disaster.trim();
+    if (typeof obj.phase === 'string') return obj.phase.trim();
+    if (typeof obj.category === 'string') return obj.category.trim();
+  }
+  return value;
+};
+
+const normalizeToolArgs = (
+  args: Record<string, unknown>,
+): Record<string, unknown> => {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(args)) {
+    out[key] = normalizeToolArgValue(value);
+  }
+  return out;
+};
+
+const parseArgsField = (value: unknown): Record<string, unknown> => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return normalizeToolArgs(value as Record<string, unknown>);
+  }
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return normalizeToolArgs(parsed as Record<string, unknown>);
+      }
+    } catch {
+      // ignore — fall through to empty
+    }
+  }
+  return {};
+};
+
+/** Collect args from `args`, top-level fields, or both (top-level wins). */
+const extractToolArgs = (obj: Record<string, unknown>): Record<string, unknown> => {
+  const reserved = new Set(['action', 'name', 'text', 'args']);
+  const topLevel: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (!reserved.has(key)) topLevel[key] = normalizeToolArgValue(value);
+  }
+  const nested = parseArgsField(obj.args);
+  return normalizeToolArgs({...nested, ...topLevel});
+};
+
+const KNOWN_TOOL_NAMES = new Set(TOOL_REGISTRY.map(t => t.name));
+
+const resolveKnownToolName = (name: unknown): string | null => {
+  if (typeof name !== 'string' || !name.trim()) return null;
+  const trimmed = name.trim();
+  if (KNOWN_TOOL_NAMES.has(trimmed)) return trimmed;
+  const lower = trimmed.toLowerCase();
+  for (const toolName of KNOWN_TOOL_NAMES) {
+    if (toolName === lower) return toolName;
+  }
+  return null;
+};
+
+const parseToolEnvelope = (
+  obj: Record<string, unknown>,
+  toolName: unknown,
+): ParsedAction | null => {
+  const name = resolveKnownToolName(toolName);
+  if (!name) return null;
+  return {kind: 'tool', name, args: extractToolArgs(obj)};
+};
+
 const extractJsonObject = (raw: string): string | null => {
   const start = raw.indexOf('{');
   if (start === -1) return null;
@@ -464,8 +538,6 @@ const extractJsonObject = (raw: string): string | null => {
   }
   return null;
 };
-
-const KNOWN_TOOL_NAMES = new Set(TOOL_REGISTRY.map(t => t.name));
 
 /**
  * Deterministic intent detector for the rescue path.
@@ -523,24 +595,39 @@ const parseAction = (raw: string): ParsedAction => {
   const jsonCandidate = extracted ?? trimmed;
 
   try {
-    const obj = JSON.parse(repairAssistantJson(jsonCandidate));
+    const obj = JSON.parse(repairAssistantJson(jsonCandidate)) as Record<
+      string,
+      unknown
+    >;
     if (obj?.action === 'speak' && typeof obj.text === 'string') {
       return {kind: 'speak', text: obj.text};
     }
-    if (obj?.action === 'tool' && typeof obj.name === 'string') {
-      return {kind: 'tool', name: obj.name, args: obj.args ?? {}};
+    if (obj?.action === 'tool') {
+      const parsed = parseToolEnvelope(obj, obj.name);
+      if (parsed) return parsed;
     }
-    // Tolerate the common malformed shape: {"action":"<tool_name>", "name":"<tool_name>", "args":{}}
+    // Tolerate {action: "<tool_name>", ...args} with args at the top level.
+    if (
+      typeof obj?.action === 'string' &&
+      obj.action !== 'tool' &&
+      obj.action !== 'speak'
+    ) {
+      const parsed = parseToolEnvelope(obj, obj.action);
+      if (parsed) return parsed;
+    }
+    // Tolerate {"action":"<tool_name>", "name":"<tool_name>", ...}
     if (
       typeof obj?.action === 'string' &&
       typeof obj?.name === 'string' &&
-      obj.action === obj.name &&
-      KNOWN_TOOL_NAMES.has(obj.name)
+      obj.action === obj.name
     ) {
-      return {kind: 'tool', name: obj.name, args: obj.args ?? {}};
+      const parsed = parseToolEnvelope(obj, obj.name);
+      if (parsed) return parsed;
     }
-    if (typeof obj?.name === 'string' && KNOWN_TOOL_NAMES.has(obj.name)) {
-      return {kind: 'tool', name: obj.name, args: obj.args ?? {}};
+    // Tolerate {"name":"<tool_name>", ...args} without action.
+    if (typeof obj?.name === 'string') {
+      const parsed = parseToolEnvelope(obj, obj.name);
+      if (parsed) return parsed;
     }
     return {kind: 'invalid', raw};
   } catch {
@@ -925,4 +1012,6 @@ export const __testables = {
   extractJsonObject,
   createSpeakStreamer,
   detectForcedTool,
+  repairAssistantJson,
+  extractToolArgs,
 };

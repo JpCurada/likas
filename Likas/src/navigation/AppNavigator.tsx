@@ -5,7 +5,7 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, NavigatorScreenParams } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
@@ -24,7 +24,7 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 export type RootStackParamList = {
   Onboarding: undefined;
   Setup: undefined;
-  Main: undefined;
+  Main: NavigatorScreenParams<TabParamList> | undefined;
 };
 
 export type TabParamList = {
@@ -84,6 +84,7 @@ const tabStyles = StyleSheet.create({
 function MainTabs() {
   return (
     <Tab.Navigator
+        initialRouteName="Map"
         screenOptions={({ route }) => ({
           headerShown: false,
           tabBarShowLabel: false,

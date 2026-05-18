@@ -54,7 +54,7 @@ import { AssetMissingPrompt } from '../components/AssetMissingPrompt';
 import { useAppStore } from '../stores/appStore';
 import { loadProfile, UserProfile } from '../database/storage';
 import { useFocusEffect } from '@react-navigation/native';
-import { routingService, GraphNotLoadedError, NoRouteError } from '../services/routingService';
+import { routingService, GraphNotLoadedError, NoRouteError, RouteTooLongError } from '../services/routingService';
 import activeFaultsGeoJSON from '../data/gem_active_faults_harmonized.json';
 import { ChatScreen } from './ChatScreen';
 import { Icon } from '../components/Icon';
@@ -65,12 +65,23 @@ import {
   type GeolocationUserIssue,
 } from '../utils/geolocationUserMessages';
 
-// Metro Manila center
-const INITIAL_COORDINATES = [121.0509, 14.5823];
-
 // Bundled offline style base
 const baseOfflineStyle = require('../../assets/maps/style.json');
 const OFFLINE_GLYPH_FONT_STACK = ['Noto Sans Regular'];
+
+const METRO_CENTER: [number, number] = [120.9842, 14.5995];
+
+/** Steady-state 3D map camera — same as before entry-fly work. */
+const MAP_CAMERA_ZOOM = 17;
+const MAP_CAMERA_PITCH = 58;
+const MAP_CAMERA_BEARING = 20;
+
+/** Wide flat view used only for the one-time entry zoom-in. */
+const MAP_ENTRY_START_ZOOM = 10;
+const MAP_ENTRY_START_PITCH = 0;
+const MAP_ENTRY_FLY_MS = 2200;
+const MAP_ENTRY_FLY_DELAY_MS = 200;
+const MAP_ENTRY_GPS_WAIT_MS = 1200;
 
 /** Rebuilds the style object with building layers toggled between 2D / 3D */
 const buildStyle = (base: any, is3D: boolean, activeFilters: Record<string, boolean>): any => {
@@ -137,8 +148,11 @@ const FILTER_OPTIONS = [
 export const MapScreen: React.FC = () => {
   const bottomSheetRef = useRef<BottomSheet>(null);
   const cameraRef = useRef<CameraRef>(null);
+  const entryFlyDoneRef = useRef(false);
+  const [entryFlyComplete, setEntryFlyComplete] = useState(false);
   const [cameraKey, setCameraKey] = useState(0);
   const [isMapReady, setIsMapReady] = useState(false);
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [baseStyle, setBaseStyle] = useState<any>(null);
 
   const [activeFilters, setActiveFilters] = useState<Record<string, boolean>>({
@@ -161,7 +175,9 @@ export const MapScreen: React.FC = () => {
     }, []),
   );
 
-  const [trackUser, setTrackUser] = useState<TrackUserLocation | undefined>('default');
+  const [trackUser, setTrackUser] = useState<TrackUserLocation | undefined>(
+    undefined,
+  );
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [chatSheetIndex, setChatSheetIndex] = useState(-1);
   const [mapAreaHeight, setMapAreaHeight] = useState(0);
@@ -197,6 +213,7 @@ export const MapScreen: React.FC = () => {
   const activeRoute = useAppStore(s => s.activeRoute);
   const setActiveRoute = useAppStore(s => s.setActiveRoute);
   const nearbyPins = useAppStore(s => s.nearbyPins);
+  const setNearbyPins = useAppStore(s => s.setNearbyPins);
   const pendingMapFocus = useAppStore(s => s.pendingMapFocus);
   const setPendingMapFocus = useAppStore(s => s.setPendingMapFocus);
   const setOfflineMapStyle = useAppStore(s => s.setOfflineMapStyle);
@@ -472,6 +489,19 @@ export const MapScreen: React.FC = () => {
   );
   const [geoSession, setGeoSession] = useState(0);
 
+  const entryCenter = useMemo((): [number, number] => {
+    if (userLocation) return userLocation;
+    const meeting = profile?.location?.primaryMeeting?.coordinates;
+    if (meeting?.latitude != null && meeting?.longitude != null) {
+      return [meeting.longitude, meeting.latitude];
+    }
+    const home = profile?.location?.coordinates;
+    if (home?.latitude != null && home?.longitude != null) {
+      return [home.longitude, home.latitude];
+    }
+    return METRO_CENTER;
+  }, [userLocation, profile]);
+
   const retryLocationAccess = useCallback(() => {
     setLocationIssue(null);
     setGeoSession(k => k + 1);
@@ -554,6 +584,85 @@ export const MapScreen: React.FC = () => {
       if (watchId !== null) Geolocation.clearWatch(watchId);
     };
   }, [setLiveLocation, geoSession]);
+
+  // One-time entry zoom: start wide, then fly into the user's position in 3D.
+  useEffect(() => {
+    if (!isMapReady || !isMapLoaded || !dynamicStyle || entryFlyDoneRef.current) {
+      return;
+    }
+
+    const shouldSkip =
+      activeRoute != null || (nearbyPins != null && nearbyPins.length > 0);
+
+    if (shouldSkip) {
+      entryFlyDoneRef.current = true;
+      setEntryFlyComplete(true);
+      setTrackUser('default');
+      return;
+    }
+
+    let cancelled = false;
+    let flyTimer: ReturnType<typeof setTimeout> | undefined;
+    let zoomTimer: ReturnType<typeof setTimeout> | undefined;
+    let trackTimer: ReturnType<typeof setTimeout> | undefined;
+    let gpsWaitTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const animateTo = (lon: number, lat: number) => {
+      if (cancelled || entryFlyDoneRef.current) return;
+      entryFlyDoneRef.current = true;
+
+      flyTimer = setTimeout(() => {
+        if (cancelled) return;
+        cameraRef.current?.jumpTo({
+          center: [lon, lat],
+          zoom: MAP_ENTRY_START_ZOOM,
+          pitch: MAP_ENTRY_START_PITCH,
+          bearing: 0,
+        });
+        zoomTimer = setTimeout(() => {
+          if (cancelled) return;
+          cameraRef.current?.flyTo({
+            center: [lon, lat],
+            zoom: MAP_CAMERA_ZOOM,
+            pitch: MAP_CAMERA_PITCH,
+            bearing: MAP_CAMERA_BEARING,
+            duration: MAP_ENTRY_FLY_MS,
+          });
+          trackTimer = setTimeout(() => {
+            if (!cancelled) {
+              setEntryFlyComplete(true);
+              setTrackUser('default');
+            }
+          }, MAP_ENTRY_FLY_MS + 100);
+        }, 80);
+      }, MAP_ENTRY_FLY_DELAY_MS);
+    };
+
+    if (userLocation) {
+      animateTo(userLocation[0], userLocation[1]);
+    } else {
+      gpsWaitTimer = setTimeout(() => {
+        if (cancelled || entryFlyDoneRef.current) return;
+        animateTo(entryCenter[0], entryCenter[1]);
+      }, MAP_ENTRY_GPS_WAIT_MS);
+    }
+
+    return () => {
+      cancelled = true;
+      if (flyTimer) clearTimeout(flyTimer);
+      if (zoomTimer) clearTimeout(zoomTimer);
+      if (trackTimer) clearTimeout(trackTimer);
+      if (gpsWaitTimer) clearTimeout(gpsWaitTimer);
+    };
+  }, [
+    isMapReady,
+    isMapLoaded,
+    dynamicStyle,
+    userLocation,
+    entryCenter,
+    activeRoute,
+    nearbyPins,
+  ]);
 
   useEffect(() => {
     if (!activeRoute || !isMapReady) return;
@@ -703,30 +812,27 @@ export const MapScreen: React.FC = () => {
       });
     } catch (err: any) {
       if (err.message === 'Aborted') return;
-      if (err instanceof GraphNotLoadedError) {
-        // Pedestrian graph not installed — use straight-line estimate as fallback
-        const R = 6_371_000;
-        const toRad = (d: number) => (d * Math.PI) / 180;
-        const originLat = userLocation ? userLocation[1] : 0; // fallback if origin logic failed but we didn't return
-        const originLon = userLocation ? userLocation[0] : 0;
-
-        const dLat = toRad(dest.latitude - originLat);
-        const dLon = toRad(dest.longitude - originLon);
-        const a =
-          Math.sin(dLat / 2) ** 2 +
-          Math.cos(toRad(originLat)) *
-            Math.cos(toRad(dest.latitude)) *
-            Math.sin(dLon / 2) ** 2;
-        const distanceMeters = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const WALKING_MPS = 1.167;
-        setActiveRoute({
-          polyline: [{ latitude: originLat, longitude: originLon }, { latitude: dest.latitude, longitude: dest.longitude }],
-          distanceMeters,
-          durationMinutesWalking: Math.ceil(distanceMeters / WALKING_MPS / 60),
-          destination: { latitude: dest.latitude, longitude: dest.longitude },
-          destinationName: dest.name,
-        });
-        console.warn('[MapScreen] Routing graph not installed — showing straight-line route');
+      if (err instanceof GraphNotLoadedError || err instanceof RouteTooLongError) {
+        // No walking route available (graph missing, or destination beyond the
+        // pedestrian routing cap). We deliberately do NOT draw a straight line —
+        // a fake path is misleading in an emergency. Just drop the destination
+        // as a pin and tell the user plainly.
+        setNearbyPins([
+          {
+            name: dest.name,
+            address: '',
+            distanceKm: 0,
+            coordinates: { latitude: dest.latitude, longitude: dest.longitude },
+          },
+        ]);
+        setPendingMapFocus('nearby');
+        Alert.alert(
+          'Too far to route on foot',
+          err instanceof RouteTooLongError
+            ? `${dest.name} is beyond the walking-route range. Its location is shown on the map — head toward it and use the in-app route once you are closer.`
+            : `Offline pedestrian map data is not installed, so a walking route can't be drawn. ${dest.name}'s location is shown on the map.`,
+        );
+        console.warn(`[MapScreen] No route drawn — ${err.message}`);
       } else {
         Alert.alert(
           'Routing failed',
@@ -763,26 +869,25 @@ export const MapScreen: React.FC = () => {
       });
     } catch (err: any) {
       if (err.message === 'Aborted') return;
-      if (err instanceof GraphNotLoadedError) {
-        // Pedestrian graph not installed — fall back to straight-line from new position
-        const R = 6_371_000;
-        const toRad = (d: number) => (d * Math.PI) / 180;
-        const dLat = toRad(dest.latitude - origin.latitude);
-        const dLon = toRad(dest.longitude - origin.longitude);
-        const a =
-          Math.sin(dLat / 2) ** 2 +
-          Math.cos(toRad(origin.latitude)) *
-            Math.cos(toRad(dest.latitude)) *
-            Math.sin(dLon / 2) ** 2;
-        const distanceMeters = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const WALKING_MPS = 1.167;
-        setActiveRoute({
-          ...activeRoute,
-          polyline: [origin, dest],
-          distanceMeters,
-          durationMinutesWalking: Math.ceil(distanceMeters / WALKING_MPS / 60),
-        });
-        console.warn('[MapScreen] Reroute — graph not installed, showing straight-line from new position');
+      if (err instanceof GraphNotLoadedError || err instanceof RouteTooLongError) {
+        // No straight-line fallback — clear the stale route and just show the
+        // destination location so the user isn't misled by a fake path.
+        setNearbyPins([
+          {
+            name: activeRoute.destinationName ?? 'Destination',
+            address: '',
+            distanceKm: 0,
+            coordinates: { latitude: dest.latitude, longitude: dest.longitude },
+          },
+        ]);
+        setPendingMapFocus('nearby');
+        Alert.alert(
+          'Cannot reroute on foot',
+          err instanceof RouteTooLongError
+            ? 'Your current position is beyond the walking-route range from the destination. Its location is still shown on the map.'
+            : 'Offline pedestrian map data is not installed, so a walking route can\'t be recalculated. The destination is still shown on the map.',
+        );
+        console.warn(`[MapScreen] Reroute — no route drawn: ${err.message}`);
       } else if (err instanceof NoRouteError) {
         Alert.alert(
           'No path found',
@@ -1122,6 +1227,7 @@ export const MapScreen: React.FC = () => {
           attribution={false}
           onPress={handleMapPress}
           onRegionWillChange={() => setTrackUser(undefined)}
+          onDidFinishLoadingMap={() => setIsMapLoaded(true)}
         >
           <Images images={icons} />
           <UserLocation />
@@ -1129,10 +1235,21 @@ export const MapScreen: React.FC = () => {
             key={cameraKey}
             ref={cameraRef}
             trackUserLocation={trackUser}
-            zoom={17}
-            pitch={58}
-            bearing={20}
-            duration={3000}
+            {...(entryFlyComplete
+              ? {
+                  zoom: MAP_CAMERA_ZOOM,
+                  pitch: MAP_CAMERA_PITCH,
+                  bearing: MAP_CAMERA_BEARING,
+                  duration: 3000,
+                }
+              : {
+                  initialViewState: {
+                    center: entryCenter,
+                    zoom: MAP_ENTRY_START_ZOOM,
+                    pitch: MAP_ENTRY_START_PITCH,
+                    bearing: 0,
+                  },
+                })}
           />
 
           {/* Fault Lines */}

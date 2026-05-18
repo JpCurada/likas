@@ -8,6 +8,7 @@ import {evacuationService, getDistanceKm} from './evacuationService';
 import {
   GraphNotLoadedError,
   NoRouteError,
+  RouteTooLongError,
   routingService,
 } from './routingService';
 import {
@@ -129,10 +130,13 @@ const routeToNearestEvacuation: ToolDefinition = {
     } catch (err) {
       if (err instanceof GraphNotLoadedError) {
         routeNote =
-          '\n\n(Road-following route unavailable — pedestrian map data not installed.)';
+          '\n\n(Road-following route unavailable — pedestrian map data not installed. The location is shown on the map.)';
+      } else if (err instanceof RouteTooLongError) {
+        routeNote =
+          `\n\n(${best.center.name} is beyond walking-route range. Its location is shown on the map — move closer, then route again.)`;
       } else if (err instanceof NoRouteError) {
         routeNote =
-          '\n\n(Could not snap your location to a walkable road. Use the straight-line direction shown on the map.)';
+          '\n\n(Could not find a walkable path to your location. The destination is shown on the map.)';
       }
     }
 

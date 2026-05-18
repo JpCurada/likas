@@ -134,6 +134,71 @@ describe('parseAction', () => {
     expect(a).toMatchObject({kind: 'tool', name: 'get_protocol'});
   });
 
+  it('tolerates action-as-tool-name with top-level args and nested disaster.type', () => {
+    const a = parseAction(
+      '{"action":"get_protocol","disaster":{"type":"earthquake"},"phase":"before"}',
+    );
+    expect(a).toEqual({
+      kind: 'tool',
+      name: 'get_protocol',
+      args: {disaster: 'earthquake', phase: 'before'},
+    });
+  });
+
+  it('merges empty args with top-level protocol fields', () => {
+    const a = parseAction(
+      '{"action":"tool","name":"get_protocol","args":{},"disaster":"earthquake","phase":"before"}',
+    );
+    expect(a).toEqual({
+      kind: 'tool',
+      name: 'get_protocol',
+      args: {disaster: 'earthquake', phase: 'before'},
+    });
+  });
+
+  it('normalizes nested disaster.type inside args', () => {
+    const a = parseAction(
+      '{"action":"tool","name":"get_protocol","args":{"disaster":{"type":"typhoon"},"phase":"during"}}',
+    );
+    expect(a).toEqual({
+      kind: 'tool',
+      name: 'get_protocol',
+      args: {disaster: 'typhoon', phase: 'during'},
+    });
+  });
+
+  it('parses stringified args payloads', () => {
+    const a = parseAction(
+      '{"action":"tool","name":"find_nearby","args":"{\\"category\\":\\"hospital\\"}"}',
+    );
+    expect(a).toEqual({
+      kind: 'tool',
+      name: 'find_nearby',
+      args: {category: 'hospital'},
+    });
+  });
+
+  it('accepts tool names case-insensitively', () => {
+    const a = parseAction(
+      '{"action":"tool","name":"GET_PROTOCOL","args":{"disaster":"volcano","phase":"after"}}',
+    );
+    expect(a).toEqual({
+      kind: 'tool',
+      name: 'get_protocol',
+      args: {disaster: 'volcano', phase: 'after'},
+    });
+  });
+
+  it('parses name-only tool envelopes', () => {
+    const a = parseAction('{"name":"get_user_profile"}');
+    expect(a).toEqual({kind: 'tool', name: 'get_user_profile', args: {}});
+  });
+
+  it('rejects action=tool with unknown name', () => {
+    const a = parseAction('{"action":"tool","name":"launch_missiles","args":{}}');
+    expect(a.kind).toBe('invalid');
+  });
+
   it('repairs missing quote before args object (grammar / token seam)', () => {
     const a = parseAction(
       '{"action":"tool","name":"route_to_nearest_evacuation","args:{}}',

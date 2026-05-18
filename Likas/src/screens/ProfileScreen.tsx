@@ -13,12 +13,14 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { COLORS, FONTS, SIZES } from '../theme';
 import { Icon } from '../components/Icon';
+import { useAppStore } from '../stores/appStore';
 import {
   loadProfile,
   saveProfile,
-  clearAllData,
+  clearOnboardingData,
   UserProfile,
   DEFAULT_PROFILE,
   Companion,
@@ -262,9 +264,11 @@ const RELATIONSHIPS = [
 ];
 
 export const ProfileScreen: React.FC = () => {
+  const navigation = useNavigation();
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [cityModal, setCityModal] = useState(false);
   const [brgyModal, setBrgyModal] = useState(false);
   const [search, setSearch] = useState('');
@@ -355,6 +359,27 @@ export const ProfileScreen: React.FC = () => {
     },
     [profile],
   );
+
+  const handleResetOnboarding = useCallback(async () => {
+    setResetting(true);
+    try {
+      await clearOnboardingData();
+      useAppStore.getState().resetForOnboarding();
+      setProfile(DEFAULT_PROFILE);
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: 'Onboarding' }],
+        }),
+      );
+    } catch {
+      Alert.alert(
+        'Reset failed',
+        'Could not clear your profile. Please try again.',
+      );
+      setResetting(false);
+    }
+  }, [navigation]);
 
   const updLoc = (patch: Partial<typeof profile.location>) =>
     commit({ location: { ...profile.location, ...patch } });
@@ -872,20 +897,31 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Reset */}
         <TouchableOpacity
-          style={ps.resetBtn}
+          style={[ps.resetBtn, resetting && ps.resetBtnDisabled]}
+          disabled={resetting}
           onPress={() =>
             Alert.alert(
-              'Reset All Data?',
-              'This deletes everything and restarts onboarding.',
+              'Reset & Redo Onboarding?',
+              'Your profile and prep checklist will be cleared. Offline maps and the AI model stay installed.',
               [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Reset', style: 'destructive', onPress: clearAllData },
+                {
+                  text: 'Reset',
+                  style: 'destructive',
+                  onPress: () => void handleResetOnboarding(),
+                },
               ],
             )
           }
         >
-          <Icon name="refresh" size={18} color={COLORS.error} style={{ marginRight: 8 }} />
-          <Text style={ps.resetTxt}>Reset & Redo Onboarding</Text>
+          {resetting ? (
+            <ActivityIndicator size="small" color={COLORS.error} />
+          ) : (
+            <Icon name="refresh" size={18} color={COLORS.error} style={{ marginRight: 8 }} />
+          )}
+          <Text style={ps.resetTxt}>
+            {resetting ? 'Resetting…' : 'Reset & Redo Onboarding'}
+          </Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
@@ -910,6 +946,15 @@ export const ProfileScreen: React.FC = () => {
         }}
         onCancel={() => setPickerTarget(null)}
       />
+
+      {resetting && (
+        <Modal visible transparent animationType="fade" statusBarTranslucent>
+          <View style={ps.resetOverlay}>
+            <ActivityIndicator size="large" color={COLORS.primaryGreen} />
+            <Text style={ps.resetOverlayTxt}>Clearing profile…</Text>
+          </View>
+        </Modal>
+      )}
 
       {/* City Modal */}
       <Modal visible={cityModal} animationType="slide" transparent>
@@ -1474,10 +1519,25 @@ const ps = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  resetBtnDisabled: {
+    opacity: 0.7,
+  },
   resetTxt: {
     fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.body,
     color: COLORS.error,
+  },
+  resetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(240, 253, 244, 0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+  },
+  resetOverlayTxt: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: SIZES.body,
+    color: COLORS.darkGreen,
   },
   overlay: {
     flex: 1,

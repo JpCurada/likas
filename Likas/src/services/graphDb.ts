@@ -36,6 +36,45 @@ const CORRIDOR_PADDING = 0.4;
  */
 const MIN_PAD_DEG = 0.012;
 
+/**
+ * Hard ceiling on the straight-line origin→destination distance the graph
+ * router will attempt. Above this the corridor subgraph can grow large enough
+ * to threaten the 3 GB RAM budget on low-end devices, so we refuse and let the
+ * caller fall back to a straight-line estimate. Evacuation routing is always
+ * short-range (nearest shelter), so this never blocks the real use case — it
+ * only stops pathological long-haul requests on the nationwide DB.
+ */
+const MAX_ROUTE_KM = 30;
+
+const EARTH_RADIUS_KM = 6371;
+const toRad = (d: number) => (d * Math.PI) / 180;
+
+const straightLineKm = (from: LatLng, to: LatLng): number => {
+  const dLat = toRad(to.latitude - from.latitude);
+  const dLon = toRad(to.longitude - from.longitude);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(from.latitude)) *
+      Math.cos(toRad(to.latitude)) *
+      Math.sin(dLon / 2) ** 2;
+  return EARTH_RADIUS_KM * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+/**
+ * Thrown when origin→destination exceeds MAX_ROUTE_KM. Distinct from
+ * NoRouteError so the routing service / UI can message it differently
+ * ("too far to route on foot") and fall back to a straight line.
+ */
+export class RouteTooLongError extends Error {
+  constructor(public readonly km: number) {
+    super(
+      `Route is ${km.toFixed(0)} km — beyond the ${MAX_ROUTE_KM} km ` +
+        `pedestrian routing limit.`,
+    );
+    this.name = 'RouteTooLongError';
+  }
+}
+
 // ── Singleton ─────────────────────────────────────────────────────────────────
 
 let _db: SQLiteDatabase | null = null;
@@ -89,6 +128,16 @@ export const querySubgraph = async (
   from: LatLng,
   to: LatLng,
 ): Promise<Subgraph> => {
+  // Reject long-haul routes before touching the DB — on the nationwide graph
+  // a wide corridor can load enough nodes to breach the device RAM budget.
+  const directKm = straightLineKm(from, to);
+  if (directKm > MAX_ROUTE_KM) {
+    console.warn(
+      `[graphDb] Route ${directKm.toFixed(1)} km exceeds ${MAX_ROUTE_KM} km cap — refusing.`,
+    );
+    throw new RouteTooLongError(directKm);
+  }
+
   const bbox = computeCorridorBbox(from, to);
   const {minLon, maxLon, minLat, maxLat} = bbox;
 

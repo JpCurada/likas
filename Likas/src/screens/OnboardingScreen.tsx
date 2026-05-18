@@ -5,6 +5,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { COLORS } from '../theme';
 import { ProgressBar } from '../components/onboarding/ProgressBar';
+import { OnboardingSuccessOverlay } from '../components/onboarding/OnboardingSuccessOverlay';
 import { Step1Identity } from '../components/onboarding/Step1Identity';
 import { Step2Companions } from '../components/onboarding/Step2Companions';
 import { Step3Health } from '../components/onboarding/Step3Health';
@@ -34,6 +35,7 @@ export const OnboardingScreen: React.FC<Props> = ({ navigation }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [isSaving, setIsSaving] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const updateProfile = (updates: Partial<UserProfile>) => {
     setProfile(prev => ({ ...prev, ...updates }));
@@ -58,9 +60,7 @@ export const OnboardingScreen: React.FC<Props> = ({ navigation }) => {
       await saveProfile(profile);
       useAppStore.getState().updateProfile(profile);
       await setOnboardingComplete();
-      // First-launch flow is Setup → Onboarding → Main, so we now land
-      // on the main app instead of bouncing back to Setup.
-      navigation.replace('Main');
+      setShowSuccess(true);
     } catch (error) {
       Alert.alert(
         'Oops!',
@@ -68,6 +68,11 @@ export const OnboardingScreen: React.FC<Props> = ({ navigation }) => {
         [{ text: 'Try Again', onPress: () => setIsSaving(false) }],
       );
     }
+  };
+
+  const handleSuccessComplete = () => {
+    useAppStore.getState().completeOnboarding();
+    navigation.replace('Main', { screen: 'Map' });
   };
 
   const renderStep = () => {
@@ -126,16 +131,24 @@ export const OnboardingScreen: React.FC<Props> = ({ navigation }) => {
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.lightGreen} />
 
       {/* Progress Bar */}
-      <View style={styles.progressContainer}>
-        <ProgressBar
-          currentStep={currentStep}
-          totalSteps={TOTAL_STEPS}
-          stepLabels={STEP_LABELS}
-        />
-      </View>
+      {!showSuccess && (
+        <View style={styles.progressContainer}>
+          <ProgressBar
+            currentStep={currentStep}
+            totalSteps={TOTAL_STEPS}
+            stepLabels={STEP_LABELS}
+          />
+        </View>
+      )}
 
       {/* Step Content */}
       <View style={styles.stepContainer}>{renderStep()}</View>
+
+      <OnboardingSuccessOverlay
+        visible={showSuccess}
+        userName={profile.name}
+        onComplete={handleSuccessComplete}
+      />
     </SafeAreaView>
   );
 };

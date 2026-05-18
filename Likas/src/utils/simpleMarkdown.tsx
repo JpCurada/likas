@@ -1,5 +1,5 @@
 import React from 'react';
-import {Platform, StyleProp, Text, TextStyle} from 'react-native';
+import {Platform, StyleProp, StyleSheet, Text, TextStyle, View} from 'react-native';
 
 import {COLORS, FONTS} from '../theme';
 
@@ -8,6 +8,12 @@ type MdChunk =
   | {type: 'bold'; text: string}
   | {type: 'italic'; text: string}
   | {type: 'code'; text: string};
+
+type NumberedListItem = {num: string; text: string};
+
+export type ChatContentBlock =
+  | {kind: 'paragraph'; text: string}
+  | {kind: 'numbered_list'; intro?: string; items: NumberedListItem[]};
 
 /** Split `s` on `re` (global) into alternating plain segments and full matches (m[0]). */
 function splitWithCaptures(s: string, re: RegExp): string[] {
@@ -74,7 +80,7 @@ function parseNonBold(s: string): MdChunk[] {
 
 /**
  * Parses common LLM markdown: **bold**, `code`, *italic*, _italic_.
- * Not full CommonMark (no lists, links, or headings in this pass).
+ * Not full CommonMark (no links or headings in this pass).
  */
 export function parseSimpleMarkdown(text: string): MdChunk[] {
   if (!text) {
@@ -93,6 +99,61 @@ export function parseSimpleMarkdown(text: string): MdChunk[] {
   return chunks;
 }
 
+const NUMBERED_ITEM_RE = /(\d+)\)\s/g;
+
+/** Pull inline `1) … 2) …` protocol steps out of a paragraph. */
+export function extractInlineNumberedList(
+  paragraph: string,
+): {intro?: string; items: NumberedListItem[]} | null {
+  const trimmed = paragraph.trim();
+  if (!trimmed) return null;
+
+  const matches = [...trimmed.matchAll(NUMBERED_ITEM_RE)];
+  if (matches.length < 2 || matches[0].index == null) return null;
+
+  const intro = trimmed.slice(0, matches[0].index).trim() || undefined;
+  const items: NumberedListItem[] = [];
+
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    const start = match.index! + match[0].length;
+    const end =
+      i + 1 < matches.length && matches[i + 1].index != null
+        ? matches[i + 1].index!
+        : trimmed.length;
+    const text = trimmed.slice(start, end).trim();
+    if (text) {
+      items.push({num: match[1], text});
+    }
+  }
+
+  return items.length >= 2 ? {intro, items} : null;
+}
+
+/** Split assistant prose into paragraphs and numbered protocol lists. */
+export function parseChatContentBlocks(text: string): ChatContentBlock[] {
+  if (!text.trim()) return [];
+
+  const blocks: ChatContentBlock[] = [];
+  for (const paragraph of text.split(/\n\n+/)) {
+    const trimmed = paragraph.trim();
+    if (!trimmed) continue;
+
+    const list = extractInlineNumberedList(trimmed);
+    if (list) {
+      blocks.push({
+        kind: 'numbered_list',
+        intro: list.intro,
+        items: list.items,
+      });
+    } else {
+      blocks.push({kind: 'paragraph', text: trimmed});
+    }
+  }
+
+  return blocks.length > 0 ? blocks : [{kind: 'paragraph', text: text.trim()}];
+}
+
 const CODE_FONT = Platform.select({
   ios: 'Menlo',
   android: 'monospace',
@@ -105,18 +166,23 @@ export type ChatMarkdownTextProps = {
   boldStyle?: StyleProp<TextStyle>;
   italicStyle?: StyleProp<TextStyle>;
   codeStyle?: StyleProp<TextStyle>;
+  listBadgeStyle?: StyleProp<TextStyle>;
+  listBadgeTextStyle?: StyleProp<TextStyle>;
 };
 
-/**
- * Renders inline markdown for chat bubbles (nested Text for bold / italic / code).
- */
-export function ChatMarkdownText({
+function MarkdownInline({
   text,
   baseStyle,
   boldStyle,
   italicStyle,
   codeStyle,
-}: ChatMarkdownTextProps) {
+}: {
+  text: string;
+  baseStyle: StyleProp<TextStyle>;
+  boldStyle?: StyleProp<TextStyle>;
+  italicStyle?: StyleProp<TextStyle>;
+  codeStyle?: StyleProp<TextStyle>;
+}) {
   const chunks = parseSimpleMarkdown(text);
   if (chunks.length === 0) {
     return <Text style={baseStyle} />;
@@ -152,11 +218,96 @@ export function ChatMarkdownText({
   );
 }
 
-/** Bold / italic / code styles that match a chat bubble base `TextStyle`. */
+/**
+ * Renders chat bubble text with inline markdown and protocol numbered lists.
+ */
+export function ChatMarkdownText({
+  text,
+  baseStyle,
+  boldStyle,
+  italicStyle,
+  codeStyle,
+  listBadgeStyle,
+  listBadgeTextStyle,
+}: ChatMarkdownTextProps) {
+  const blocks = parseChatContentBlocks(text);
+  const flatBase = StyleSheet.flatten(baseStyle) as TextStyle;
+  const listBodyStyle: TextStyle = {
+    flex: 1,
+    lineHeight: flatBase.lineHeight ?? 22,
+    ...(Platform.OS === 'android' ? {includeFontPadding: false} : null),
+  };
+
+  if (blocks.length === 1 && blocks[0].kind === 'paragraph') {
+    return (
+      <MarkdownInline
+        text={blocks[0].text}
+        baseStyle={baseStyle}
+        boldStyle={boldStyle}
+        italicStyle={italicStyle}
+        codeStyle={codeStyle}
+      />
+    );
+  }
+
+  return (
+    <View style={styles.blockStack}>
+      {blocks.map((block, blockIndex) => {
+        if (block.kind === 'paragraph') {
+          return (
+            <MarkdownInline
+              key={`p-${blockIndex}`}
+              text={block.text}
+              baseStyle={baseStyle}
+              boldStyle={boldStyle}
+              italicStyle={italicStyle}
+              codeStyle={codeStyle}
+            />
+          );
+        }
+
+        return (
+          <View key={`l-${blockIndex}`} style={styles.listBlock}>
+            {block.intro ? (
+              <MarkdownInline
+                text={block.intro}
+                baseStyle={[baseStyle, styles.listIntro]}
+                boldStyle={boldStyle}
+                italicStyle={italicStyle}
+                codeStyle={codeStyle}
+              />
+            ) : null}
+            {block.items.map((item, itemIndex) => (
+              <View key={`${blockIndex}-${itemIndex}`} style={styles.listRow}>
+                <View style={[styles.listBadge, listBadgeStyle]}>
+                  <Text style={[styles.listBadgeText, listBadgeTextStyle]}>
+                    {item.num}
+                  </Text>
+                </View>
+                <MarkdownInline
+                  text={item.text}
+                  baseStyle={[baseStyle, listBodyStyle]}
+                  boldStyle={boldStyle}
+                  italicStyle={italicStyle}
+                  codeStyle={codeStyle}
+                />
+              </View>
+            ))}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+/** Bold / italic / code / list badge styles that match a chat bubble base `TextStyle`. */
 export function chatBubbleMarkdownStyles(
   base: TextStyle,
   opts: {isUserBubble: boolean},
-): Pick<ChatMarkdownTextProps, 'boldStyle' | 'italicStyle' | 'codeStyle'> {
+): Pick<
+  ChatMarkdownTextProps,
+  'boldStyle' | 'italicStyle' | 'codeStyle' | 'listBadgeStyle' | 'listBadgeTextStyle'
+> {
   const accent = opts.isUserBubble ? 'rgba(255,255,255,0.95)' : COLORS.darkGreen;
   const codeBg = opts.isUserBubble ? 'rgba(0,0,0,0.22)' : '#e8f5ee';
 
@@ -180,5 +331,44 @@ export function chatBubbleMarkdownStyles(
       paddingVertical: 1,
       borderRadius: 4,
     },
+    listBadgeStyle: {
+      backgroundColor: opts.isUserBubble
+        ? 'rgba(255,255,255,0.28)'
+        : COLORS.primaryGreen,
+    },
+    listBadgeTextStyle: {
+      color: COLORS.white,
+    },
   };
 }
+
+const styles = StyleSheet.create({
+  blockStack: {
+    gap: 12,
+  },
+  listBlock: {
+    gap: 10,
+  },
+  listIntro: {
+    marginBottom: 2,
+  },
+  listRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  listBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+    flexShrink: 0,
+  },
+  listBadgeText: {
+    fontFamily: FONTS.primaryBold,
+    fontSize: 12,
+    ...(Platform.OS === 'android' ? {includeFontPadding: false} : null),
+  },
+});

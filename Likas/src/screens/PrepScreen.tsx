@@ -7,6 +7,7 @@ import {
   StyleSheet,
   TextInput,
   Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -540,7 +541,15 @@ export const PrepScreen: React.FC = () => {
                   <View style={st.guideBody}>
                     {guide.warning && (
                       <View style={st.warningBox}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Icon name="alert" size={16} color="#92400e" /><Text style={st.warningTxt}>{guide.warning}</Text></View>
+                        <View style={st.warningRow}>
+                          <Icon
+                            name="alert"
+                            size={16}
+                            color="#92400e"
+                            style={st.warningIcon}
+                          />
+                          <Text style={st.warningTxt}>{guide.warning}</Text>
+                        </View>
                       </View>
                     )}
                     {guide.steps.map((step, i) => (
@@ -548,7 +557,9 @@ export const PrepScreen: React.FC = () => {
                         <View style={st.stepNum}>
                           <Text style={st.stepNumTxt}>{i + 1}</Text>
                         </View>
-                        <Text style={st.stepTxt}>{step}</Text>
+                        <View style={st.stepTextWrap}>
+                          <Text style={st.stepTxt}>{step}</Text>
+                        </View>
                       </View>
                     ))}
                   </View>
@@ -850,13 +861,26 @@ const st = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: '#f59e0b',
   },
+  warningRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  warningIcon: { marginTop: 3 },
   warningTxt: {
+    flex: 1,
+    flexShrink: 1,
     fontFamily: FONTS.primarySemiBold,
     fontSize: SIZES.small,
     color: '#92400e',
-    lineHeight: 20,
+    lineHeight: 24,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },
-  stepRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  stepRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
   stepNum: {
     width: 28,
     height: 28,
@@ -865,18 +889,24 @@ const st = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 1,
+    flexShrink: 0,
   },
   stepNumTxt: {
     fontFamily: FONTS.primaryBold,
     fontSize: 13,
     color: COLORS.white,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
+  },
+  stepTextWrap: {
+    flex: 1,
+    flexShrink: 1,
   },
   stepTxt: {
     fontFamily: FONTS.primaryRegular,
     fontSize: SIZES.small,
     color: COLORS.darkGreen,
-    flex: 1,
-    lineHeight: 22,
+    lineHeight: 24,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },
   noResults: {
     fontFamily: FONTS.primaryRegular,
@@ -919,7 +949,8 @@ const st = StyleSheet.create({
     fontFamily: FONTS.primaryRegular,
     fontSize: SIZES.small,
     color: COLORS.gray,
-    lineHeight: 20,
+    lineHeight: 24,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },
 });
 

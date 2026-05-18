@@ -130,6 +130,15 @@ export const clearAllData = async (): Promise<void> => {
   await AsyncStorage.multiRemove(Object.values(KEYS));
 };
 
+/** Wipes profile + onboarding + prep flags but keeps Setup complete so offline assets stay. */
+export const clearOnboardingData = async (): Promise<void> => {
+  await AsyncStorage.multiRemove([
+    KEYS.USER_PROFILE,
+    KEYS.ONBOARDING_COMPLETE,
+    KEYS.PREP_CHECKLIST,
+  ]);
+};
+
 // ─── Util ─────────────────────────────────────────────────────────────────────
 
 function deepMerge(base: any, override: any): any {
