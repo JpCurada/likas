@@ -1,4 +1,4 @@
-import {evacuationCenters} from '../data/seedData';
+import {queryNearbyEvacuationCenters} from '../utils/geoUtils';
 import type {
   EvacuationRanking,
   EvacuationType,
@@ -39,7 +39,14 @@ export const evacuationService = {
   }): EvacuationRanking[] => {
     const profileNeedsPwd =
       profile.companions.pwd > 0 || profile.companions.elderly > 0;
+    // Grid-indexed spatial prefilter: scan only shelters near the origin
+    // instead of the full nationwide set, then rank precisely below.
+    const evacuationCenters = queryNearbyEvacuationCenters(
+      origin.latitude,
+      origin.longitude,
+    );
     const maxCapacity = Math.max(
+      1,
       ...evacuationCenters.map(center => center.capacity),
     );
 
@@ -63,7 +70,10 @@ export const evacuationService = {
             : profile.pets.hasPets
               ? 0
               : 0.7;
-        const capacityScore = center.capacity / maxCapacity;
+        // OSM rarely tags capacity; treat unknown as neutral (0.5) so a close
+        // real shelter isn't buried just for missing a capacity tag.
+        const capacityScore =
+          center.capacity > 0 ? center.capacity / maxCapacity : 0.5;
         const score =
           distanceScore * 0.4 +
           pwdScore * 0.3 +

@@ -1,7 +1,6 @@
 import type {
   ChatPromptChip,
   DisasterContext,
-  EvacuationCenter,
   FirstAidTopic,
   PrepChecklistItem,
 } from '../types';
@@ -175,57 +174,6 @@ export const chatPromptChipsByContext: Record<DisasterContext, ChatPromptChip[]>
     },
   ],
 };
-
-export const evacuationCenters: EvacuationCenter[] = [
-  {
-    id: 'mnl-school-001',
-    name: 'Manila Science High School Evacuation Center',
-    address: 'Padre Faura St, Ermita, Manila',
-    latitude: 14.5809,
-    longitude: 120.9877,
-    capacity: 1200,
-    facilityType: 'School',
-    disasterTypes: ['typhoon', 'flood', 'earthquake'],
-    isPwdFriendly: true,
-    isPetFriendly: false,
-  },
-  {
-    id: 'mnl-sports-002',
-    name: 'Rizal Memorial Sports Complex',
-    address: 'Pablo Ocampo St, Malate, Manila',
-    latitude: 14.5638,
-    longitude: 120.9947,
-    capacity: 3500,
-    facilityType: 'Sports Complex',
-    disasterTypes: ['typhoon', 'flood', 'earthquake'],
-    isPwdFriendly: true,
-    isPetFriendly: true,
-  },
-  {
-    id: 'qc-hall-001',
-    name: 'Quezon City Hall Covered Court',
-    address: 'Elliptical Road, Diliman, Quezon City',
-    latitude: 14.6507,
-    longitude: 121.0494,
-    capacity: 1800,
-    facilityType: 'Barangay Hall',
-    disasterTypes: ['typhoon', 'flood', 'volcano', 'earthquake'],
-    isPwdFriendly: true,
-    isPetFriendly: true,
-  },
-  {
-    id: 'pasig-school-001',
-    name: 'Pasig City Science High School',
-    address: 'Rainforest Park, Maybunga, Pasig',
-    latitude: 14.5732,
-    longitude: 121.0959,
-    capacity: 900,
-    facilityType: 'School',
-    disasterTypes: ['typhoon', 'flood'],
-    isPwdFriendly: false,
-    isPetFriendly: false,
-  },
-];
 
 export const prepChecklist: PrepChecklistItem[] = [
   {id: 'water', category: 'goBag', label: '3-day drinking water supply'},
