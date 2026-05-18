@@ -486,7 +486,12 @@ export const MapScreen: React.FC = () => {
       if (cancelled) return;
       setLocationIssue(null);
       setUserLocation([longitude, latitude]);
-      setLiveLocation({ latitude, longitude });
+      // Also publish to the global store so AI tools (find_nearby /
+      // route_to_nearest_evacuation) can use the user's CURRENT position
+      // as the "nearest from" origin instead of the onboarded home
+      // coordinates. Without this, every AI-suggested location is ranked
+      // relative to where the user lived when they set up the app.
+      setLiveLocation({latitude, longitude});
     };
 
     const onHardFailure = (error: { code: number; message: string }) => {
