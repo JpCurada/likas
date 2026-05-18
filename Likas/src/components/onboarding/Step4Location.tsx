@@ -103,7 +103,10 @@ const MeetingPointForm = ({
 
       {/* Landmark */}
       <View style={ms.field}>
-        <Text style={ms.label}>Landmark / Place Name</Text>
+        <Text style={ms.label}>
+          Landmark / Place Name
+          {required && <Text style={ms.req}> *</Text>}
+        </Text>
         <TextInput
           style={ms.input}
           placeholder="e.g., Basketball Court, Church, School"
@@ -136,7 +139,7 @@ const MeetingPointForm = ({
 
       {/* Street Address */}
       <View style={ms.field}>
-        <Text style={ms.label}>Street Address</Text>
+        <Text style={ms.label}>Street Address (optional)</Text>
         <TextInput
           style={ms.input}
           placeholder="e.g., 12 Rizal St., Brgy. Commonwealth"

@@ -91,6 +91,8 @@ type AppState = {
   liveLocation: LatLng | null;
   setActiveContext: (context: DisasterContext) => void;
   updateProfile: (profile: UserProfile) => void;
+  /** Clears in-memory session state when redoing onboarding (keeps offline map style). */
+  resetForOnboarding: () => void;
   completeOnboarding: () => void;
   togglePackedItem: (itemId: string) => void;
   addChatMessage: (message: ChatMessage) => void;
@@ -101,20 +103,33 @@ type AppState = {
   setLiveLocation: (loc: LatLng | null) => void;
 };
 
+const WELCOME_CHAT_MESSAGE: ChatMessage = {
+  id: 'welcome',
+  role: 'assistant',
+  text: 'I am LIKAS, your offline disaster guide. Choose a context or ask about evacuation, first aid, earthquakes, typhoons, or volcanoes.',
+};
+
 export const useAppStore = create<AppState>(set => ({
   activeContext: 'prep',
   profile: defaultProfile,
   hasCompletedOnboarding: false,
   packedItems: {},
-  chatMessages: [
-    {
-      id: 'welcome',
-      role: 'assistant',
-      text: 'I am LIKAS, your offline disaster guide. Choose a context or ask about evacuation, first aid, earthquakes, typhoons, or volcanoes.',
-    },
-  ],
+  chatMessages: [WELCOME_CHAT_MESSAGE],
   setActiveContext: context => set({activeContext: context}),
   updateProfile: profile => set({profile}),
+  resetForOnboarding: () =>
+    set(state => ({
+      activeContext: 'prep',
+      profile: defaultProfile,
+      hasCompletedOnboarding: false,
+      packedItems: {},
+      chatMessages: [WELCOME_CHAT_MESSAGE],
+      activeRoute: null,
+      nearbyPins: [],
+      pendingMapFocus: null,
+      liveLocation: null,
+      offlineMapStyle: state.offlineMapStyle,
+    })),
   completeOnboarding: () => set({hasCompletedOnboarding: true}),
   togglePackedItem: itemId =>
     set(state => ({

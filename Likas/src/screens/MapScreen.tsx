@@ -65,9 +65,6 @@ import {
   type GeolocationUserIssue,
 } from '../utils/geolocationUserMessages';
 
-// Metro Manila center
-const INITIAL_COORDINATES = [121.0509, 14.5823];
-
 // Bundled offline style base
 const baseOfflineStyle = require('../../assets/maps/style.json');
 const OFFLINE_GLYPH_FONT_STACK = ['Noto Sans Regular'];
