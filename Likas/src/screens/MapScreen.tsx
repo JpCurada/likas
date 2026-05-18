@@ -58,6 +58,7 @@ import { routingService, GraphNotLoadedError, NoRouteError } from '../services/r
 import activeFaultsGeoJSON from '../data/gem_active_faults_harmonized.json';
 import { ChatScreen } from './ChatScreen';
 import { Icon } from '../components/Icon';
+import { SosFab } from '../components/SosFab';
 import {
   ANDROID_LOCATION_PERMISSION_MESSAGE,
   geolocationIssueFromError,
@@ -162,13 +163,30 @@ export const MapScreen: React.FC = () => {
 
   const [trackUser, setTrackUser] = useState<TrackUserLocation | undefined>('default');
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
-  const [isChatVisible, setIsChatVisible] = useState(false);
+  const [chatSheetIndex, setChatSheetIndex] = useState(-1);
+  const [mapAreaHeight, setMapAreaHeight] = useState(0);
   const [icons, setIcons] = useState<any>({});
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   const [nearbyList, setNearbyList] = useState<any[]>([]);
   const [nearbyIndex, setNearbyIndex] = useState(0);
 
   const snapPoints = useMemo(() => ['15%', '50%', '90%'], []);
+
+  const chatSheetSnapFractions = useMemo(
+    () => snapPoints.map(s => Number(String(s).replace(/%/g, '')) / 100),
+    [snapPoints],
+  );
+
+  const sosLiftForChatSheetPx = useMemo(() => {
+    if (chatSheetIndex < 0 || mapAreaHeight <= 0) {
+      return 0;
+    }
+    const f = chatSheetSnapFractions[chatSheetIndex];
+    if (f == null || Number.isNaN(f)) {
+      return 0;
+    }
+    return f * mapAreaHeight;
+  }, [chatSheetIndex, mapAreaHeight, chatSheetSnapFractions]);
 
   const [assetMissing, setAssetMissing] = useState(false);
   const [isRerouting, setIsRerouting] = useState(false);
@@ -1089,7 +1107,9 @@ export const MapScreen: React.FC = () => {
         ) : null}
       </View>
 
-      <View style={styles.container}>
+      <View
+        style={styles.container}
+        onLayout={e => setMapAreaHeight(e.nativeEvent.layout.height)}>
         <Map
           style={styles.map}
           mapStyle={dynamicStyle}
@@ -1393,12 +1413,15 @@ export const MapScreen: React.FC = () => {
           <Icon name="robot" size={28} color={COLORS.white} />
         </TouchableOpacity>
 
+        <SosFab liftForSheetPx={0} />
+
         {/* AI Chat Bottom Sheet */}
         <BottomSheet
           ref={bottomSheetRef}
           index={-1}
           snapPoints={snapPoints}
           enablePanDownToClose={true}
+          onChange={setChatSheetIndex}
           handleIndicatorStyle={{ backgroundColor: COLORS.lightGreen }}
           backgroundStyle={{ backgroundColor: '#f0fdf4' }}
         >

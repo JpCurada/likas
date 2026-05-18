@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -7,9 +7,11 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TextStyle,
   TouchableOpacity,
   View,
 } from 'react-native';
+import {ScrollView as GestureScrollView} from 'react-native-gesture-handler';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {BottomSheetFlatList, BottomSheetTextInput} from '@gorhom/bottom-sheet';
@@ -18,8 +20,13 @@ import {COLORS, FONTS, SIZES} from '../theme';
 import {Icon} from '../components/Icon';
 import {AssetMissingPrompt} from '../components/AssetMissingPrompt';
 import {useAppStore} from '../stores/appStore';
+import {chatPromptChipsByContext} from '../data/seedData';
 import {useAIAssistant} from '../hooks/useAIAssistant';
 import type {ChatMessage, ToolTraceEntry} from '../types';
+import {
+  ChatMarkdownText,
+  chatBubbleMarkdownStyles,
+} from '../utils/simpleMarkdown';
 
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -101,6 +108,11 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
     send,
   } = useAIAssistant();
 
+  const promptChips = useMemo(
+    () => chatPromptChipsByContext[activeContext],
+    [activeContext],
+  );
+
   const [input, setInput] = useState('');
   // Holds either a FlatList or a BottomSheetFlatList depending on `isBottomSheet`.
   // Both expose scrollToEnd, but the concrete type differs — keep it loose so
@@ -116,8 +128,9 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
     return () => clearTimeout(id);
   }, [chatMessages, streamingText]);
 
-  const handleSend = useCallback(async () => {
-    const trimmed = input.trim();
+  const handleSend = useCallback(async (forcedText?: string) => {
+    const textToSend = typeof forcedText === 'string' ? forcedText : input;
+    const trimmed = textToSend.trim();
     if (!trimmed || isProcessing) return;
 
     const userMsg: ChatMessage = {
@@ -126,7 +139,9 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
       text: trimmed,
     };
     addChatMessage(userMsg);
-    setInput('');
+    if (typeof forcedText !== 'string') {
+      setInput('');
+    }
 
     // History must be prior turns only. `aiAssistantService.seedMessages` always
     // appends `params.userMessage` as the final user message — including the
@@ -211,6 +226,15 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
     );
   }
 
+  const assistantMdProps = chatBubbleMarkdownStyles(
+    StyleSheet.flatten(styles.bubbleTextAssistant) as TextStyle,
+    {isUserBubble: false},
+  );
+  const userMdProps = chatBubbleMarkdownStyles(
+    StyleSheet.flatten(styles.bubbleTextUser) as TextStyle,
+    {isUserBubble: true},
+  );
+
   const renderItem = ({item}: {item: ChatMessage}) => {
     const isUser = item.role === 'user';
     const attachment = item.attachment;
@@ -224,10 +248,11 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
             styles.bubble,
             isUser ? styles.bubbleUser : styles.bubbleAssistant,
           ]}>
-          <Text
-            style={isUser ? styles.bubbleTextUser : styles.bubbleTextAssistant}>
-            {item.text}
-          </Text>
+          <ChatMarkdownText
+            text={item.text}
+            baseStyle={isUser ? styles.bubbleTextUser : styles.bubbleTextAssistant}
+            {...(isUser ? userMdProps : assistantMdProps)}
+          />
         </View>
         {attachment?.kind === 'route' ? (
           <TouchableOpacity
@@ -304,7 +329,11 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
               ) : null}
               {isProcessing && streamingText ? (
                 <View style={[styles.bubble, styles.bubbleAssistant]}>
-                  <Text style={styles.bubbleTextAssistant}>{streamingText}</Text>
+                <ChatMarkdownText
+                  text={streamingText}
+                  baseStyle={styles.bubbleTextAssistant}
+                  {...assistantMdProps}
+                />
                 </View>
               ) : null}
               {isProcessing && !streamingText ? (
@@ -327,6 +356,33 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
           }
         />
 
+        {/* Contextual quick-prompt chips (label on chip, full `prompt` sent on tap) */}
+        {!isProcessing ? (
+          <View
+            style={[
+              styles.suggestionsContainer,
+              chatMessages.length > 0 && styles.suggestionsContainerInline,
+            ]}>
+            <GestureScrollView
+              horizontal
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator
+              style={styles.suggestionsScrollView}
+              contentContainerStyle={styles.suggestionsScrollContent}
+              keyboardShouldPersistTaps="always">
+              {promptChips.map((chip, index) => (
+                <TouchableOpacity
+                  key={`${activeContext}-${index}-${chip.label}`}
+                  style={styles.suggestionChip}
+                  onPress={() => handleSend(chip.prompt)}
+                  activeOpacity={0.7}>
+                  <Text style={styles.suggestionChipText}>{chip.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </GestureScrollView>
+          </View>
+        ) : null}
+
         <View style={styles.inputRow}>
           <InputComponent
             style={styles.input}
@@ -342,7 +398,7 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
               styles.sendButton,
               (!input.trim() || isProcessing) && styles.sendButtonDisabled,
             ]}
-            onPress={handleSend}
+            onPress={() => void handleSend()}
             disabled={!input.trim() || isProcessing}>
             <Icon name="send" size={20} color={COLORS.white} />
           </TouchableOpacity>
@@ -533,6 +589,41 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: COLORS.gray,
     opacity: 0.5,
+  },
+  suggestionsContainer: {
+    paddingTop: 8,
+    paddingBottom: 8,
+    backgroundColor: COLORS.white,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.lightGreen,
+  },
+  suggestionsContainerInline: {
+    paddingTop: 6,
+    paddingBottom: 6,
+  },
+  suggestionsScrollView: {
+    flexGrow: 0,
+  },
+  suggestionsScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SIZES.padding,
+    gap: 8,
+    paddingRight: SIZES.padding + 8,
+  },
+  suggestionChip: {
+    flexShrink: 0,
+    backgroundColor: COLORS.lightGreen,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 179, 114, 0.2)',
+  },
+  suggestionChipText: {
+    fontFamily: FONTS.primaryMedium,
+    fontSize: SIZES.small,
+    color: COLORS.darkGreen,
   },
 });
 

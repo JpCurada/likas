@@ -63,8 +63,9 @@ export const Step5Contacts: React.FC<Props> = ({
           <Text style={s.infoTxt}>Likas will pre-fill:</Text>
         </View>
         <Text style={s.infoSample}>
-          "Hi, I'm safe. My location: [Barangay]. Going to [Meeting Point]. —
-          [Your Name]"
+          Example: Multi-line SOS with your area, GPS, a map link, meeting point,
+          household / medical notes from your profile, and disaster context — you
+          still tap Send in your SMS app.
         </Text>
       </View>
       {[0, 1, 2].map(i => {

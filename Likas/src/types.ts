@@ -1,5 +1,11 @@
 export type DisasterContext = 'earthquake' | 'typhoon' | 'volcano' | 'prep';
 
+/** Short label on a chat chip; `prompt` is the full text sent to the assistant. */
+export type ChatPromptChip = {
+  label: string;
+  prompt: string;
+};
+
 export type AgeGroup = 'Under 18' | '18-35' | '36-55' | '56+' | '';
 
 export type LatLng = {
