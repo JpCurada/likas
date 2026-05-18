@@ -7,10 +7,13 @@ import {
   Modal,
   ActivityIndicator,
   Platform,
+  PermissionsAndroid,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Map, Camera } from '@maplibre/maplibre-react-native';
 import type { CameraRef } from '@maplibre/maplibre-react-native';
+import Geolocation from '@react-native-community/geolocation';
 import { COLORS, FONTS, SIZES } from '../theme';
 import { Icon } from './Icon';
 import { LatLng } from '../types';
@@ -20,6 +23,11 @@ import {
   prepareGlyphs,
   prepareOfflineMap,
 } from '../utils/mapAssetManager';
+import {
+  ANDROID_LOCATION_PERMISSION_MESSAGE,
+  geolocationIssueFromError,
+  type GeolocationUserIssue,
+} from '../utils/geolocationUserMessages';
 
 // Bundled style.json — same source MapScreen uses. We only ever swap the
 // mbtiles URL and glyphs path before publishing, so the modal renders the
@@ -106,17 +114,80 @@ export const MeetingPointPickerModal: React.FC<Props> = ({
   // store so MapScreen's later mount reuses the same object.
   const [isBootstrapping, setIsBootstrapping] = useState(false);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
+  const [geoHint, setGeoHint] = useState<GeolocationUserIssue | null>(null);
 
   // Reset pin to initial position every time the modal reopens
   useEffect(() => {
     if (visible) {
       setCenter(initial ?? MANILA);
+      setGeoHint(null);
     }
   }, [visible, initial]);
 
-  // Build the offline style on demand if MapScreen hasn't done it yet.
+  // One-shot: center on device GPS when there is no saved pin (onboarding).
+  // Offline map tiles load separately; this only drives the initial camera target.
   useEffect(() => {
-    if (!visible || offlineMapStyle || isBootstrapping) return;
+    if (!visible) return;
+    const hasSavedPin =
+      initial != null &&
+      typeof initial.latitude === 'number' &&
+      typeof initial.longitude === 'number';
+    if (hasSavedPin) return;
+
+    let cancelled = false;
+
+    const run = async () => {
+      if (Platform.OS === 'android') {
+        const result = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'Location for offline map',
+            message: ANDROID_LOCATION_PERMISSION_MESSAGE,
+            buttonPositive: 'Allow',
+            buttonNegative: 'Not now',
+          },
+        );
+        if (cancelled) return;
+        if (result !== PermissionsAndroid.RESULTS.GRANTED) {
+          setGeoHint(geolocationIssueFromError(1));
+          return;
+        }
+      }
+      Geolocation.getCurrentPosition(
+        p => {
+          if (cancelled) return;
+          setGeoHint(null);
+          setCenter({
+            latitude: p.coords.latitude,
+            longitude: p.coords.longitude,
+          });
+        },
+        e => {
+          if (cancelled) return;
+          setGeoHint(geolocationIssueFromError(e.code, e.message));
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 12000,
+          maximumAge: 60000,
+        },
+      );
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, initial]);
+
+  // Build the offline style on demand if MapScreen hasn't done it yet.
+  //
+  // NB: do NOT list `isBootstrapping` in the dependency array. When we flip it
+  // to true, React re-runs this effect, the previous effect's cleanup sets
+  // `cancelled = true`, and the async work we just started aborts right before
+  // `setOfflineMapStyle` — you only see "Cancelled before style commit" in logs.
+  useEffect(() => {
+    if (!visible || offlineMapStyle) return;
     let cancelled = false;
     setIsBootstrapping(true);
     setBootstrapError(null);
@@ -201,7 +272,7 @@ export const MeetingPointPickerModal: React.FC<Props> = ({
       cancelled = true;
       clearTimeout(watchdog);
     };
-  }, [visible, offlineMapStyle, isBootstrapping, setOfflineMapStyle]);
+  }, [visible, offlineMapStyle, setOfflineMapStyle]);
 
   // Fly to the initial position 120 ms after the map mounts
   // (gives MapLibre time to finish rendering before animating).
@@ -327,6 +398,46 @@ export const MeetingPointPickerModal: React.FC<Props> = ({
           <Text style={s.hint}>
             Drag the map so the crosshair lands on your meeting point
           </Text>
+          {geoHint ? (
+            <View style={s.geoHintBox}>
+              <Text style={s.geoHintText}>{geoHint.message}</Text>
+              <View style={s.geoHintRow}>
+                <TouchableOpacity
+                  style={s.geoHintBtn}
+                  onPress={() => {
+                    setGeoHint(null);
+                    Geolocation.getCurrentPosition(
+                      p => {
+                        setCenter({
+                          latitude: p.coords.latitude,
+                          longitude: p.coords.longitude,
+                        });
+                      },
+                      e =>
+                        setGeoHint(
+                          geolocationIssueFromError(e.code, e.message),
+                        ),
+                      {
+                        enableHighAccuracy: false,
+                        timeout: 12000,
+                        maximumAge: 60000,
+                      },
+                    );
+                  }}>
+                  <Text style={s.geoHintBtnTxt}>Try GPS again</Text>
+                </TouchableOpacity>
+                {geoHint.code === 'permission_denied' ? (
+                  <TouchableOpacity
+                    style={s.geoHintBtn}
+                    onPress={() => {
+                      void Linking.openSettings();
+                    }}>
+                    <Text style={s.geoHintBtnTxt}>Settings</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
           <TouchableOpacity
             style={[s.confirmBtn, !offlineMapStyle && s.confirmBtnDisabled]}
             onPress={handleConfirm}
@@ -480,6 +591,33 @@ const s = StyleSheet.create({
     fontFamily: FONTS.primaryRegular,
     fontSize: 12,
     color: 'rgba(255,255,255,0.5)',
+  },
+  geoHintBox: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10,
+    padding: 10,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  geoHintText: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.85)',
+    lineHeight: 17,
+  },
+  geoHintRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  geoHintBtn: {
+    paddingVertical: 4,
+  },
+  geoHintBtnTxt: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 12,
+    color: COLORS.accentGreen,
   },
   confirmBtn: {
     flexDirection: 'row',

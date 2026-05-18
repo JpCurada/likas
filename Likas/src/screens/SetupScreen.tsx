@@ -1,12 +1,14 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import NetInfo, {type NetInfoState} from '@react-native-community/netinfo';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 
@@ -60,6 +62,47 @@ const formatSize = (bytes: number): string => {
   return `${Math.round(bytes / 1024 ** 2)} MB`;
 };
 
+const OFFLINE_DL_TITLE = 'Internet required';
+const OFFLINE_DL_MESSAGE =
+  'Connect to Wi-Fi or mobile data to download these files. This one-time setup needs internet; afterward Likas works fully offline.';
+
+/** User-facing copy for RNFS / DNS / timeout failures (avoids raw hostname errors on cards). */
+const humanizeDownloadError = (err: unknown): string => {
+  if (err instanceof ChecksumMismatchError) {
+    return 'File integrity check failed. Please retry.';
+  }
+  const raw =
+    err instanceof AssetDownloadError || err instanceof Error
+      ? err.message
+      : typeof err === 'string'
+        ? err
+        : '';
+  const lower = raw.toLowerCase();
+  if (
+    lower.includes('unable to resolve host') ||
+    lower.includes('no address associated with hostname') ||
+    lower.includes('network request failed') ||
+    lower.includes('network is unreachable') ||
+    lower.includes('failed to connect') ||
+    lower.includes('could not connect') ||
+    lower.includes('connection refused') ||
+    lower.includes('timed out') ||
+    lower.includes('timeout') ||
+    lower.includes('econnrefused') ||
+    lower.includes('enotfound') ||
+    lower.includes('internet connection appears to be offline')
+  ) {
+    return 'No internet connection or the download server could not be reached. Connect to Wi-Fi or mobile data and try again.';
+  }
+  if (err instanceof AssetDownloadError || err instanceof Error) {
+    return raw.trim() || 'Download failed. Check your connection and try again.';
+  }
+  if (typeof err === 'string' && raw.trim()) {
+    return raw.trim();
+  }
+  return 'Download failed. Check your connection and try again.';
+};
+
 export const SetupScreen: React.FC<Props> = ({navigation}) => {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [assetStates, setAssetStates] = useState<Record<string, AssetState>>(
@@ -67,6 +110,22 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
   );
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [net, setNet] = useState<NetInfoState | null>(null);
+
+  useEffect(() => {
+    const unsub = NetInfo.addEventListener(setNet);
+    void NetInfo.fetch().then(setNet);
+    return () => {
+      unsub();
+    };
+  }, []);
+
+  const downloadsBlocked = useMemo(() => {
+    if (!net) return false;
+    if (net.isConnected === false) return true;
+    if (net.isInternetReachable === false) return true;
+    return false;
+  }, [net]);
 
   const patchAsset = useCallback((id: string, patch: Partial<AssetState>) => {
     setAssetStates(prev => ({
@@ -108,9 +167,16 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
     })();
   }, []);
 
+  const notifyOfflineIfNeeded = useCallback(() => {
+    if (!downloadsBlocked) return false;
+    Alert.alert(OFFLINE_DL_TITLE, OFFLINE_DL_MESSAGE);
+    return true;
+  }, [downloadsBlocked]);
+
   const downloadOne = useCallback(
     async (id: string, asset: ManifestAsset) => {
       if (downloadingId) return;
+      if (notifyOfflineIfNeeded()) return;
       setDownloadingId(id);
       patchAsset(id, {status: 'downloading', error: null, progress: null});
       try {
@@ -123,22 +189,18 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
         }
         patchAsset(id, {status: 'ready', progress: null});
       } catch (err) {
-        let message = 'Download failed. Check your connection and try again.';
-        if (err instanceof ChecksumMismatchError) {
-          message = 'File integrity check failed. Please retry.';
-        } else if (err instanceof AssetDownloadError || err instanceof Error) {
-          message = err.message;
-        }
+        const message = humanizeDownloadError(err);
         patchAsset(id, {status: 'error', error: message, progress: null});
       } finally {
         setDownloadingId(null);
       }
     },
-    [downloadingId, patchAsset],
+    [downloadingId, notifyOfflineIfNeeded, patchAsset],
   );
 
   const downloadAllRequired = useCallback(async () => {
     if (!manifest || downloadingId) return;
+    if (notifyOfflineIfNeeded()) return;
     // Every manifest entry is required for offline operation, so we iterate
     // all of them and keep going past individual errors — the user can retry
     // failed cards individually.
@@ -148,7 +210,13 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
     for (const [id, asset] of pending) {
       await downloadOne(id, asset);
     }
-  }, [manifest, assetStates, downloadingId, downloadOne]);
+  }, [
+    manifest,
+    assetStates,
+    downloadingId,
+    downloadOne,
+    notifyOfflineIfNeeded,
+  ]);
 
   const handleContinue = async () => {
     await setSetupComplete();
@@ -192,6 +260,7 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
     const isDownloading = state.status === 'downloading';
     const isError = state.status === 'error';
     const isOtherDownloading = downloadingId !== null && downloadingId !== id;
+    const dlDisabled = downloadsBlocked || isOtherDownloading;
 
     return (
       <View
@@ -253,8 +322,8 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
 
         {/* Error message */}
         {isError && (
-          <Text style={styles.errorMsg} numberOfLines={3}>
-            {state.error}
+          <Text style={styles.errorMsg} numberOfLines={4}>
+            {humanizeDownloadError(state.error)}
           </Text>
         )}
 
@@ -264,9 +333,17 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
             <TouchableOpacity
               style={[
                 styles.dlBtn,
-                isOtherDownloading && styles.dlBtnDisabled,
+                dlDisabled && styles.dlBtnDisabled,
               ]}
-              onPress={() => !isOtherDownloading && downloadOne(id, asset)}
+              onPress={() => {
+                if (downloadsBlocked) {
+                  notifyOfflineIfNeeded();
+                  return;
+                }
+                if (!isOtherDownloading) {
+                  void downloadOne(id, asset);
+                }
+              }}
               disabled={isOtherDownloading}>
               <Icon name="download" size={14} color={COLORS.white} />
               <Text style={styles.dlBtnText}>
@@ -288,6 +365,15 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
           All assets below are required to run Likas offline. Download once,
           then the app works without internet.
         </Text>
+        {downloadsBlocked && (
+          <View style={styles.offlineBanner} accessibilityRole="alert">
+            <Icon name="wifi-off" size={20} color={COLORS.error} />
+            <Text style={styles.offlineBannerText}>
+              You are offline or have no internet access. Connect to Wi-Fi or
+              mobile data to download assets for this initial setup.
+            </Text>
+          </View>
+        )}
         {!loading && allIds.length > 0 && (
           <View style={styles.summaryBlock}>
             <View style={styles.summaryTrack}>
@@ -351,13 +437,24 @@ export const SetupScreen: React.FC<Props> = ({navigation}) => {
             </View>
           ) : (
             <TouchableOpacity
-              style={styles.dlAllBtn}
-              onPress={downloadAllRequired}>
+              style={[
+                styles.dlAllBtn,
+                downloadsBlocked && styles.dlAllBtnDisabled,
+              ]}
+              onPress={() => {
+                if (downloadsBlocked) {
+                  void notifyOfflineIfNeeded();
+                  return;
+                }
+                void downloadAllRequired();
+              }}>
               <Icon name="download-multiple" size={18} color={COLORS.white} />
               <Text style={styles.footerBtnText}>
-                {remainingBytes > 0
-                  ? `Download All · ${formatSize(remainingBytes)}`
-                  : 'Download All'}
+                {downloadsBlocked
+                  ? 'Waiting for internet…'
+                  : remainingBytes > 0
+                    ? `Download All · ${formatSize(remainingBytes)}`
+                    : 'Download All'}
               </Text>
             </TouchableOpacity>
           )}
@@ -389,6 +486,24 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.primaryRegular,
     fontSize: 13,
     color: COLORS.gray,
+    lineHeight: 19,
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#fef2f2',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  offlineBannerText: {
+    flex: 1,
+    fontFamily: FONTS.primaryMedium,
+    fontSize: 13,
+    color: COLORS.darkGreen,
     lineHeight: 19,
   },
   summaryBlock: {gap: 6, marginTop: 10},
@@ -544,6 +659,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  dlAllBtnDisabled: {opacity: 0.55},
   dlAllBtnBusy: {opacity: 0.75},
   continueBtn: {
     flexDirection: 'row',
