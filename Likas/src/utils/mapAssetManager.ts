@@ -133,19 +133,6 @@ export const prepareOfflineMap = async (): Promise<string> => {
   return `${absolutePrefix}${destPath}`;
 };
 
-export const prepareFloodMap = async (): Promise<string> => {
-  const ASSET_ID = 'flood-zones-mbtiles';
-  const manifest = await assetManager.fetchManifest();
-  const asset = manifest.assets[ASSET_ID];
-  if (!asset) {
-    throw new MapAssetMissingError(ASSET_ID);
-  }
-
-  const destPath = await ensureAsset(ASSET_ID, asset.localFilename);
-  const absolutePrefix = destPath.startsWith('/') ? 'mbtiles://' : 'mbtiles:///';
-  return `${absolutePrefix}${destPath}`;
-};
-
 /**
  * Returns a glyph URL pattern suitable for a MapLibre style.json `glyphs`
  * property. Falls back to bundled APK glyphs when nothing is installed and

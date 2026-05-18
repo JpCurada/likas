@@ -46,6 +46,8 @@ export type MeetingPoint = {
   landmark: string;
   streetAddress: string;
   notes: string;
+  /** Exact GPS coordinates pinned by the user on the map — null if not yet set */
+  coordinates?: LatLng | null;
 };
 
 export type UserLocation = {

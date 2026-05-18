@@ -35,9 +35,73 @@ import {
   LANDMARK_SUGGESTIONS,
 } from '../data/metroManila';
 import RNFS from 'react-native-fs';
-import { assetManager } from '../services/assetManager';
+import { assetManager, type ManifestAsset, type Manifest } from '../services/assetManager';
+import { MeetingPointPickerModal } from '../components/MeetingPointPickerModal';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+const AssetRow: React.FC<{
+  id: string;
+  asset: ManifestAsset;
+  isInstalled: boolean | null;
+  onSideload: () => void;
+  onDownload: () => void;
+  loading: boolean;
+}> = ({ id, asset, isInstalled, onSideload, onDownload, loading }) => {
+  const iconName = asset.kind === 'mbtiles' ? 'map' : asset.kind === 'model' ? 'robot' : 'database';
+  const sizeMb = (asset.size / (1024 * 1024)).toFixed(0);
+
+  return (
+    <View style={ps.dataRow}>
+      <View style={ps.dataRowL}>
+        <Icon
+          name={isInstalled ? 'check-circle' : iconName}
+          size={22}
+          color={isInstalled ? COLORS.primaryGreen : COLORS.gray}
+        />
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={ps.dataRowTitle}>{id.replace(/-/g, ' ')}</Text>
+          <Text style={ps.dataRowSub}>
+            v{asset.version} · {sizeMb} MB · {asset.required ? 'Required' : 'Optional'}
+          </Text>
+        </View>
+      </View>
+
+      {isInstalled === false && (
+        <View style={ps.dataBtns}>
+          <TouchableOpacity
+            style={ps.dataBtnSideload}
+            onPress={onSideload}
+            disabled={loading}
+          >
+            <Icon name="folder-upload" size={14} color={COLORS.primaryGreen} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={ps.dataBtnDownload}
+            onPress={onDownload}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color={COLORS.white} />
+            ) : (
+              <Icon name="download" size={14} color={COLORS.white} />
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {isInstalled === true && (
+        <View style={ps.dataInstalledBadge}>
+          <Text style={ps.dataInstalledTxt}>Ready</Text>
+        </View>
+      )}
+
+      {isInstalled === null && (
+        <ActivityIndicator size="small" color={COLORS.primaryGreen} />
+      )}
+    </View>
+  );
+};
 
 const SectionCard: React.FC<{
   iconName: string;
@@ -205,38 +269,69 @@ export const ProfileScreen: React.FC = () => {
   const [brgyModal, setBrgyModal] = useState(false);
   const [search, setSearch] = useState('');
 
-  // ── Routing graph state ──
-  const [graphInstalled, setGraphInstalled] = useState<boolean | null>(null);
-  const [graphLoading, setGraphLoading] = useState(false);
+  // ── Map meeting-point picker state ──
+  const [pickerTarget, setPickerTarget] = useState<'primaryMeeting' | 'secondaryMeeting' | null>(null);
 
-  const checkGraph = useCallback(async () => {
-    const installed = await assetManager.isInstalled('pedestrian-graph');
-    setGraphInstalled(installed);
+  // ── Asset Management state ──
+  const [manifest, setManifest] = useState<Manifest | null>(null);
+  const [assetStatuses, setAssetStatuses] = useState<Record<string, boolean | null>>({});
+  const [assetLoading, setAssetLoading] = useState<Record<string, boolean>>({});
+
+  const refreshAssetStatuses = useCallback(async (m: Manifest) => {
+    const statuses: Record<string, boolean> = {};
+    for (const id of Object.keys(m.assets)) {
+      statuses[id] = await assetManager.isInstalled(id);
+    }
+    setAssetStatuses(statuses);
   }, []);
 
-  useEffect(() => { checkGraph(); }, [checkGraph]);
+  useEffect(() => {
+    assetManager.fetchManifest().then(m => {
+      setManifest(m);
+      refreshAssetStatuses(m);
+    });
+  }, [refreshAssetStatuses]);
 
-  const handleSideloadGraph = useCallback(async () => {
-    setGraphLoading(true);
+  const handleSideload = useCallback(async (assetId: string) => {
+    if (!manifest) return;
+    const asset = manifest.assets[assetId];
+    setAssetLoading(prev => ({ ...prev, [assetId]: true }));
     try {
-      const sideloadDir = Platform.OS === 'android' ? '/sdcard/likas' : RNFS.DocumentDirectoryPath;
-      const sourcePath = `${sideloadDir}/pedestrian-graph.json`;
+      // Modern Android sideload path: Android/data/com.likas/files/
+      const sideloadDir = Platform.OS === 'android' ? RNFS.ExternalDirectoryPath : RNFS.DocumentDirectoryPath;
+      const sourcePath = `${sideloadDir}/${asset.localFilename}`;
+
       if (!(await RNFS.exists(sourcePath))) {
         Alert.alert(
           'File not found',
-          `Push the graph to the device first:\n\nadb push pedestrian-graph.json ${sideloadDir}/`,
+          `Place "${asset.localFilename}" in the app's external folder via USB:\n\n` +
+          `${sideloadDir.replace('/storage/emulated/0', 'Internal Storage')}/`,
         );
         return;
       }
-      await assetManager.importFromPath('pedestrian-graph', sourcePath);
-      await checkGraph();
-      Alert.alert('Success', 'Pedestrian routing graph installed! Get Directions now uses turn-by-turn walking routes.');
+      await assetManager.importFromPath(assetId, sourcePath);
+      await refreshAssetStatuses(manifest);
+      Alert.alert('Success', `${assetId} has been installed successfully.`);
     } catch (err: any) {
       Alert.alert('Import failed', err?.message ?? 'Unknown error');
     } finally {
-      setGraphLoading(false);
+      setAssetLoading(prev => ({ ...prev, [assetId]: false }));
     }
-  }, [checkGraph]);
+  }, [manifest, refreshAssetStatuses]);
+
+  const handleDownload = useCallback(async (assetId: string) => {
+    if (!manifest) return;
+    setAssetLoading(prev => ({ ...prev, [assetId]: true }));
+    try {
+      await assetManager.downloadAsset(assetId);
+      await refreshAssetStatuses(manifest);
+      Alert.alert('Success', `${assetId} downloaded and installed.`);
+    } catch (err: any) {
+      Alert.alert('Download failed', err?.message ?? 'Unknown error');
+    } finally {
+      setAssetLoading(prev => ({ ...prev, [assetId]: false }));
+    }
+  }, [manifest, refreshAssetStatuses]);
 
   useEffect(() => {
     loadProfile().then(p => {
@@ -581,50 +676,123 @@ export const ProfileScreen: React.FC = () => {
             onSave={v => updLoc({ streetAddress: v })}
           />
 
+          {/* Primary Meeting Place */}
           <View style={ps.meetingHeader}>
             <Icon name="star" size={16} color={COLORS.darkGreen} />
             <Text style={ps.meetingTitle}>Primary Meeting Place</Text>
           </View>
+
+          {/* Map pin button */}
+          <TouchableOpacity
+            style={ps.mapPinBtn}
+            onPress={() => setPickerTarget('primaryMeeting')}
+            activeOpacity={0.8}
+          >
+            <View style={[
+              ps.mapPinIconWrap,
+              profile.location.primaryMeeting.coordinates && ps.mapPinIconWrapSet,
+            ]}>
+              <Icon
+                name={profile.location.primaryMeeting.coordinates ? 'map-marker-check' : 'map-marker-plus-outline'}
+                size={22}
+                color={profile.location.primaryMeeting.coordinates ? COLORS.primaryGreen : COLORS.gray}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              {profile.location.primaryMeeting.coordinates ? (
+                <>
+                  <Text style={ps.mapPinSetLabel}>Pin set ✓</Text>
+                  <Text style={ps.mapPinCoords}>
+                    {profile.location.primaryMeeting.coordinates.latitude.toFixed(5)},{' '}
+                    {profile.location.primaryMeeting.coordinates.longitude.toFixed(5)}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={ps.mapPinEmptyLabel}>Tap to pin on map</Text>
+                  <Text style={ps.mapPinHint}>Drop a pin at the exact meeting spot</Text>
+                </>
+              )}
+            </View>
+            <Icon name="chevron-right" size={18} color={COLORS.gray} />
+          </TouchableOpacity>
+
           <FieldRow
-            label="Landmark"
+            label="Landmark Name (optional)"
             value={profile.location.primaryMeeting.landmark}
-            placeholder="Basketball Court, Church..."
+            placeholder="Basketball Court, Church…"
             onSave={v => updMeeting('primaryMeeting', { landmark: v })}
           />
           <FieldRow
             label="Street Address"
             value={profile.location.primaryMeeting.streetAddress}
-            placeholder="12 Rizal St., Brgy. ..."
+            placeholder="12 Rizal St., Brgy. …"
             onSave={v => updMeeting('primaryMeeting', { streetAddress: v })}
           />
           <FieldRow
             label="Notes"
             value={profile.location.primaryMeeting.notes}
-            placeholder="Near the red sari-sari store..."
+            placeholder="Near the red sari-sari store…"
             onSave={v => updMeeting('primaryMeeting', { notes: v })}
             multiline
           />
 
+          {/* Secondary Meeting Place */}
           <View style={ps.meetingHeader}>
             <Icon name="map-marker-outline" size={16} color={COLORS.darkGreen} />
             <Text style={ps.meetingTitle}>Secondary Meeting Place</Text>
           </View>
+
+          {/* Map pin button */}
+          <TouchableOpacity
+            style={ps.mapPinBtn}
+            onPress={() => setPickerTarget('secondaryMeeting')}
+            activeOpacity={0.8}
+          >
+            <View style={[
+              ps.mapPinIconWrap,
+              profile.location.secondaryMeeting.coordinates && ps.mapPinIconWrapSet,
+            ]}>
+              <Icon
+                name={profile.location.secondaryMeeting.coordinates ? 'map-marker-check' : 'map-marker-plus-outline'}
+                size={22}
+                color={profile.location.secondaryMeeting.coordinates ? COLORS.primaryGreen : COLORS.gray}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              {profile.location.secondaryMeeting.coordinates ? (
+                <>
+                  <Text style={ps.mapPinSetLabel}>Pin set ✓</Text>
+                  <Text style={ps.mapPinCoords}>
+                    {profile.location.secondaryMeeting.coordinates.latitude.toFixed(5)},{' '}
+                    {profile.location.secondaryMeeting.coordinates.longitude.toFixed(5)}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={ps.mapPinEmptyLabel}>Tap to pin on map</Text>
+                  <Text style={ps.mapPinHint}>Drop a pin at the exact meeting spot</Text>
+                </>
+              )}
+            </View>
+            <Icon name="chevron-right" size={18} color={COLORS.gray} />
+          </TouchableOpacity>
           <FieldRow
-            label="Landmark"
+            label="Landmark Name (optional)"
             value={profile.location.secondaryMeeting.landmark}
-            placeholder="Basketball Court, Church..."
+            placeholder="Basketball Court, Church…"
             onSave={v => updMeeting('secondaryMeeting', { landmark: v })}
           />
           <FieldRow
             label="Street Address"
             value={profile.location.secondaryMeeting.streetAddress}
-            placeholder="12 Rizal St., Brgy. ..."
+            placeholder="12 Rizal St., Brgy. …"
             onSave={v => updMeeting('secondaryMeeting', { streetAddress: v })}
           />
           <FieldRow
             label="Notes"
             value={profile.location.secondaryMeeting.notes}
-            placeholder="Near the red sari-sari store..."
+            placeholder="Near the red sari-sari store…"
             onSave={v => updMeeting('secondaryMeeting', { notes: v })}
             multiline
           />
@@ -680,52 +848,23 @@ export const ProfileScreen: React.FC = () => {
 
         {/* ── OFFLINE DATA ── */}
         <SectionCard iconName="database-arrow-down" title="Offline Data">
-          {/* Routing graph */}
-          <View style={ps.dataRow}>
-            <View style={ps.dataRowL}>
-              <Icon
-                name={graphInstalled ? 'map-check' : 'map-marker-path'}
-                size={22}
-                color={graphInstalled ? COLORS.primaryGreen : COLORS.gray}
-              />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={ps.dataRowTitle}>Walking Route Graph</Text>
-                <Text style={ps.dataRowSub}>
-                  {graphInstalled === null
-                    ? 'Checking...'
-                    : graphInstalled
-                    ? 'Installed — turn-by-turn routing active'
-                    : 'Not installed — straight-line only'}
-                </Text>
-              </View>
-            </View>
-            {!graphInstalled && (
-              <TouchableOpacity
-                style={ps.dataBtn}
-                onPress={handleSideloadGraph}
-                disabled={graphLoading}
-                activeOpacity={0.8}
-              >
-                {graphLoading ? (
-                  <ActivityIndicator size="small" color={COLORS.white} />
-                ) : (
-                  <>
-                    <Icon name="folder-arrow-down" size={15} color={COLORS.white} />
-                    <Text style={ps.dataBtnTxt}>Sideload</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
-            {graphInstalled && (
-              <View style={ps.dataInstalledBadge}>
-                <Icon name="check-circle" size={14} color={COLORS.primaryGreen} />
-                <Text style={ps.dataInstalledTxt}>Ready</Text>
-              </View>
-            )}
-          </View>
+          {manifest && Object.entries(manifest.assets).map(([id, asset]) => (
+            <AssetRow
+              key={id}
+              id={id}
+              asset={asset}
+              isInstalled={assetStatuses[id]}
+              onSideload={() => handleSideload(id)}
+              onDownload={() => handleDownload(id)}
+              loading={assetLoading[id]}
+            />
+          ))}
+          {!manifest && <ActivityIndicator color={COLORS.primaryGreen} />}
+
           <Text style={ps.dataHint}>
-            Generate with: node scripts/generate-pedestrian-graph.mjs{`\n`}
-            Then: adb push pedestrian-graph.json /sdcard/likas/
+            <Text style={{ fontWeight: 'bold' }}>Sideload Path:</Text>{`\n`}
+            Android/data/com.likas/files/{`\n\n`}
+            Place files here via USB and click the sideload icon to install them into protected storage.
           </Text>
         </SectionCard>
 
@@ -749,6 +888,26 @@ export const ProfileScreen: React.FC = () => {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Meeting Point Map Picker */}
+      <MeetingPointPickerModal
+        visible={pickerTarget !== null}
+        title={
+          pickerTarget === 'primaryMeeting'
+            ? 'Pin Primary Meeting Point'
+            : 'Pin Secondary Meeting Point'
+        }
+        initial={
+          pickerTarget ? profile.location[pickerTarget].coordinates : null
+        }
+        onConfirm={coords => {
+          if (pickerTarget) {
+            updMeeting(pickerTarget, { coordinates: coords });
+          }
+          setPickerTarget(null);
+        }}
+        onCancel={() => setPickerTarget(null)}
+      />
 
       {/* City Modal */}
       <Modal visible={cityModal} animationType="slide" transparent>
@@ -1156,6 +1315,53 @@ const ps = StyleSheet.create({
     fontSize: SIZES.small,
     color: COLORS.darkGreen,
   },
+  // ── Map pin button ──
+  mapPinBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.lightGreen,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  mapPinIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#e5e7eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mapPinIconWrapSet: {
+    backgroundColor: '#dcfce7',
+  },
+  mapPinSetLabel: {
+    fontFamily: FONTS.primaryBold,
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primaryGreen,
+  },
+  mapPinCoords: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 11,
+    color: COLORS.gray,
+    marginTop: 1,
+    letterSpacing: 0.2,
+  },
+  mapPinEmptyLabel: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 13,
+    color: COLORS.darkGreen,
+  },
+  mapPinHint: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 11,
+    color: COLORS.gray,
+    marginTop: 1,
+  },
   contactBlock: {
     gap: 8,
     paddingBottom: 12,
@@ -1192,8 +1398,10 @@ const ps = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    paddingVertical: 10,
     gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
   },
   dataRowL: {
     flexDirection: 'row',
@@ -1204,6 +1412,7 @@ const ps = StyleSheet.create({
     fontFamily: FONTS.primarySemiBold,
     fontSize: 14,
     color: '#1a1a1a',
+    textTransform: 'capitalize',
   },
   dataRowSub: {
     fontFamily: FONTS.primaryRegular,
@@ -1211,43 +1420,47 @@ const ps = StyleSheet.create({
     color: COLORS.gray,
     marginTop: 2,
   },
-  dataBtn: {
+  dataBtns: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: COLORS.primaryGreen,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
+    gap: 8,
   },
-  dataBtnTxt: {
-    fontFamily: FONTS.primarySemiBold,
-    fontSize: 12,
-    color: COLORS.white,
+  dataBtnSideload: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: COLORS.lightGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dataBtnDownload: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: COLORS.primaryGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dataInstalledBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: COLORS.lightGreen,
+    backgroundColor: '#dcfce7',
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
+    paddingVertical: 4,
+    borderRadius: 100,
   },
   dataInstalledTxt: {
     fontFamily: FONTS.primarySemiBold,
-    fontSize: 12,
+    fontSize: 11,
     color: COLORS.primaryGreen,
   },
   dataHint: {
     fontFamily: FONTS.primaryRegular,
     fontSize: 11,
     color: COLORS.gray,
-    marginTop: 10,
+    marginTop: 16,
     lineHeight: 17,
     backgroundColor: '#f5f5f5',
     borderRadius: 8,
-    padding: 10,
+    padding: 12,
   },
   resetBtn: {
     flexDirection: 'row',

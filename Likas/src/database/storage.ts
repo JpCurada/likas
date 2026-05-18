@@ -34,6 +34,7 @@ const DEFAULT_MEETING: MeetingPoint = {
   landmark: '',
   streetAddress: '',
   notes: '',
+  coordinates: null,
 };
 
 export const DEFAULT_PROFILE: UserProfile = {
