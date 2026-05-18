@@ -97,8 +97,8 @@ const buildSystemPrompt = (
 
 CRITICAL RULES — VIOLATING THESE PUTS LIVES AT RISK:
 1. For ANY safety-critical question, you MUST call get_protocol first and quote its returned text verbatim. Never invent or paraphrase safety steps.
-2. For ANY question about evacuation, where to go, or shelters, you MUST call route_to_nearest_evacuation.
-3. If asked to find a hospital, school, gym, or other facility, call find_nearby.
+2. For ANY question about evacuation, where to go, shelters, or "where is the nearest evacuation center" (English or Filipino: "saan pupunta", "saan ang pinakamalapit na evacuation"), you MUST call route_to_nearest_evacuation. This also makes the map app draw a route to the best center.
+3. For ANY question that asks for the nearest place of interest — hospital, school, gym, multi-purpose hall, or covered court — you MUST call find_nearby with the correct category. The app will automatically drop pins on the map.
 4. If the user asks about their own profile (medical conditions, meeting points, emergency contacts) call get_user_profile.
 5. PERSONALIZE every reply using the USER PROFILE below. Mention the user's name when natural. If they have asthma, prioritize masks. If they have an infant/elderly/pwd companion, factor that into evacuation timing. If they have pets, address pet logistics. Reference their primary meeting point when discussing family reunification.
 6. If unsure, respond with: "I can't verify that protocol — contact NDRRMC at 911."
@@ -110,6 +110,14 @@ OUTPUT FORMAT — STRICT JSON, NO PROSE OUTSIDE JSON:
 - To call a tool: {"action":"tool","name":"<tool_name>","args":{...}}
 - To answer the user: {"action":"speak","text":"<your reply>"}
 - Output exactly ONE JSON object per turn. After a tool result is returned, decide again.
+
+TOOL-PICKING EXAMPLES:
+- User: "where is the nearest hospital?" → {"action":"tool","name":"find_nearby","args":{"category":"hospital"}}
+- User: "saan ang pinakamalapit na ospital?" → {"action":"tool","name":"find_nearby","args":{"category":"hospital"}}
+- User: "find the closest school" → {"action":"tool","name":"find_nearby","args":{"category":"school"}}
+- User: "pinakamalapit na gym/covered court" → {"action":"tool","name":"find_nearby","args":{"category":"gymnasium"}} (or "covered_court")
+- User: "where should I evacuate?" / "saan pupunta?" → {"action":"tool","name":"route_to_nearest_evacuation","args":{}}
+- After a find_nearby or route_to_nearest_evacuation result, ALWAYS speak with a short summary AND tell the user the pins/route are already shown on the Map tab. Example speak text: "I found 3 nearby hospitals. The closest is X (1.2 km). I've placed pins on the map — open the Map tab to see them."
 
 AVAILABLE TOOLS:
 ${toolList}
@@ -530,6 +538,55 @@ export const aiAssistantService = {
           return;
         }
       }
+
+      // No-LLM smart fallback for "where is the nearest <POI>?" type queries.
+      // Maps casual English/Filipino phrasing to the same find_nearby tool the
+      // LLM would normally invoke, so pins still land on the map.
+      const poiKeywordMap: Array<{re: RegExp; category: string; label: string}> = [
+        {re: /(hospital|ospital|emergency room|er)/i, category: 'hospital', label: 'hospitals'},
+        {re: /(school|paaralan|eskwela)/i, category: 'school', label: 'schools'},
+        {re: /(gym|gymnasium|himnasyo)/i, category: 'gymnasium', label: 'gymnasiums'},
+        {re: /(covered court|kubierta)/i, category: 'covered_court', label: 'covered courts'},
+        {re: /(multi[- ]?purpose|hall)/i, category: 'multi_purpose_hall', label: 'multi purpose halls'},
+      ];
+      const asksNearest = /(nearest|closest|nearby|pinakamalapit|malapit)/i.test(
+        params.userMessage,
+      );
+      if (asksNearest) {
+        const hit = poiKeywordMap.find(p => p.re.test(params.userMessage));
+        if (hit) {
+          const tool = findTool('find_nearby');
+          if (tool) {
+            onEvent?.({
+              kind: 'tool_call',
+              name: 'find_nearby',
+              args: {category: hit.category},
+            });
+            try {
+              const toolResult = await tool.handler(
+                {category: hit.category},
+                {profile: params.profile, activeContext: params.context},
+              );
+              onEvent?.({
+                kind: 'tool_result',
+                name: 'find_nearby',
+                result: toolResult,
+              });
+              const pl = toolResult.payload as any;
+              if (pl?.results?.length > 0) {
+                const top = pl.results[0];
+                yield `Found ${pl.results.length} nearby ${hit.label}. Closest is ${top.name} (~${top.distanceKm.toFixed(1)} km). I've placed pins on the map — open the Map tab to see them.`;
+                return;
+              }
+              yield toolResult.summary;
+              return;
+            } catch (err) {
+              console.warn('[aiAssistantService] fallback find_nearby failed:', err);
+            }
+          }
+        }
+      }
+
       yield fallbackResponse(params);
       return;
     }

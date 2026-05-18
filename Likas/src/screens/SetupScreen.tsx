@@ -1,414 +1,485 @@
-import React, { useEffect, useState } from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
   ActivityIndicator,
-  Alert,
-  Linking,
-  PermissionsAndroid,
-  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import RNFS from 'react-native-fs';
+import {SafeAreaView} from 'react-native-safe-area-context';
+import {NativeStackScreenProps} from '@react-navigation/native-stack';
 
-import { COLORS, FONTS, SIZES } from '../theme';
-import { Icon } from '../components/Icon';
-import { setSetupComplete } from '../database/storage';
-import { RootStackParamList } from '../navigation/AppNavigator';
+import {COLORS, FONTS, SIZES} from '../theme';
+import {Icon} from '../components/Icon';
+import {setSetupComplete} from '../database/storage';
+import {RootStackParamList} from '../navigation/AppNavigator';
 import {
   AssetDownloadError,
   ChecksumMismatchError,
   DownloadProgress,
+  Manifest,
+  ManifestAsset,
   assetManager,
 } from '../services/assetManager';
-import { isOfflineMapReady } from '../utils/mapAssetManager';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Setup'>;
 
-const MAP_TILES_ASSET_ID = 'map-tiles';
-const AI_MODEL_ASSET_ID = 'ai-model-gemma-4-e2b';
+type AssetStatus = 'checking' | 'ready' | 'pending' | 'downloading' | 'error';
 
-type Step = 'maps' | 'ai' | 'finished';
-type Status = 'idle' | 'checking' | 'downloading' | 'done' | 'error';
+type AssetState = {
+  status: AssetStatus;
+  progress: DownloadProgress | null;
+  error: string | null;
+};
 
-const formatGB = (bytes: number): string => `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+// Human-readable display config per asset ID
+const ASSET_DISPLAY: Record<
+  string,
+  {label: string; icon: string; description: string}
+> = {
+  'map-tiles': {
+    label: 'Offline Map Tiles',
+    icon: 'map',
+    description: 'Philippines base map with evacuation routes & POIs',
+  },
+  'map-glyphs': {
+    label: 'Map Labels',
+    icon: 'format-text',
+    description: 'Font glyphs for rendering text on the offline map',
+  },
+  'pedestrian-graph-db': {
+    label: 'Walking Routes',
+    icon: 'walk',
+    description: 'Offline pedestrian navigation graph for routing',
+  },
+  'ai-model-gemma-4-e2b': {
+    label: 'AI Guide (Gemma 4)',
+    icon: 'robot-happy',
+    description: 'On-device disaster advisor in Filipino & English',
+  },
+};
 
-export const SetupScreen: React.FC<Props> = ({ navigation }) => {
-  const [step, setStep] = useState<Step>('maps');
-  const [status, setStatus] = useState<Status>('idle');
-  const [progress, setProgress] = useState<DownloadProgress | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [mapSize, setMapSize] = useState<number>(0);
-  const [modelSize, setModelSize] = useState<number>(0);
+const formatSize = (bytes: number): string => {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+  return `${Math.round(bytes / 1024 ** 2)} MB`;
+};
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const manifest = await assetManager.fetchManifest();
-        if (cancelled) return;
-        setMapSize(manifest.assets[MAP_TILES_ASSET_ID]?.size ?? 0);
-        setModelSize(manifest.assets[AI_MODEL_ASSET_ID]?.size ?? 0);
+export const SetupScreen: React.FC<Props> = ({navigation}) => {
+  const [manifest, setManifest] = useState<Manifest | null>(null);
+  const [assetStates, setAssetStates] = useState<Record<string, AssetState>>(
+    {},
+  );
+  const [loading, setLoading] = useState(true);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-        const mapsReady = await isOfflineMapReady();
-        if (cancelled) return;
-        if (mapsReady) {
-          setStep('ai');
-          if (await assetManager.isInstalled(AI_MODEL_ASSET_ID)) {
-            setStatus('done');
-          }
-        }
-      } catch {
-        // Manifest may be unreachable in dev; surface only when user acts.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const patchAsset = useCallback((id: string, patch: Partial<AssetState>) => {
+    setAssetStates(prev => ({
+      ...prev,
+      [id]: {
+        ...(prev[id] ?? {status: 'pending', progress: null, error: null}),
+        ...patch,
+      },
+    }));
   }, []);
 
-  const finish = async () => {
+  // On mount: fetch manifest and check which assets are already installed
+  useEffect(() => {
+    (async () => {
+      try {
+        const m = await assetManager.fetchManifest();
+        setManifest(m);
+        const ids = Object.keys(m.assets);
+        const checks = await Promise.all(
+          ids.map(async id => ({
+            id,
+            ready: await assetManager.isInstalled(id),
+          })),
+        );
+        const initial: Record<string, AssetState> = {};
+        checks.forEach(({id, ready}) => {
+          initial[id] = {
+            status: ready ? 'ready' : 'pending',
+            progress: null,
+            error: null,
+          };
+        });
+        setAssetStates(initial);
+      } catch {
+        // Will surface an error when user taps Download
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const downloadOne = useCallback(
+    async (id: string, asset: ManifestAsset) => {
+      if (downloadingId) return;
+      setDownloadingId(id);
+      patchAsset(id, {status: 'downloading', error: null, progress: null});
+      try {
+        await assetManager.downloadAsset(id, p =>
+          patchAsset(id, {progress: p}),
+        );
+        const localPath = await assetManager.getLocalPath(id);
+        if (localPath) {
+          await assetManager.decompressArchive(asset, localPath);
+        }
+        patchAsset(id, {status: 'ready', progress: null});
+      } catch (err) {
+        let message = 'Download failed. Check your connection and try again.';
+        if (err instanceof ChecksumMismatchError) {
+          message = 'File integrity check failed. Please retry.';
+        } else if (err instanceof AssetDownloadError || err instanceof Error) {
+          message = err.message;
+        }
+        patchAsset(id, {status: 'error', error: message, progress: null});
+      } finally {
+        setDownloadingId(null);
+      }
+    },
+    [downloadingId, patchAsset],
+  );
+
+  const downloadAllRequired = useCallback(async () => {
+    if (!manifest || downloadingId) return;
+    // Every manifest entry is required for offline operation, so we iterate
+    // all of them and keep going past individual errors — the user can retry
+    // failed cards individually.
+    const pending = Object.entries(manifest.assets).filter(
+      ([id]) => assetStates[id]?.status !== 'ready',
+    );
+    for (const [id, asset] of pending) {
+      await downloadOne(id, asset);
+    }
+  }, [manifest, assetStates, downloadingId, downloadOne]);
+
+  const handleContinue = async () => {
     await setSetupComplete();
     navigation.replace('Main');
   };
 
-  const startDownload = async (assetId: string, next: Step | 'finish') => {
-    setStatus('checking');
-    setErrorMessage(null);
-    setProgress(null);
-    try {
-      setStatus('downloading');
-      await assetManager.downloadAsset(assetId, p => setProgress(p));
-      if (next === 'finish') {
-        await finish();
-        return;
-      }
-      setStep(next);
-      setStatus('idle');
-      setProgress(null);
-    } catch (err) {
-      let message = 'Download failed. Check your connection and try again.';
-      if (err instanceof ChecksumMismatchError) {
-        message = 'Downloaded file failed integrity check. Please try again.';
-      } else if (err instanceof AssetDownloadError) {
-        message = err.message;
-      } else if (err instanceof Error) {
-        message = err.message;
-      }
-      setErrorMessage(message);
-      setStatus('error');
-    }
-  };
+  // Every manifest asset is required for offline operation; we treat the full
+  // list as a single batch and don't expose a Skip path.
+  const allIds = manifest ? Object.keys(manifest.assets) : [];
+  const readyCount = allIds.filter(
+    id => assetStates[id]?.status === 'ready',
+  ).length;
+  const canContinue = allIds.length > 0 && readyCount === allIds.length;
 
-  const handleSkipAi = () => {
-    Alert.alert(
-      'Skip AI download?',
-      'The app will still work with offline maps and protocols. You can add the AI guide later from Settings.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Skip for now', onPress: finish },
-      ],
-    );
-  };
+  // Bytes summary for the header — gives the user a sense of total work left.
+  const totalBytes = manifest
+    ? Object.values(manifest.assets).reduce((sum, a) => sum + a.size, 0)
+    : 0;
+  const remainingBytes = manifest
+    ? Object.entries(manifest.assets)
+        .filter(([id]) => assetStates[id]?.status !== 'ready')
+        .reduce((sum, [, a]) => sum + a.size, 0)
+    : 0;
 
-  const handleDownloadMaps = () => {
-    startDownload(MAP_TILES_ASSET_ID, 'ai');
-  };
+  const renderCard = (id: string, asset: ManifestAsset) => {
+    const state = assetStates[id] ?? {
+      status: 'checking',
+      progress: null,
+      error: null,
+    };
+    const display = ASSET_DISPLAY[id] ?? {
+      label: id,
+      icon: 'download-box',
+      description: '',
+    };
+    const isReady = state.status === 'ready';
+    const isDownloading = state.status === 'downloading';
+    const isError = state.status === 'error';
+    const isOtherDownloading = downloadingId !== null && downloadingId !== id;
 
-  const handleDownloadAi = () => {
-    startDownload(AI_MODEL_ASSET_ID, 'finish');
-  };
-
-  const requestManageStorage = () => {
-    if (Platform.OS === 'android' && Platform.Version >= 30) {
-      Alert.alert(
-        "Storage Access Needed",
-        "To use sideloaded AI models, you must enable 'All files access' for Likas in the next screen.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { 
-            text: "Open Settings", 
-            onPress: () => Linking.sendIntent('android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION') 
-          } 
-        ]
-      );
-    }
-  };
-
-  const handleSideload = async (assetId: string, next: Step | 'finish') => {
-    console.log(`handleSideload triggered for ${assetId}`);
-    setStatus('checking');
-    setErrorMessage(null);
-    try {
-      console.log('Fetching manifest...');
-      const manifest = await assetManager.fetchManifest();
-      const asset = manifest.assets[assetId];
-      if (!asset) {
-        console.log(`Asset ${assetId} not in manifest.`);
-        setErrorMessage(`Asset ${assetId} not in manifest.`);
-        setStatus('error');
-        return;
-      }
-      const sideloadDir =
-        Platform.OS === 'android' ? '/sdcard/likas' : RNFS.DocumentDirectoryPath;
-      const sourcePath = `${sideloadDir}/${asset.localFilename}`;
-      console.log(`Checking source path: ${sourcePath}`);
-      if (!(await RNFS.exists(sourcePath))) {
-        console.log('File not found.');
-        setErrorMessage(
-          `File not found at ${sourcePath}. Push it with:\nadb push ${asset.localFilename} ${sideloadDir}/`,
-        );
-        setStatus('error');
-        return;
-      }
-      console.log('Importing from path...');
-      await assetManager.importFromPath(assetId, sourcePath);
-      console.log('Import successful.');
-      if (next === 'finish') {
-        await finish();
-        return;
-      }
-      setStep(next);
-      setStatus('idle');
-    } catch (err: any) {
-      console.error('Sideload failed:', err);
-      // Check if it's a permission-related error
-      if (err.message.includes('EACCES') || err.message.includes('Permission denied')) {
-        requestManageStorage();
-      }
-      let message = 'Sideload failed.';
-      if (err instanceof Error) message = err.message;
-      setErrorMessage(message);
-      setStatus('error');
-    }
-  };
-
-  const handleSideloadMaps = () => handleSideload(MAP_TILES_ASSET_ID, 'ai');
-  const handleSideloadAi = () => handleSideload(AI_MODEL_ASSET_ID, 'finish');
-
-  const renderProgress = () => {
-    if (status !== 'downloading' || !progress) return null;
-    const percent = Math.round(progress.percent * 100);
     return (
-      <View style={styles.progressBlock}>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${percent}%` }]} />
+      <View
+        key={id}
+        style={[styles.card, isReady && styles.cardReady, isError && styles.cardError]}>
+        {/* Card header row */}
+        <View style={styles.cardRow}>
+          <View style={[styles.iconBox, isReady && styles.iconBoxReady]}>
+            {state.status === 'checking' ? (
+              <ActivityIndicator size="small" color={COLORS.primaryGreen} />
+            ) : (
+              <Icon
+                name={isReady ? 'check' : display.icon}
+                size={20}
+                color={isReady ? COLORS.white : COLORS.primaryGreen}
+              />
+            )}
+          </View>
+          <View style={styles.cardText}>
+            <View style={styles.cardTitleRow}>
+              <Text style={styles.cardLabel}>{display.label}</Text>
+            </View>
+            <Text style={styles.cardDesc}>{display.description}</Text>
+            <Text style={styles.cardSize}>{formatSize(asset.size)}</Text>
+          </View>
         </View>
-        <Text style={styles.progressText}>
-          {percent}% · {formatGB(progress.bytesDownloaded)} of {formatGB(progress.totalBytes)}
-        </Text>
-      </View>
-    );
-  };
 
-  const renderBusy = (title: string) => (
-    <View style={styles.statusBlock}>
-      <ActivityIndicator size="large" color={COLORS.primaryGreen} />
-      <Text style={styles.statusTitle}>{title}</Text>
-      <Text style={styles.statusBody}>
-        Keep the app open. Use Wi-Fi if possible — this is a one-time download.
-      </Text>
-      {renderProgress()}
-    </View>
-  );
+        {/* Download progress */}
+        {isDownloading && (
+          <View style={styles.progressBlock}>
+            {state.progress ? (
+              <>
+                <View style={styles.progressTrack}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: `${Math.round(
+                          state.progress.percent * 100,
+                        )}%`,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.progressText}>
+                  {Math.round(state.progress.percent * 100)}% ·{' '}
+                  {formatSize(state.progress.bytesDownloaded)} of{' '}
+                  {formatSize(state.progress.totalBytes)}
+                </Text>
+              </>
+            ) : (
+              <View style={styles.connectingRow}>
+                <ActivityIndicator size="small" color={COLORS.primaryGreen} />
+                <Text style={styles.progressText}>Connecting…</Text>
+              </View>
+            )}
+          </View>
+        )}
 
-  const renderError = () => (
-    <View style={styles.statusBlock}>
-      <Icon name="alert-circle" size={48} color={COLORS.error} />
-      <Text style={styles.statusTitle}>Download failed</Text>
-      <Text style={styles.statusBody}>{errorMessage}</Text>
-      {errorMessage?.includes('permanently denied') && (
-        <TouchableOpacity 
-          style={[styles.primaryButton, { marginTop: 10 }]} 
-          onPress={() => Linking.openSettings()}
-        >
-          <Text style={styles.primaryButtonText}>Open Settings</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-
-  const renderMapsStep = () => {
-    if (status === 'downloading' || status === 'checking') {
-      return renderBusy('Downloading offline maps…');
-    }
-    if (status === 'error') return renderError();
-    return (
-      <View style={styles.statusBlock}>
-        <Icon name="map" size={48} color={COLORS.primaryGreen} />
-        <Text style={styles.statusTitle}>Download offline maps</Text>
-        <Text style={styles.statusBody}>
-          LIKAS needs offline map data to show evacuation centers and routes without internet.
-          You can sideload from /sdcard/likas instead for offline installs.
-        </Text>
-        <Text style={styles.metaText}>
-          Download size: ~{mapSize ? formatGB(mapSize) : '0.85 GB'} · Wi-Fi recommended
-        </Text>
-        <Text style={styles.stepIndicator}>Step 1 of 2 · Required</Text>
-      </View>
-    );
-  };
-
-  const renderAiStep = () => {
-    if (status === 'done') {
-      return (
-        <View style={styles.statusBlock}>
-          <Icon name="check-circle" size={48} color={COLORS.primaryGreen} />
-          <Text style={styles.statusTitle}>AI assistant ready</Text>
-          <Text style={styles.statusBody}>
-            You can now ask the offline AI guide for help with disaster protocols.
+        {/* Error message */}
+        {isError && (
+          <Text style={styles.errorMsg} numberOfLines={3}>
+            {state.error}
           </Text>
-        </View>
-      );
-    }
-    if (status === 'downloading' || status === 'checking') {
-      return renderBusy('Downloading AI model…');
-    }
-    if (status === 'error') return renderError();
-    return (
-      <View style={styles.statusBlock}>
-        <Icon name="robot-happy" size={48} color={COLORS.primaryGreen} />
-        <Text style={styles.statusTitle}>Set up your offline AI guide</Text>
-        <Text style={styles.statusBody}>
-          Optional. The AI assistant works fully offline once installed and answers
-          disaster-related questions in English and Filipino.
-        </Text>
-        <Text style={styles.metaText}>
-          Download size: ~{modelSize ? formatGB(modelSize) : '3.0 GB'} · Wi-Fi recommended
-        </Text>
-        <Text style={styles.stepIndicator}>Step 2 of 2 · Optional</Text>
+        )}
+
+        {/* Action buttons */}
+        {!isReady && !isDownloading && (
+          <View style={styles.cardActions}>
+            <TouchableOpacity
+              style={[
+                styles.dlBtn,
+                isOtherDownloading && styles.dlBtnDisabled,
+              ]}
+              onPress={() => !isOtherDownloading && downloadOne(id, asset)}
+              disabled={isOtherDownloading}>
+              <Icon name="download" size={14} color={COLORS.white} />
+              <Text style={styles.dlBtnText}>
+                {isError ? 'Retry' : 'Download'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
-    );
-  };
-
-  const renderActions = () => {
-    if (status === 'downloading' || status === 'checking') return null;
-
-    if (step === 'maps') {
-      if (status === 'error') {
-        return (
-          <>
-            <TouchableOpacity style={styles.primaryButton} onPress={handleDownloadMaps}>
-              <Text style={styles.primaryButtonText}>Try again</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.tertiaryButton} onPress={handleSideloadMaps}>
-              <Text style={styles.tertiaryButtonText}>Use sideloaded file</Text>
-            </TouchableOpacity>
-          </>
-        );
-      }
-      return (
-        <>
-          <TouchableOpacity style={styles.primaryButton} onPress={handleDownloadMaps}>
-            <Text style={styles.primaryButtonText}>Download maps</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tertiaryButton} onPress={handleSideloadMaps}>
-            <Text style={styles.tertiaryButtonText}>Use sideloaded file</Text>
-          </TouchableOpacity>
-        </>
-      );
-    }
-
-    // step === 'ai'
-    if (status === 'done') {
-      return (
-        <TouchableOpacity style={styles.primaryButton} onPress={finish}>
-          <Text style={styles.primaryButtonText}>Continue</Text>
-        </TouchableOpacity>
-      );
-    }
-    if (status === 'error') {
-      return (
-        <>
-          <TouchableOpacity style={styles.primaryButton} onPress={handleDownloadAi}>
-            <Text style={styles.primaryButtonText}>Try again</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tertiaryButton} onPress={handleSideloadAi}>
-            <Text style={styles.tertiaryButtonText}>Use sideloaded file</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} onPress={handleSkipAi}>
-            <Text style={styles.secondaryButtonText}>Skip for now</Text>
-          </TouchableOpacity>
-        </>
-      );
-    }
-    return (
-      <>
-        <TouchableOpacity style={styles.primaryButton} onPress={handleDownloadAi}>
-          <Text style={styles.primaryButtonText}>Download AI model</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tertiaryButton} onPress={handleSideloadAi}>
-          <Text style={styles.tertiaryButtonText}>Use sideloaded file</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton} onPress={handleSkipAi}>
-          <Text style={styles.secondaryButtonText}>Skip for now</Text>
-        </TouchableOpacity>
-      </>
     );
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <View style={styles.content}>
-        {step === 'maps' ? renderMapsStep() : renderAiStep()}
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Get Likas Ready</Text>
+        <Text style={styles.subtitle}>
+          All assets below are required to run Likas offline. Download once,
+          then the app works without internet.
+        </Text>
+        {!loading && allIds.length > 0 && (
+          <View style={styles.summaryBlock}>
+            <View style={styles.summaryTrack}>
+              <View
+                style={[
+                  styles.summaryFill,
+                  {
+                    width: `${(readyCount / allIds.length) * 100}%`,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.summaryText}>
+              {readyCount} of {allIds.length} ready
+              {remainingBytes > 0
+                ? ` · ${formatSize(remainingBytes)} left to download`
+                : ` · ${formatSize(totalBytes)} installed`}
+            </Text>
+          </View>
+        )}
       </View>
-      <View style={styles.actions}>{renderActions()}</View>
+
+      {/* Asset list */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}>
+        {loading ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color={COLORS.primaryGreen} />
+            <Text style={styles.loadingText}>Fetching asset list…</Text>
+          </View>
+        ) : manifest ? (
+          Object.entries(manifest.assets).map(([id, asset]) =>
+            renderCard(id, asset),
+          )
+        ) : (
+          <View style={styles.loadingBox}>
+            <Icon name="wifi-off" size={40} color={COLORS.error} />
+            <Text style={styles.errorMsg}>
+              Could not load asset list. Check your internet connection.
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Footer */}
+      {!loading && (
+        <View style={styles.footer}>
+          {canContinue ? (
+            <TouchableOpacity
+              style={styles.continueBtn}
+              onPress={handleContinue}>
+              <Icon name="check-circle" size={18} color={COLORS.white} />
+              <Text style={styles.footerBtnText}>Continue to Likas</Text>
+            </TouchableOpacity>
+          ) : downloadingId ? (
+            <View style={[styles.dlAllBtn, styles.dlAllBtnBusy]}>
+              <ActivityIndicator size="small" color={COLORS.white} />
+              <Text style={styles.footerBtnText}>Downloading…</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.dlAllBtn}
+              onPress={downloadAllRequired}>
+              <Icon name="download-multiple" size={18} color={COLORS.white} />
+              <Text style={styles.footerBtnText}>
+                {remainingBytes > 0
+                  ? `Download All · ${formatSize(remainingBytes)}`
+                  : 'Download All'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  container: {flex: 1, backgroundColor: '#f8fdf9'},
+
+  // Header
+  header: {
     backgroundColor: COLORS.white,
-  },
-  content: {
-    flex: 1,
     paddingHorizontal: SIZES.padding,
-    paddingTop: SIZES.padding * 2,
-    justifyContent: 'center',
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1.5,
+    borderBottomColor: COLORS.lightGreen,
+    gap: 6,
   },
-  statusBlock: {
+  title: {
+    fontFamily: FONTS.primaryExtraBold,
+    fontSize: 26,
+    color: COLORS.darkGreen,
+  },
+  subtitle: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 13,
+    color: COLORS.gray,
+    lineHeight: 19,
+  },
+  summaryBlock: {gap: 6, marginTop: 10},
+  summaryTrack: {
+    height: 7,
+    backgroundColor: COLORS.lightGreen,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  summaryFill: {
+    height: '100%',
+    backgroundColor: COLORS.primaryGreen,
+    borderRadius: 4,
+  },
+  summaryText: {
+    fontFamily: FONTS.primaryMedium,
+    fontSize: 12,
+    color: COLORS.gray,
+  },
+
+  // List
+  scroll: {flex: 1},
+  scrollContent: {padding: 16, gap: 12, paddingBottom: 8},
+  loadingBox: {
     alignItems: 'center',
+    paddingVertical: 48,
     gap: 12,
   },
-  statusTitle: {
-    fontFamily: FONTS.primaryBold,
-    fontSize: SIZES.h2,
-    color: COLORS.darkGreen,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  statusBody: {
+  loadingText: {
     fontFamily: FONTS.primaryRegular,
-    fontSize: SIZES.body,
+    fontSize: 14,
     color: COLORS.gray,
-    textAlign: 'center',
-    lineHeight: 22,
-    paddingHorizontal: 8,
   },
-  metaText: {
-    fontFamily: FONTS.primaryMedium,
-    fontSize: SIZES.small,
-    color: COLORS.darkGreen,
-    marginTop: 8,
+
+  // Cards
+  card: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: COLORS.lightGreen,
+    padding: 14,
+    gap: 10,
+    elevation: 2,
+    shadowColor: COLORS.darkGreen,
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
   },
-  stepIndicator: {
-    fontFamily: FONTS.primaryMedium,
-    fontSize: SIZES.small,
-    color: COLORS.gray,
-    marginTop: 4,
+  cardReady: {borderColor: COLORS.primaryGreen},
+  cardError: {borderColor: '#fca5a5'},
+  cardRow: {flexDirection: 'row', gap: 12, alignItems: 'flex-start'},
+  iconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 13,
+    backgroundColor: COLORS.lightGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
-  progressBlock: {
-    width: '100%',
-    marginTop: 16,
+  iconBoxReady: {backgroundColor: COLORS.primaryGreen},
+  cardText: {flex: 1, gap: 3},
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
+    flexWrap: 'wrap',
   },
+  cardLabel: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 15,
+    color: COLORS.darkGreen,
+  },
+  cardDesc: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 12,
+    color: COLORS.gray,
+    lineHeight: 17,
+  },
+  cardSize: {
+    fontFamily: FONTS.primaryMedium,
+    fontSize: 11,
+    color: COLORS.gray,
+    marginTop: 1,
+  },
+
+  // Progress
+  progressBlock: {gap: 6},
   progressTrack: {
-    height: 8,
+    height: 7,
     backgroundColor: COLORS.lightGreen,
     borderRadius: 4,
     overflow: 'hidden',
@@ -416,50 +487,78 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     backgroundColor: COLORS.primaryGreen,
+    borderRadius: 4,
   },
   progressText: {
     fontFamily: FONTS.primaryMedium,
-    fontSize: SIZES.small,
+    fontSize: 11,
     color: COLORS.darkGreen,
     textAlign: 'center',
   },
-  actions: {
-    paddingHorizontal: SIZES.padding,
-    paddingBottom: SIZES.padding,
-    gap: 12,
+  connectingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
-  primaryButton: {
+
+  // Error
+  errorMsg: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 12,
+    color: COLORS.error,
+    lineHeight: 17,
+  },
+
+  // Card actions
+  cardActions: {flexDirection: 'row', gap: 8, alignItems: 'center'},
+  dlBtn: {
+    flexDirection: 'row',
+    gap: 6,
+    backgroundColor: COLORS.primaryGreen,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 9,
+    alignItems: 'center',
+  },
+  dlBtnDisabled: {backgroundColor: COLORS.accentGreen, opacity: 0.6},
+  dlBtnText: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 13,
+    color: COLORS.white,
+  },
+
+  // Footer
+  footer: {
+    paddingHorizontal: SIZES.padding,
+    paddingVertical: 14,
+    borderTopWidth: 1.5,
+    borderTopColor: COLORS.lightGreen,
+    backgroundColor: COLORS.white,
+  },
+  dlAllBtn: {
+    flexDirection: 'row',
+    gap: 8,
     backgroundColor: COLORS.primaryGreen,
     paddingVertical: 16,
     borderRadius: SIZES.radius,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  primaryButtonText: {
+  dlAllBtnBusy: {opacity: 0.75},
+  continueBtn: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: COLORS.darkGreen,
+    paddingVertical: 16,
+    borderRadius: SIZES.radius,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerBtnText: {
     fontFamily: FONTS.primarySemiBold,
-    fontSize: SIZES.body,
+    fontSize: 16,
     color: COLORS.white,
-  },
-  secondaryButton: {
-    paddingVertical: 14,
-    borderRadius: SIZES.radius,
-    alignItems: 'center',
-  },
-  secondaryButtonText: {
-    fontFamily: FONTS.primaryMedium,
-    fontSize: SIZES.body,
-    color: COLORS.gray,
-  },
-  tertiaryButton: {
-    paddingVertical: 12,
-    borderRadius: SIZES.radius,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.lightGreen,
-  },
-  tertiaryButtonText: {
-    fontFamily: FONTS.primaryMedium,
-    fontSize: SIZES.small,
-    color: COLORS.darkGreen,
   },
 });
 

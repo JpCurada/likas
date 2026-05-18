@@ -135,6 +135,8 @@ export const AppNavigator: React.FC = () => {
         return;
       }
       const setupDone = await isSetupComplete();
+      // If setup isn't done, return to Setup screen so the user can
+      // resume downloading maps / skipping the AI model intentionally.
       setInitialRoute(setupDone ? 'Main' : 'Setup');
     })();
   }, []);

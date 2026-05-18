@@ -16,8 +16,8 @@ R2_SECRET_ACCESS_KEY = os.getenv('R2_SECRET_ACCESS_KEY')
 R2_BUCKET_NAME = os.getenv('R2_BUCKET_NAME')
 R2_ENDPOINT_URL = os.getenv('R2_ENDPOINT_URL')
 
-LOCAL_FOLDER = Path('./models')          # folder containing files to upload
-REMOTE_PREFIX = 'models'                 # "subfolder" key prefix in the bucket
+LOCAL_FOLDER = Path('assets')           # folder containing files to upload
+REMOTE_PREFIX = 'likas'                 # "subfolder" key prefix in the bucket
 
 assert all([R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME]), \
     "Missing one or more R2 env vars. Check your .env file."

@@ -4,7 +4,6 @@ import {assetManager, type ManifestAsset} from '../services/assetManager';
 
 const MAP_TILES_ASSET_ID = 'map-tiles';
 const MAP_GLYPHS_ASSET_ID = 'map-glyphs';
-const PEDESTRIAN_GRAPH_ASSET_ID = 'pedestrian-graph';
 const PEDESTRIAN_GRAPH_DB_ASSET_ID = 'pedestrian-graph-db';
 
 const SIDELOAD_DIR =
@@ -78,6 +77,9 @@ const tryExtractBundledAsset = async (
     const manifest = await assetManager.fetchManifest();
     index.manifestVersion = manifest.manifestVersion;
     await assetManager.writeInstalled(index);
+
+    // Auto-extract if it's a .zip archive (e.g. glyphs bundle)
+    await assetManager.decompressArchive(asset, finalPath);
 
     if (__DEV__) {
       console.log(`[OfflineMap] ✅ Bundled asset extracted to ${finalPath}`);
@@ -164,22 +166,6 @@ export const prepareGlyphs = async (): Promise<string> => {
     : 'glyphs/{fontstack}/{range}.pbf';
 };
 
-/**
- * Ensures the pedestrian routing graph is available in DocumentDirectoryPath
- * and registered in installed.json. Checks sideload dir first, then bundled
- * APK assets. Returns the absolute path on success, null if not available.
- * Does NOT throw — the routing service handles the missing-graph case.
- */
-export const prepareGraph = async (): Promise<string | null> => {
-  const manifest = await assetManager.fetchManifest();
-  const asset = manifest.assets[PEDESTRIAN_GRAPH_ASSET_ID];
-  if (!asset) return null;
-  try {
-    return await ensureAsset(PEDESTRIAN_GRAPH_ASSET_ID, asset.localFilename);
-  } catch {
-    return null;
-  }
-};
 
 /**
  * Ensures the pedestrian routing SQLite DB is available in DocumentDirectoryPath

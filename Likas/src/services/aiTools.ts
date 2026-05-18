@@ -227,6 +227,10 @@ const findNearby: ToolDefinition = {
           latitude: f.geometry.coordinates[1],
           longitude: f.geometry.coordinates[0],
         }),
+        coordinates: {
+          latitude: f.geometry.coordinates[1],
+          longitude: f.geometry.coordinates[0],
+        },
       }))
       .sort((a: any, b: any) => a.distanceKm - b.distanceKm)
       .slice(0, 3);

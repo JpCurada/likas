@@ -99,14 +99,28 @@ export type EvacuationRanking = {
   warnings: string[];
 };
 
-export type ChatMessageAttachment = {
-  kind: 'route';
-  destinationName: string;
-  destination: LatLng;
-  distanceMeters: number;
-  durationMinutesWalking: number;
-  polyline: LatLng[];
+export type NearbyPin = {
+  name: string;
+  address: string;
+  distanceKm: number;
+  coordinates: LatLng;
 };
+
+export type ChatMessageAttachment =
+  | {
+      kind: 'route';
+      destinationName: string;
+      destination: LatLng;
+      distanceMeters: number;
+      durationMinutesWalking: number;
+      polyline: LatLng[];
+    }
+  | {
+      kind: 'nearby';
+      category: string;
+      label: string; // human-readable e.g. "hospitals"
+      pins: NearbyPin[];
+    };
 
 export type ToolTraceEntry = {
   name: string;

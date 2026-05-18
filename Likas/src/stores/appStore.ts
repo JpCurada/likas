@@ -5,6 +5,7 @@ import type {
   DisasterContext,
   LatLng,
   MeetingPoint,
+  NearbyPin,
   PetEntry,
   UserProfile,
 } from '../types';
@@ -71,6 +72,7 @@ type AppState = {
   packedItems: Record<string, boolean>;
   chatMessages: ChatMessage[];
   activeRoute: ActiveRoute | null;
+  nearbyPins: NearbyPin[];
   /** The fully processed MapLibre style object — set by MapScreen on first init. */
   offlineMapStyle: any | null;
   setActiveContext: (context: DisasterContext) => void;
@@ -79,6 +81,7 @@ type AppState = {
   togglePackedItem: (itemId: string) => void;
   addChatMessage: (message: ChatMessage) => void;
   setActiveRoute: (route: ActiveRoute | null) => void;
+  setNearbyPins: (pins: NearbyPin[]) => void;
   setOfflineMapStyle: (style: any) => void;
 };
 
@@ -107,7 +110,9 @@ export const useAppStore = create<AppState>(set => ({
   addChatMessage: message =>
     set(state => ({chatMessages: [...state.chatMessages, message]})),
   activeRoute: null,
+  nearbyPins: [],
   offlineMapStyle: null,
-  setActiveRoute: route => set({activeRoute: route}),
+  setActiveRoute: route => set({activeRoute: route, nearbyPins: []}),
+  setNearbyPins: pins => set({nearbyPins: pins, activeRoute: null}),
   setOfflineMapStyle: style => set({offlineMapStyle: style}),
 }));

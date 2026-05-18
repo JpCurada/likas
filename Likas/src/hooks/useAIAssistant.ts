@@ -38,6 +38,8 @@ type State = {
 
 export const useAIAssistant = () => {
   const profile = useAppStore(s => s.profile);
+  const setActiveRoute = useAppStore(s => s.setActiveRoute);
+  const setNearbyPins = useAppStore(s => s.setNearbyPins);
   const [state, setState] = useState<State>({
     isReady: false,
     isInitializing: true,
@@ -118,6 +120,26 @@ export const useAIAssistant = () => {
             const payload = ev.result.payload as any;
             if (payload?.kind === 'evacuation_ranking' && payload.route) {
               attachment = {kind: 'route', ...payload.route};
+              // Pre-stage the route on the map store so the moment the user
+              // navigates to the Map tab the polyline is already drawn — they
+              // don't need to tap the chat card first.
+              setActiveRoute({
+                destinationName: payload.route.destinationName,
+                destination: payload.route.destination,
+                polyline: payload.route.polyline,
+                distanceMeters: payload.route.distanceMeters,
+                durationMinutesWalking: payload.route.durationMinutesWalking,
+              });
+            } else if (payload?.kind === 'nearby' && payload.results.length > 0) {
+              attachment = {
+                kind: 'nearby',
+                category: payload.category,
+                label: payload.category.replace('_', ' '),
+                pins: payload.results,
+              };
+              // Pre-stage pins on the map so they appear immediately when the
+              // user switches to the Map tab.
+              setNearbyPins(payload.results);
             }
           }
         };
@@ -160,7 +182,7 @@ export const useAIAssistant = () => {
         }
       }
     },
-    [profile],
+    [profile, setActiveRoute, setNearbyPins],
   );
 
   return {
