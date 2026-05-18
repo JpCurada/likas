@@ -131,6 +131,7 @@ TOOL-PICKING EXAMPLES:
 - User: "find the closest school" → {"action":"tool","name":"find_nearby","args":{"category":"school"}}
 - User: "pinakamalapit na gym/covered court" → {"action":"tool","name":"find_nearby","args":{"category":"gymnasium"}} (or "covered_court")
 - User: "where should I evacuate?" / "saan pupunta?" → {"action":"tool","name":"route_to_nearest_evacuation","args":{}}
+- User: "family meeting point / communication plan" → {"action":"tool","name":"get_protocol","args":{"disaster":"earthquake","phase":"before"}}
 - After a find_nearby or route_to_nearest_evacuation result, ALWAYS speak with a short summary AND tell the user the pins/route are already shown on the Map tab. Example speak text: "I found 3 nearby hospitals. The closest is X (1.2 km). I've placed pins on the map — open the Map tab to see them."
 
 AVAILABLE TOOLS:
@@ -438,6 +439,41 @@ const repairAssistantJson = (s: string): string => {
   return out;
 };
 
+/** Flatten nested enum shapes like {"type":"earthquake"} → "earthquake". */
+const normalizeToolArgValue = (value: unknown): unknown => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.type === 'string') return obj.type;
+    if (typeof obj.disaster === 'string') return obj.disaster;
+    if (typeof obj.phase === 'string') return obj.phase;
+    if (typeof obj.category === 'string') return obj.category;
+  }
+  return value;
+};
+
+const normalizeToolArgs = (
+  args: Record<string, unknown>,
+): Record<string, unknown> => {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(args)) {
+    out[key] = normalizeToolArgValue(value);
+  }
+  return out;
+};
+
+/** Collect args from `args` or from top-level fields on malformed envelopes. */
+const extractToolArgs = (obj: Record<string, unknown>): Record<string, unknown> => {
+  if (obj.args && typeof obj.args === 'object' && !Array.isArray(obj.args)) {
+    return normalizeToolArgs(obj.args as Record<string, unknown>);
+  }
+  const reserved = new Set(['action', 'name', 'text', 'args']);
+  const args: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (!reserved.has(key)) args[key] = normalizeToolArgValue(value);
+  }
+  return args;
+};
+
 const extractJsonObject = (raw: string): string | null => {
   const start = raw.indexOf('{');
   if (start === -1) return null;
@@ -528,7 +564,24 @@ const parseAction = (raw: string): ParsedAction => {
       return {kind: 'speak', text: obj.text};
     }
     if (obj?.action === 'tool' && typeof obj.name === 'string') {
-      return {kind: 'tool', name: obj.name, args: obj.args ?? {}};
+      return {
+        kind: 'tool',
+        name: obj.name,
+        args: extractToolArgs(obj),
+      };
+    }
+    // Tolerate {action: "<tool_name>", ...args} with args at the top level.
+    if (
+      typeof obj?.action === 'string' &&
+      KNOWN_TOOL_NAMES.has(obj.action) &&
+      obj.action !== 'tool' &&
+      obj.action !== 'speak'
+    ) {
+      return {
+        kind: 'tool',
+        name: obj.action,
+        args: extractToolArgs(obj),
+      };
     }
     // Tolerate the common malformed shape: {"action":"<tool_name>", "name":"<tool_name>", "args":{}}
     if (
@@ -537,10 +590,18 @@ const parseAction = (raw: string): ParsedAction => {
       obj.action === obj.name &&
       KNOWN_TOOL_NAMES.has(obj.name)
     ) {
-      return {kind: 'tool', name: obj.name, args: obj.args ?? {}};
+      return {
+        kind: 'tool',
+        name: obj.name,
+        args: extractToolArgs(obj),
+      };
     }
     if (typeof obj?.name === 'string' && KNOWN_TOOL_NAMES.has(obj.name)) {
-      return {kind: 'tool', name: obj.name, args: obj.args ?? {}};
+      return {
+        kind: 'tool',
+        name: obj.name,
+        args: extractToolArgs(obj),
+      };
     }
     return {kind: 'invalid', raw};
   } catch {

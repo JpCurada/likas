@@ -134,6 +134,17 @@ describe('parseAction', () => {
     expect(a).toMatchObject({kind: 'tool', name: 'get_protocol'});
   });
 
+  it('tolerates action-as-tool-name with top-level args and nested disaster.type', () => {
+    const a = parseAction(
+      '{"action":"get_protocol","disaster":{"type":"earthquake"},"phase":"before"}',
+    );
+    expect(a).toEqual({
+      kind: 'tool',
+      name: 'get_protocol',
+      args: {disaster: 'earthquake', phase: 'before'},
+    });
+  });
+
   it('repairs missing quote before args object (grammar / token seam)', () => {
     const a = parseAction(
       '{"action":"tool","name":"route_to_nearest_evacuation","args:{}}',

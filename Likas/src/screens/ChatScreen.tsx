@@ -558,7 +558,7 @@ const styles = StyleSheet.create({
   },
   inputRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     gap: 8,
     padding: SIZES.padding,
     borderTopWidth: 1,
@@ -572,11 +572,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9',
     borderRadius: 22,
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingVertical: 8,
     fontFamily: FONTS.primaryRegular,
     fontSize: SIZES.body,
+    lineHeight: 20,
     color: COLORS.darkGreen,
+    ...(Platform.OS === 'android'
+      ? {includeFontPadding: false, textAlignVertical: 'center' as const}
+      : null),
   },
   sendButton: {
     width: 44,
@@ -585,6 +588,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryGreen,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   sendButtonDisabled: {
     backgroundColor: COLORS.gray,
