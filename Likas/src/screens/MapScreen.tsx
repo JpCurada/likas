@@ -733,6 +733,27 @@ export const MapScreen: React.FC = () => {
     }
   }, [userLocation, activeRoute, setActiveRoute, handleCancelCalculation]);
 
+  const handleRouteToPrimaryMeeting = useCallback(() => {
+    if (!profile) return;
+    const pm = profile.location.primaryMeeting;
+    const c = pm.coordinates;
+    if (c == null || typeof c.latitude !== 'number' || typeof c.longitude !== 'number') {
+      Alert.alert(
+        'Meeting point not pinned',
+        'Open Profile and use "Tap to pin on map" for your primary meeting point, then you can get walking directions here.',
+      );
+      return;
+    }
+    handleGetDirections({
+      name: pm.landmark?.trim() ? pm.landmark : 'Primary meeting point',
+      type: 'Meeting point',
+      category: 'meeting',
+      pointType: 'school',
+      latitude: c.latitude,
+      longitude: c.longitude,
+    });
+  }, [profile, handleGetDirections]);
+
   const handleFeaturePress = useCallback((e: any) => {
     const feature = e?.nativeEvent?.features?.[0] ?? e?.features?.[0];
     if (!feature?.properties) return;
@@ -977,6 +998,15 @@ export const MapScreen: React.FC = () => {
             <Text style={styles.meetTxt} numberOfLines={1}>
               Meeting: {profile.location.primaryMeeting.landmark}
             </Text>
+            <TouchableOpacity
+              style={styles.meetRouteBtn}
+              onPress={handleRouteToPrimaryMeeting}
+              activeOpacity={0.85}
+              accessibilityLabel="Walking route to primary meeting point"
+              accessibilityRole="button">
+              <Icon name="routes" size={15} color={COLORS.white} />
+              <Text style={styles.meetRouteBtnText}>Route</Text>
+            </TouchableOpacity>
           </View>
         ) : null}
       </View>
@@ -1449,6 +1479,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.lightGreen,
     flex: 1,
+    minWidth: 0,
+  },
+  meetRouteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.primaryGreen,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  meetRouteBtnText: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: 11,
+    color: COLORS.white,
+    letterSpacing: 0.2,
   },
   routeBanner: {
     position: 'absolute',
