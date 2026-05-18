@@ -1,4 +1,5 @@
 import RNFS from 'react-native-fs';
+import {unzip} from 'react-native-zip-archive';
 import devManifest from './manifest.dev.json'; // Cache buster
 
 export type AssetKind = 'model' | 'mbtiles' | 'glyphs' | 'data';
@@ -252,5 +253,29 @@ export const assetManager = {
     }
     delete index.records[assetId];
     await this.writeInstalled(index);
+  },
+
+  /**
+   * If the asset's localFilename ends in `.zip`, unzips it into an
+   * `extracted/` subdirectory next to the archive file.
+   * No-op for non-archive assets.
+   */
+  async decompressArchive(asset: ManifestAsset, archivePath: string): Promise<void> {
+    if (!asset.localFilename.endsWith('.zip')) return;
+    const extractDir = `${RNFS.DocumentDirectoryPath}/${asset.localSubdir}/extracted`;
+    if (await RNFS.exists(extractDir)) {
+      if (__DEV__) {
+        console.log(`[assetManager] Archive already extracted at ${extractDir}`);
+      }
+      return;
+    }
+    await RNFS.mkdir(extractDir);
+    if (__DEV__) {
+      console.log(`[assetManager] Unzipping ${archivePath} → ${extractDir}`);
+    }
+    await unzip(archivePath, extractDir);
+    if (__DEV__) {
+      console.log(`[assetManager] ✅ Unzip complete: ${extractDir}`);
+    }
   },
 };

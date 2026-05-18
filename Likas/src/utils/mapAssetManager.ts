@@ -79,7 +79,7 @@ const tryExtractBundledAsset = async (
     index.manifestVersion = manifest.manifestVersion;
     await assetManager.writeInstalled(index);
 
-    // Auto-extract if it's an archive
+    // Auto-extract if it's a .zip archive (e.g. glyphs bundle)
     await assetManager.decompressArchive(asset, finalPath);
 
     if (__DEV__) {
