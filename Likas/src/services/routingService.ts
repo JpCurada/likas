@@ -17,7 +17,7 @@
 
 import {assetManager} from './assetManager';
 import {getDistanceKm} from './evacuationService';
-import {openGraphDb, querySubgraph} from './graphDb';
+import {openGraphDb, querySubgraph, RouteTooLongError} from './graphDb';
 import type {LatLng} from '../types';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -44,6 +44,9 @@ export class NoRouteError extends Error {
     this.name = 'NoRouteError';
   }
 }
+
+// Re-exported so callers catch all routing failure modes from one module.
+export {RouteTooLongError};
 
 // ── Result type ───────────────────────────────────────────────────────────────
 
