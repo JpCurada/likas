@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Modal,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Map, Camera } from '@maplibre/maplibre-react-native';
@@ -14,6 +15,35 @@ import { COLORS, FONTS, SIZES } from '../theme';
 import { Icon } from './Icon';
 import { LatLng } from '../types';
 import { useAppStore } from '../stores/appStore';
+import {
+  MapAssetMissingError,
+  prepareGlyphs,
+  prepareOfflineMap,
+} from '../utils/mapAssetManager';
+
+// Bundled style.json — same source MapScreen uses. We only ever swap the
+// mbtiles URL and glyphs path before publishing, so the modal renders the
+// identical map the user will see in the main Map tab.
+const baseOfflineStyle = require('../../assets/maps/style.json');
+const OFFLINE_GLYPH_FONT_STACK = ['Noto Sans Regular'];
+
+const buildMinimalStyle = (mbtilesUrl: string, glyphsPath: string): any => {
+  const clone = JSON.parse(JSON.stringify(baseOfflineStyle));
+  clone.sources.openmaptiles.url = mbtilesUrl;
+  clone.glyphs = glyphsPath;
+  // Force the offline font stack on every symbol layer — these are the only
+  // glyphs we ship.
+  clone.layers = clone.layers.map((layer: any) => {
+    if (layer.type === 'symbol') {
+      return {
+        ...layer,
+        layout: { ...layer.layout, 'text-font': OFFLINE_GLYPH_FONT_STACK },
+      };
+    }
+    return layer;
+  });
+  return clone;
+};
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -41,11 +71,20 @@ export const MeetingPointPickerModal: React.FC<Props> = ({
   onConfirm,
   onCancel,
 }) => {
-  // ── Read the pre-built style from the global store (set by MapScreen on init)
+  // ── Read the pre-built style from the global store (set by MapScreen on
+  //    init OR by this picker on first open during onboarding).
   const offlineMapStyle = useAppStore(s => s.offlineMapStyle);
+  const setOfflineMapStyle = useAppStore(s => s.setOfflineMapStyle);
 
   const cameraRef = useRef<CameraRef>(null);
   const [center, setCenter] = useState<LatLng>(initial ?? MANILA);
+
+  // ── Self-bootstrap state ────────────────────────────────────────────────
+  // During onboarding the user has never opened the Map tab, so the global
+  // style is null. We init it on first open here, then publish back to the
+  // store so MapScreen's later mount reuses the same object.
+  const [isBootstrapping, setIsBootstrapping] = useState(false);
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
 
   // Reset pin to initial position every time the modal reopens
   useEffect(() => {
@@ -53,6 +92,47 @@ export const MeetingPointPickerModal: React.FC<Props> = ({
       setCenter(initial ?? MANILA);
     }
   }, [visible, initial]);
+
+  // Build the offline style on demand if MapScreen hasn't done it yet.
+  useEffect(() => {
+    if (!visible || offlineMapStyle || isBootstrapping) return;
+    let cancelled = false;
+    setIsBootstrapping(true);
+    setBootstrapError(null);
+    (async () => {
+      try {
+        const mbtilesUrl = await prepareOfflineMap();
+        let glyphsPath: string;
+        try {
+          glyphsPath = await prepareGlyphs();
+        } catch {
+          glyphsPath =
+            Platform.OS === 'android'
+              ? 'asset://glyphs/{fontstack}/{range}.pbf'
+              : 'glyphs/{fontstack}/{range}.pbf';
+        }
+        if (cancelled) return;
+        const style = buildMinimalStyle(mbtilesUrl, glyphsPath);
+        setOfflineMapStyle(style);
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof MapAssetMissingError) {
+          setBootstrapError(
+            'Offline maps are not installed yet. Finish downloading the Map Tiles asset in Setup, then pin your meeting point.',
+          );
+        } else {
+          setBootstrapError(
+            'Could not load the offline map. Please try again after restarting the app.',
+          );
+        }
+      } finally {
+        if (!cancelled) setIsBootstrapping(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, offlineMapStyle, isBootstrapping, setOfflineMapStyle]);
 
   // Fly to the initial position 120 ms after the map mounts
   // (gives MapLibre time to finish rendering before animating)
@@ -108,14 +188,29 @@ export const MeetingPointPickerModal: React.FC<Props> = ({
 
         {/* ── Map area ── */}
         <View style={s.mapWrapper}>
-          {/* Map not ready yet — MapScreen hasn't opened the map tab */}
+          {/* Map not ready yet — either bootstrapping, or the offline tiles
+              asset hasn't been downloaded yet. */}
           {!offlineMapStyle && (
             <View style={s.placeholder}>
-              <ActivityIndicator size="large" color={COLORS.primaryGreen} />
-              <Text style={s.placeholderTitle}>Map initialising…</Text>
-              <Text style={s.placeholderHint}>
-                Open the Map tab once, then come back here.
-              </Text>
+              {bootstrapError ? (
+                <>
+                  <Icon
+                    name="map-marker-off-outline"
+                    size={36}
+                    color={COLORS.error}
+                  />
+                  <Text style={s.placeholderTitle}>Map not available</Text>
+                  <Text style={s.placeholderHint}>{bootstrapError}</Text>
+                </>
+              ) : (
+                <>
+                  <ActivityIndicator size="large" color={COLORS.primaryGreen} />
+                  <Text style={s.placeholderTitle}>Map initialising…</Text>
+                  <Text style={s.placeholderHint}>
+                    Loading offline tiles — this only happens the first time.
+                  </Text>
+                </>
+              )}
             </View>
           )}
 

@@ -1,5 +1,5 @@
 {
-  "manifestVersion": "1.1.0",
+  "manifestVersion": "1.2.0",
   "assets": {
     "map-tiles": {
       "kind": "mbtiles",
@@ -21,7 +21,7 @@
       "mirrors": [
         "https://github.com/JpCurada/likas/releases/download/assets-v1.0.0/noto-sans-v1.0.0.zip"
       ],
-      "sha256": "b97e0e4708912d2c43b9055a785f2b4bb4ff32f227b027e4a8181f5b060143d8",
+      "sha256": "806e7cbc337788e1fbd4351d9ed53732ceeed482dba18a03202c6030cae2f95a",
       "size": 125575567,
       "required": true,
       "localFilename": "noto-sans-v1.0.0.zip",
@@ -44,10 +44,10 @@
       "kind": "model",
       "version": "1.0.0",
       "url": "https://cdn.likas-ai.com/models/likas-q4_k_m.gguf",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "sha256": "b8906b8c5e05e57b657646bbc657bd35814a269b2c20f0a2579047fafa1a67dd",
       "size": 3186871552,
       "required": true,
-      "localFilename": "likas-q4_k_m.gguf",
+      "localFilename": "gemma-4-E2B-it-UD-Q4_K_XL.gguf",
       "localSubdir": "models"
     }
   }

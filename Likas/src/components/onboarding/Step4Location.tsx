@@ -12,7 +12,9 @@ import {
 import { StepWrapper } from './StepWrapper';
 import { COLORS, FONTS, SIZES } from '../../theme';
 import { UserProfile, MeetingPoint } from '../../database/storage';
+import { LatLng } from '../../types';
 import { Icon } from '../Icon';
+import { MeetingPointPickerModal } from '../MeetingPointPickerModal';
 import {
   CITIES,
   METRO_MANILA,
@@ -34,12 +36,14 @@ const MeetingPointForm = ({
   required,
   value,
   onChange,
+  onPickPin,
 }: {
   label: string;
   iconName: string;
   required?: boolean;
   value: MeetingPoint;
   onChange: (v: MeetingPoint) => void;
+  onPickPin: () => void;
 }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -50,6 +54,8 @@ const MeetingPointForm = ({
     };
   }, []);
 
+  const pinned = value.coordinates;
+
   return (
     <View style={ms.container}>
       <View style={ms.headingRow}>
@@ -59,6 +65,41 @@ const MeetingPointForm = ({
           {required && <Text style={ms.req}> *</Text>}
         </Text>
       </View>
+
+      {/* Pin on map — opens the offline-map picker modal */}
+      <TouchableOpacity
+        style={ms.mapPinBtn}
+        onPress={onPickPin}
+        activeOpacity={0.85}
+      >
+        <View
+          style={[ms.mapPinIconWrap, pinned ? ms.mapPinIconWrapSet : null]}
+        >
+          <Icon
+            name={pinned ? 'map-marker-check' : 'map-marker-plus-outline'}
+            size={22}
+            color={pinned ? COLORS.primaryGreen : COLORS.gray}
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          {pinned ? (
+            <>
+              <Text style={ms.mapPinSetLabel}>Pin set ✓</Text>
+              <Text style={ms.mapPinCoords}>
+                {pinned.latitude.toFixed(5)}, {pinned.longitude.toFixed(5)}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={ms.mapPinEmptyLabel}>Tap to pin on map</Text>
+              <Text style={ms.mapPinHint}>
+                Drop a pin at the exact meeting spot
+              </Text>
+            </>
+          )}
+        </View>
+        <Icon name="chevron-right" size={18} color={COLORS.gray} />
+      </TouchableOpacity>
 
       {/* Landmark */}
       <View style={ms.field}>
@@ -159,6 +200,51 @@ const ms = StyleSheet.create({
     color: COLORS.darkGreen,
   },
   inputMulti: { minHeight: 60, textAlignVertical: 'top' },
+  mapPinBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.white,
+    borderRadius: SIZES.radius,
+    borderWidth: 1.5,
+    borderColor: COLORS.lightGreen,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  mapPinIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mapPinIconWrapSet: {
+    backgroundColor: COLORS.lightGreen,
+  },
+  mapPinSetLabel: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: SIZES.small,
+    color: COLORS.primaryGreen,
+  },
+  mapPinCoords: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 11,
+    color: COLORS.gray,
+    marginTop: 1,
+    letterSpacing: 0.3,
+  },
+  mapPinEmptyLabel: {
+    fontFamily: FONTS.primarySemiBold,
+    fontSize: SIZES.small,
+    color: COLORS.darkGreen,
+  },
+  mapPinHint: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 11,
+    color: COLORS.gray,
+    marginTop: 1,
+  },
   suggestions: {
     backgroundColor: COLORS.white,
     borderRadius: 8,
@@ -188,12 +274,26 @@ export const Step4Location: React.FC<Props> = ({
 }) => {
   const [openModal, setOpenModal] = useState<ModalType>(null);
   const [search, setSearch] = useState('');
+  const [pickerTarget, setPickerTarget] =
+    useState<'primaryMeeting' | 'secondaryMeeting' | null>(null);
 
   const loc = profile.location;
   const isValid =
     loc?.city !== '' &&
     loc?.barangay !== '' &&
     (loc?.primaryMeeting?.landmark || '').trim().length >= 2;
+
+  const handlePinConfirm = (coords: LatLng) => {
+    if (!pickerTarget) return;
+    const target = loc[pickerTarget];
+    onChange({
+      location: {
+        ...loc,
+        [pickerTarget]: { ...target, coordinates: coords },
+      },
+    });
+    setPickerTarget(null);
+  };
 
   const barangays = loc.city ? METRO_MANILA[loc.city] ?? [] : [];
   const filteredCities = CITIES.filter(c =>
@@ -301,6 +401,7 @@ export const Step4Location: React.FC<Props> = ({
         required
         value={loc.primaryMeeting}
         onChange={v => onChange({ location: { ...loc, primaryMeeting: v } })}
+        onPickPin={() => setPickerTarget('primaryMeeting')}
       />
 
       <MeetingPointForm
@@ -308,6 +409,21 @@ export const Step4Location: React.FC<Props> = ({
         iconName="map-marker-outline"
         value={loc.secondaryMeeting}
         onChange={v => onChange({ location: { ...loc, secondaryMeeting: v } })}
+        onPickPin={() => setPickerTarget('secondaryMeeting')}
+      />
+
+      {/* Map pin picker — opens the offline map so the user can drop a
+          precise GPS pin for the selected meeting point. */}
+      <MeetingPointPickerModal
+        visible={pickerTarget !== null}
+        title={
+          pickerTarget === 'primaryMeeting'
+            ? 'Pin Primary Meeting Point'
+            : 'Pin Secondary Meeting Point'
+        }
+        initial={pickerTarget ? loc[pickerTarget]?.coordinates ?? null : null}
+        onConfirm={handlePinConfirm}
+        onCancel={() => setPickerTarget(null)}
       />
 
       {/* City Modal */}
