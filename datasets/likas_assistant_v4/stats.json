@@ -1,0 +1,23 @@
+{
+  "version": "v4",
+  "total": 691,
+  "train": 622,
+  "test": 69,
+  "by_section": {
+    "protocol_qa": 162,
+    "evacuation": 180,
+    "nearby_poi": 153,
+    "profile_aware": 80,
+    "direct_speak": 10,
+    "refusal": 15,
+    "clarification": 8,
+    "multi_tool": 40,
+    "multi_turn": 40,
+    "tool_error": 3
+  },
+  "assistant_uniqueness_train": {
+    "unique": 578,
+    "total": 1344,
+    "ratio": 0.43
+  }
+}
