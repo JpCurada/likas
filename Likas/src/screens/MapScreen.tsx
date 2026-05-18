@@ -172,6 +172,7 @@ export const MapScreen: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeRoute = useAppStore(s => s.activeRoute);
   const setActiveRoute = useAppStore(s => s.setActiveRoute);
+  const nearbyPins = useAppStore(s => s.nearbyPins);
   const setOfflineMapStyle = useAppStore(s => s.setOfflineMapStyle);
 
   const handleCancelCalculation = useCallback(() => {
@@ -202,6 +203,25 @@ export const MapScreen: React.FC = () => {
       ],
     };
   }, [activeRoute]);
+
+  const nearbyPinsGeoJSON = useMemo(() => {
+    if (!nearbyPins || nearbyPins.length === 0) return null;
+    return {
+      type: 'FeatureCollection',
+      features: nearbyPins.map((p, i) => ({
+        type: 'Feature',
+        properties: {
+          id: `ai-nearby-${i}`,
+          name: p.name,
+          address: p.address,
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: [p.coordinates.longitude, p.coordinates.latitude],
+        },
+      })),
+    };
+  }, [nearbyPins]);
 
   const evacuationGeoJSON = useMemo(() => getEvacuationGeoJSON(), []);
   const hospitalGeoJSON = useMemo(() => getHospitalGeoJSON(), []);
@@ -487,6 +507,28 @@ export const MapScreen: React.FC = () => {
       duration: 900,
     });
   }, [activeRoute, isMapReady]);
+
+  useEffect(() => {
+    if (!nearbyPins || nearbyPins.length === 0 || !isMapReady) return;
+    let minLon = nearbyPins[0].coordinates.longitude;
+    let maxLon = nearbyPins[0].coordinates.longitude;
+    let minLat = nearbyPins[0].coordinates.latitude;
+    let maxLat = nearbyPins[0].coordinates.latitude;
+    for (const p of nearbyPins) {
+      if (p.coordinates.longitude < minLon) minLon = p.coordinates.longitude;
+      if (p.coordinates.longitude > maxLon) maxLon = p.coordinates.longitude;
+      if (p.coordinates.latitude < minLat) minLat = p.coordinates.latitude;
+      if (p.coordinates.latitude > maxLat) maxLat = p.coordinates.latitude;
+    }
+    // ensure a small padding if there's only 1 pin or they are very close
+    if (maxLon - minLon < 0.001) { minLon -= 0.005; maxLon += 0.005; }
+    if (maxLat - minLat < 0.001) { minLat -= 0.005; maxLat += 0.005; }
+
+    cameraRef.current?.fitBounds([minLon, minLat, maxLon, maxLat], {
+      padding: { top: 120, bottom: 80, left: 60, right: 60 },
+      duration: 1200,
+    });
+  }, [nearbyPins, isMapReady]);
 
   const toggleFilter = useCallback((id: string) => {
     setActiveFilters(prev => ({ ...prev, [id]: !prev[id] }));
@@ -1041,6 +1083,47 @@ export const MapScreen: React.FC = () => {
                 paint={{
                   'line-color': COLORS.primaryGreen,
                   'line-width': 4,
+                }}
+              />
+            </GeoJSONSource>
+          ) : null}
+
+          {nearbyPinsGeoJSON ? (
+            <GeoJSONSource id="aiNearbyPinsSource" data={nearbyPinsGeoJSON as any}>
+              <Layer
+                id="aiNearbyPinsHalo"
+                type="circle"
+                paint={{
+                  'circle-color': COLORS.primaryGreen,
+                  'circle-radius': 24,
+                  'circle-opacity': 0.25,
+                  'circle-blur': 0.8,
+                }}
+              />
+              <Layer
+                id="aiNearbyPinsMarker"
+                type="circle"
+                paint={{
+                  'circle-color': COLORS.primaryGreen,
+                  'circle-radius': 10,
+                  'circle-stroke-width': 3,
+                  'circle-stroke-color': COLORS.white,
+                }}
+              />
+              <Layer
+                id="aiNearbyPinsLabel"
+                type="symbol"
+                layout={{
+                  'text-field': ['get', 'name'],
+                  'text-font': OFFLINE_GLYPH_FONT_STACK,
+                  'text-size': 13,
+                  'text-anchor': 'bottom',
+                  'text-offset': [0, -1.2],
+                }}
+                paint={{
+                  'text-color': '#111',
+                  'text-halo-color': '#fff',
+                  'text-halo-width': 2,
                 }}
               />
             </GeoJSONSource>

@@ -91,6 +91,7 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
   const chatMessages = useAppStore(s => s.chatMessages);
   const addChatMessage = useAppStore(s => s.addChatMessage);
   const setActiveRoute = useAppStore(s => s.setActiveRoute);
+  const setNearbyPins = useAppStore(s => s.setNearbyPins);
   const {
     isReady,
     isInitializing,
@@ -220,6 +221,19 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
     [navigation, setActiveRoute, onClose],
   );
 
+  const openNearbyOnMap = useCallback(
+    (msg: ChatMessage) => {
+      if (msg.attachment?.kind !== 'nearby') return;
+      setNearbyPins(msg.attachment.pins);
+      if (onClose) {
+        onClose();
+      } else {
+        navigation.navigate('Main', {screen: 'Map'});
+      }
+    },
+    [navigation, setNearbyPins, onClose],
+  );
+
   if (!isReady && !isInitializing) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -240,7 +254,7 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
 
   const renderItem = ({item}: {item: ChatMessage}) => {
     const isUser = item.role === 'user';
-    const hasRoute = item.attachment?.kind === 'route';
+    const attachment = item.attachment;
     return (
       <View style={styles.messageGroup}>
         {!isUser && item.toolTrace && item.toolTrace.length > 0 ? (
@@ -256,7 +270,7 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
             {item.text}
           </Text>
         </View>
-        {hasRoute && item.attachment ? (
+        {attachment?.kind === 'route' ? (
           <TouchableOpacity
             style={styles.routeCard}
             onPress={() => openRouteOnMap(item)}
@@ -264,14 +278,31 @@ export const ChatScreen: React.FC<{onClose?: () => void, isBottomSheet?: boolean
             <Icon name="map-marker-path" size={22} color={COLORS.primaryGreen} />
             <View style={styles.routeCardBody}>
               <Text style={styles.routeCardTitle}>
-                Route to {item.attachment.destinationName}
+                Route to {attachment.destinationName}
               </Text>
               <Text style={styles.routeCardSub}>
-                {(item.attachment.distanceMeters / 1000).toFixed(2)} km · ~
-                {item.attachment.durationMinutesWalking} min walking
+                {(attachment.distanceMeters / 1000).toFixed(2)} km · ~
+                {attachment.durationMinutesWalking} min walking
               </Text>
             </View>
             <Text style={styles.routeCardCta}>View on map</Text>
+          </TouchableOpacity>
+        ) : null}
+        {attachment?.kind === 'nearby' ? (
+          <TouchableOpacity
+            style={styles.routeCard}
+            onPress={() => openNearbyOnMap(item)}
+            activeOpacity={0.85}>
+            <Icon name="map-marker-multiple" size={22} color={COLORS.primaryGreen} />
+            <View style={styles.routeCardBody}>
+              <Text style={styles.routeCardTitle}>
+                {attachment.pins.length} nearby {attachment.label}
+              </Text>
+              <Text style={styles.routeCardSub}>
+                Tap to view locations on map
+              </Text>
+            </View>
+            <Text style={styles.routeCardCta}>Show</Text>
           </TouchableOpacity>
         ) : null}
       </View>
