@@ -69,6 +69,20 @@ import {
 const baseOfflineStyle = require('../../assets/maps/style.json');
 const OFFLINE_GLYPH_FONT_STACK = ['Noto Sans Regular'];
 
+const METRO_CENTER: [number, number] = [120.9842, 14.5995];
+
+/** Steady-state 3D map camera — same as before entry-fly work. */
+const MAP_CAMERA_ZOOM = 17;
+const MAP_CAMERA_PITCH = 58;
+const MAP_CAMERA_BEARING = 20;
+
+/** Wide flat view used only for the one-time entry zoom-in. */
+const MAP_ENTRY_START_ZOOM = 10;
+const MAP_ENTRY_START_PITCH = 0;
+const MAP_ENTRY_FLY_MS = 2200;
+const MAP_ENTRY_FLY_DELAY_MS = 200;
+const MAP_ENTRY_GPS_WAIT_MS = 1200;
+
 /** Rebuilds the style object with building layers toggled between 2D / 3D */
 const buildStyle = (base: any, is3D: boolean, activeFilters: Record<string, boolean>): any => {
   const clone = JSON.parse(JSON.stringify(base));
@@ -134,8 +148,11 @@ const FILTER_OPTIONS = [
 export const MapScreen: React.FC = () => {
   const bottomSheetRef = useRef<BottomSheet>(null);
   const cameraRef = useRef<CameraRef>(null);
+  const entryFlyDoneRef = useRef(false);
+  const [entryFlyComplete, setEntryFlyComplete] = useState(false);
   const [cameraKey, setCameraKey] = useState(0);
   const [isMapReady, setIsMapReady] = useState(false);
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [baseStyle, setBaseStyle] = useState<any>(null);
 
   const [activeFilters, setActiveFilters] = useState<Record<string, boolean>>({
@@ -158,7 +175,9 @@ export const MapScreen: React.FC = () => {
     }, []),
   );
 
-  const [trackUser, setTrackUser] = useState<TrackUserLocation | undefined>('default');
+  const [trackUser, setTrackUser] = useState<TrackUserLocation | undefined>(
+    undefined,
+  );
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [chatSheetIndex, setChatSheetIndex] = useState(-1);
   const [mapAreaHeight, setMapAreaHeight] = useState(0);
@@ -470,6 +489,19 @@ export const MapScreen: React.FC = () => {
   );
   const [geoSession, setGeoSession] = useState(0);
 
+  const entryCenter = useMemo((): [number, number] => {
+    if (userLocation) return userLocation;
+    const meeting = profile?.location?.primaryMeeting?.coordinates;
+    if (meeting?.latitude != null && meeting?.longitude != null) {
+      return [meeting.longitude, meeting.latitude];
+    }
+    const home = profile?.location?.coordinates;
+    if (home?.latitude != null && home?.longitude != null) {
+      return [home.longitude, home.latitude];
+    }
+    return METRO_CENTER;
+  }, [userLocation, profile]);
+
   const retryLocationAccess = useCallback(() => {
     setLocationIssue(null);
     setGeoSession(k => k + 1);
@@ -552,6 +584,85 @@ export const MapScreen: React.FC = () => {
       if (watchId !== null) Geolocation.clearWatch(watchId);
     };
   }, [setLiveLocation, geoSession]);
+
+  // One-time entry zoom: start wide, then fly into the user's position in 3D.
+  useEffect(() => {
+    if (!isMapReady || !isMapLoaded || !dynamicStyle || entryFlyDoneRef.current) {
+      return;
+    }
+
+    const shouldSkip =
+      activeRoute != null || (nearbyPins != null && nearbyPins.length > 0);
+
+    if (shouldSkip) {
+      entryFlyDoneRef.current = true;
+      setEntryFlyComplete(true);
+      setTrackUser('default');
+      return;
+    }
+
+    let cancelled = false;
+    let flyTimer: ReturnType<typeof setTimeout> | undefined;
+    let zoomTimer: ReturnType<typeof setTimeout> | undefined;
+    let trackTimer: ReturnType<typeof setTimeout> | undefined;
+    let gpsWaitTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const animateTo = (lon: number, lat: number) => {
+      if (cancelled || entryFlyDoneRef.current) return;
+      entryFlyDoneRef.current = true;
+
+      flyTimer = setTimeout(() => {
+        if (cancelled) return;
+        cameraRef.current?.jumpTo({
+          center: [lon, lat],
+          zoom: MAP_ENTRY_START_ZOOM,
+          pitch: MAP_ENTRY_START_PITCH,
+          bearing: 0,
+        });
+        zoomTimer = setTimeout(() => {
+          if (cancelled) return;
+          cameraRef.current?.flyTo({
+            center: [lon, lat],
+            zoom: MAP_CAMERA_ZOOM,
+            pitch: MAP_CAMERA_PITCH,
+            bearing: MAP_CAMERA_BEARING,
+            duration: MAP_ENTRY_FLY_MS,
+          });
+          trackTimer = setTimeout(() => {
+            if (!cancelled) {
+              setEntryFlyComplete(true);
+              setTrackUser('default');
+            }
+          }, MAP_ENTRY_FLY_MS + 100);
+        }, 80);
+      }, MAP_ENTRY_FLY_DELAY_MS);
+    };
+
+    if (userLocation) {
+      animateTo(userLocation[0], userLocation[1]);
+    } else {
+      gpsWaitTimer = setTimeout(() => {
+        if (cancelled || entryFlyDoneRef.current) return;
+        animateTo(entryCenter[0], entryCenter[1]);
+      }, MAP_ENTRY_GPS_WAIT_MS);
+    }
+
+    return () => {
+      cancelled = true;
+      if (flyTimer) clearTimeout(flyTimer);
+      if (zoomTimer) clearTimeout(zoomTimer);
+      if (trackTimer) clearTimeout(trackTimer);
+      if (gpsWaitTimer) clearTimeout(gpsWaitTimer);
+    };
+  }, [
+    isMapReady,
+    isMapLoaded,
+    dynamicStyle,
+    userLocation,
+    entryCenter,
+    activeRoute,
+    nearbyPins,
+  ]);
 
   useEffect(() => {
     if (!activeRoute || !isMapReady) return;
@@ -1116,6 +1227,7 @@ export const MapScreen: React.FC = () => {
           attribution={false}
           onPress={handleMapPress}
           onRegionWillChange={() => setTrackUser(undefined)}
+          onDidFinishLoadingMap={() => setIsMapLoaded(true)}
         >
           <Images images={icons} />
           <UserLocation />
@@ -1123,10 +1235,21 @@ export const MapScreen: React.FC = () => {
             key={cameraKey}
             ref={cameraRef}
             trackUserLocation={trackUser}
-            zoom={17}
-            pitch={58}
-            bearing={20}
-            duration={3000}
+            {...(entryFlyComplete
+              ? {
+                  zoom: MAP_CAMERA_ZOOM,
+                  pitch: MAP_CAMERA_PITCH,
+                  bearing: MAP_CAMERA_BEARING,
+                  duration: 3000,
+                }
+              : {
+                  initialViewState: {
+                    center: entryCenter,
+                    zoom: MAP_ENTRY_START_ZOOM,
+                    pitch: MAP_ENTRY_START_PITCH,
+                    bearing: 0,
+                  },
+                })}
           />
 
           {/* Fault Lines */}
