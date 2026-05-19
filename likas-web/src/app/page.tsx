@@ -194,8 +194,7 @@ const team = [
   },
 ];
 
-const youtubeEmbedUrl =
-  "https://drive.google.com/file/d/18ijXh90RTpf56Dx2Lop7UmW-MI4tgnwO/preview";
+const youtubeEmbedUrl = "https://www.youtube.com/embed/kHHcDSyip-Q";
 const heroRouteMockup = "/mockups/mockup_1.jpg";
 const heroAssistantMockup = "/mockups/mockup_5.jpg";
 
@@ -462,13 +461,15 @@ function PhoneMockup({
   signal: string;
 }) {
   return (
-    <motion.div variants={fadeUp} className="group">
-      <div className="relative mx-auto flex h-full max-w-[286px] flex-col rounded-[2rem] border border-white/80 bg-white/82 p-4 shadow-xl shadow-emerald-950/8 backdrop-blur transition duration-300 group-hover:-translate-y-2 group-hover:shadow-2xl group-hover:shadow-emerald-950/14">
-        <div className="absolute -right-3 -top-3 grid size-12 place-items-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-950/20">
+    <motion.div variants={fadeUp} className="group h-full">
+      <div className="group relative flex h-full w-full flex-col rounded-[2rem] border border-white/80 bg-white/82 p-4 shadow-xl shadow-emerald-950/8 backdrop-blur transition duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-emerald-950/14 sm:p-5">
+        <div className="absolute -right-3 -top-3 z-10 grid size-12 place-items-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-950/20">
           <Icon className="size-5" />
         </div>
-        <div className="relative mx-auto w-full max-w-[218px]">
+
+        <div className="relative mx-auto w-full max-w-[310px] sm:max-w-[260px] lg:max-w-[240px] xl:max-w-[218px]">
           <div className="absolute inset-x-10 -bottom-3 h-10 rounded-full bg-emerald-500/20 blur-xl" />
+
           <div className="relative aspect-[9/18.5] rounded-[2.45rem] border-[9px] border-slate-950 bg-slate-950 p-1.5 shadow-2xl shadow-emerald-950/18">
             <div
               className="phone-screen relative flex h-full flex-col overflow-hidden rounded-[1.75rem] bg-cover bg-center"
@@ -476,24 +477,27 @@ function PhoneMockup({
             >
               <div className="absolute inset-0 bg-gradient-to-b from-white/4 via-transparent to-slate-950/24" />
 
-              <div className="relative mt-auto p-3">
+              {/* <div className="relative mt-auto p-3">
                 <div className="rounded-[1.35rem] border border-white/60 bg-white/88 p-3 shadow-xl shadow-slate-950/10 backdrop-blur">
                   <p className="text-xs font-bold text-slate-950">{label}</p>
                   <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
                     {signal}
                   </p>
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
+
         <div className="mt-6 flex flex-1 flex-col text-left">
           <Badge className="mb-3 w-fit bg-emerald-50 text-emerald-700">
             {signal}
           </Badge>
+
           <h3 className="text-lg font-semibold leading-6 text-slate-950">
             {title}
           </h3>
+
           <p className="mt-3 text-sm leading-6 text-slate-600">{copy}</p>
         </div>
       </div>
@@ -598,7 +602,7 @@ export default function Home() {
                     "min-h-13 w-full rounded-full bg-[#3bb372] px-5 text-center text-base text-white shadow-xl shadow-emerald-500/25 hover:bg-emerald-700 sm:w-auto sm:px-7",
                 })}
               >
-                Explore LIKAS <ArrowRight className="ml-2 size-4" />
+                Explore LIKAS
               </a>
               <a
                 href="#video"
@@ -612,23 +616,6 @@ export default function Home() {
                 <Play className="mr-2 size-4 fill-emerald-600 text-emerald-600" />
                 Watch Demo
               </a>
-            </div>
-            <div className="mt-10 grid max-w-xl grid-cols-1 gap-3 min-[430px]:grid-cols-3">
-              {[
-                ["2.58GB", "edge model target"],
-                ["0 data", "offline runtime"],
-                ["PH", "hazard-ready"],
-              ].map(([value, label]) => (
-                <div
-                  key={value}
-                  className="rounded-3xl border border-white bg-white/72 p-4 shadow-sm backdrop-blur"
-                >
-                  <p className="text-xl font-black text-slate-950">{value}</p>
-                  <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
-                    {label}
-                  </p>
-                </div>
-              ))}
             </div>
           </Reveal>
 
@@ -912,8 +899,9 @@ export default function Home() {
           title="A closer look at the LIKAS mobile experience."
           copy="Each screen is presented as part of the citizen journey: setting up personal needs, preparing before danger, choosing safer routes, asking the offline assistant, and reviewing emergency center details."
         />
+
         <motion.div
-          className="mx-auto mt-14 grid max-w-7xl gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+          className="mx-auto mt-14 grid max-w-7xl grid-cols-1 gap-8 lg:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
           variants={stagger}
           initial="hidden"
           whileInView="show"
