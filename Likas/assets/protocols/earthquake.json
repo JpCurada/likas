@@ -1,0 +1,11 @@
+{
+  "disaster": "earthquake",
+  "source": "PHIVOLCS Earthquake Preparedness Guide; NDRRMC Family Earthquake Action Plan",
+  "retrieved": "2026-05-14",
+  "phases": {
+    "before": "PHIVOLCS preparedness: 1) Identify safe spots in every room — under sturdy tables, against interior walls away from windows. 2) Anchor heavy furniture, water heaters, and shelves to walls. 3) Prepare a Go Bag with water, food, flashlight, radio, whistle, medicines, documents, and cash. 4) Agree on a family meeting point and out-of-town contact. 5) Practice DROP, COVER, and HOLD ON drills quarterly.",
+    "during": "PHIVOLCS guidance: DROP to your hands and knees. Take COVER under a sturdy table or against an interior wall. HOLD ON until the shaking stops. If outdoors, move to an open area away from buildings, trees, and power lines. If driving, pull over away from overpasses and stop. Do NOT use elevators. Do NOT run outside during shaking.",
+    "after": "NDRRMC guidance: Check yourself and others for injuries. Expect aftershocks — each can be as strong as the main quake. Inspect for gas leaks, electrical damage, and structural cracks. Do not light flames if you smell gas. Tune to the radio for official advisories. If trapped, conserve energy: cover your mouth, tap on pipes or walls, and shout only when rescuers are nearby."
+  },
+  "emergency_contact": "NDRRMC Operations Center: 911 or (02) 8911-1406"
+}

@@ -1,0 +1,41 @@
+{
+  "manifestVersion": "1.0.0",
+  "assets": {
+    "map-tiles": {
+      "kind": "mbtiles",
+      "version": "2026.05",
+      "url": "https://cdn.likas-ai.com/likas/maps/philippines-extract.mbtiles",
+      "mirrors": [
+        "https://github.com/JpCurada/likas/releases/download/assets-v2026.05/philippines-extract.mbtiles"
+      ],
+      "sha256": "bddd5e415b1140baafa3c2541ad6197c56891437ea7f8af02563dc2f51c7cc98",
+      "size": 524279808,
+      "required": true,
+      "localFilename": "philippines-extract.mbtiles",
+      "localSubdir": "maps"
+    },
+    "pedestrian-graph-db": {
+      "kind": "data",
+      "version": "2026.05",
+      "url": "https://cdn.likas-ai.com/likas/maps/pedestrian-graph.db",
+      "mirrors": [
+        "https://github.com/JpCurada/likas/releases/download/assets-v2026.05/pedestrian-graph.db"
+      ],
+      "sha256": "293ba305982206052da259a212d8720191d4fe3da03bf47cb211482e95e7920b",
+      "size": 130998272,
+      "required": true,
+      "localFilename": "pedestrian-graph.db",
+      "localSubdir": "maps"
+    },
+    "ai-model-gemma-4-e2b": {
+      "kind": "model",
+      "version": "1.0.0",
+      "url": "https://cdn.likas-ai.com/models/likas-q4_k_m.gguf",
+      "sha256": "b8906b8c5e05e57b657646bbc657bd35814a269b2c20f0a2579047fafa1a67dd",
+      "size": 3186871552,
+      "required": true,
+      "localFilename": "gemma-4-E2B-it-UD-Q4_K_XL.gguf",
+      "localSubdir": "models"
+    }
+  }
+}

@@ -1,0 +1,189 @@
+import React, {useEffect} from 'react';
+import {Dimensions, StyleSheet, Text, View} from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+import Svg, {Circle, Defs, G, Path, LinearGradient, Stop} from 'react-native-svg';
+
+import {COLORS, FONTS} from '../theme';
+
+// ─── SVG geometry ─────────────────────────────────────────────────────────
+// Sourced 1:1 from the brand wordmark at repo-root with_text_black.svg.
+const VIEW_W = 1500.95;
+const VIEW_H = 441.76;
+
+// The flame/wing glyph that prefixes "ikas".
+const GLYPH_D =
+  'M393.45,33.09c14.29-2.03,35.75-.71,51.62-1.07,21.85-.21,36.86-.47,46.51,17.89,16.55,37.56-79.81,110.45-112.52,123.43-18.38,8.05-40.9,17.16-46.91,38.11-5.38,16.98,2.8,36.92,16.41,46.98,8.53,6.34,18.29,10.44,27.33,16.09,10.64,6.38,21.33,14.29,30.79,21.88,23.56,17.43,40.53,42.43,53.53,68.38,7.31,14.84,18.7,30,20.12,46.55,1.2,13.23-8.71,25.08-21.11,28.56-6.66,1.96-13.12,1.73-22.75,1.77-16.96-.03-35.85.02-53.08,0-11.65-.23-21.59.87-30.47-3.22-17.48-7.43-19.85-25.44-15.62-42.17,8.23-31.05-1.82-63.34-21.97-87.76-10.85-13.05-23.23-26.41-39.08-33.16-26.76-11.07-52.86,22.55-63.6,43.44-11.61,23.01-6.04,50.39-6.83,75.45.85,18.42-2.55,39.76-22.61,44.93-6.68,2.01-14.13,2.37-21.2,2.46-42.18-.18-84.38.57-126.56-.32-26.07-1.14-36.21-17.34-35.31-42.16-1.07-24.61,2.93-47.49,32.02-48.87,33.63.82,61.75-1.77,87.96-23.43,28.15-21.84,56.56-48,77.07-79,4.72-8.07,6.91-16.72,5.73-25.79-4.49-29.54-30.2-58.54-61.59-57.2-26.86,1.78-38.38,26.93-37.57,51.26-.35,14.21,5.46,29.53,1.22,42.68-7.95,23.93-42.07,24.67-58.92,10.42-12.65-9.87-14.88-27.94-15.88-43.39-7.38-92.88,39.62-159.5,124.18-143.63,20.62,3.75,43.96,12.41,49.51,34.84,3.89,14.16,7.27,28.05,15.71,40.74,10.42,15.97,28.21,33.07,48.42,24.74,46.52-19.36,65.36-70.14,88.74-110.24,8.42-15.61,17.32-35.62,36.47-39.13l.22-.04Z';
+
+// The "L" letter and its dot.
+const L_D =
+  'M584.8,136.74v-49.29h94.39v49.29h-94.39ZM611.95,392.36V87.45h67.24v304.9h-67.24Z';
+// "I"
+const I_D =
+  'M720.96,212.76v-49.29h97.32v49.29h-97.32ZM777.35,140.92c-12.53,0-21.79-3.27-27.78-9.82-5.99-6.54-8.98-14.83-8.98-24.85s2.99-18.72,8.98-25.27c5.99-6.54,15.25-9.82,27.78-9.82s21.78,3.28,27.78,9.82c5.98,6.55,8.98,14.97,8.98,25.27s-3,18.31-8.98,24.85c-5.99,6.55-15.25,9.82-27.78,9.82ZM751.45,392.36v-228.89h66.83v228.89h-66.83Z';
+// "K"
+const K_D =
+  'M842.87,392.36V87.45h66.83v304.9h-66.83ZM1004.1,392.36l-72.26-106.93h-32.16l93.14-121.96h70.17l-87.71,113.61.84-32.58,103.17,147.86h-75.18Z';
+// "S"
+const S_D =
+  'M1399.04,401.19c-32.58,0-58.06-6.68-76.44-20.05-18.38-13.37-28.13-32.16-29.24-56.39h59.31c1.11,7.24,5.49,13.72,13.16,19.42,7.66,5.71,19.14,8.56,34.46,8.56,11.7,0,21.37-2.02,29.03-6.06,7.66-4.03,11.49-9.82,11.49-17.33,0-6.68-2.92-12.04-8.77-16.08-5.85-4.03-16.29-6.89-31.32-8.56l-17.96-1.67c-27.57-2.78-48.24-10.44-62.03-22.97-13.78-12.53-20.67-28.54-20.67-48.03,0-16.15,4.03-29.65,12.11-40.51,8.07-10.86,19.28-19.07,33.62-24.64,14.34-5.57,30.7-8.35,49.08-8.35,29.51,0,53.32,6.47,71.42,19.42,18.1,12.95,27.57,31.68,28.4,56.18h-59.31c-1.12-7.52-5.01-13.85-11.69-19-6.68-5.15-16.57-7.73-29.65-7.73-10.31,0-18.52,1.95-24.64,5.85-6.13,3.9-9.19,9.19-9.19,15.87s2.64,11.28,7.94,14.62c5.29,3.34,13.92,5.71,25.9,7.1l17.96,1.67c28.12,3.07,49.98,10.86,65.57,23.39,15.59,12.53,23.39,29.38,23.39,50.54,0,15.32-4.18,28.61-12.53,39.89-8.35,11.28-20.19,19.91-35.5,25.9-15.32,5.98-33.28,8.98-53.88,8.98Z';
+// "A"
+const A_D =
+  'M1269.42,203c-8.35-13.5-20.53-23.59-36.55-30.27-16-6.68-35.71-10.03-59.1-10.03-8.08,0-16.71.15-25.9.41-9.19.29-18.1.7-26.72,1.26-8.65.56-16.15,1.11-22.56,1.67v56.38c8.62-.56,18.23-1.11,28.81-1.67,10.58-.56,20.89-.97,30.91-1.24,10.03-.28,18.1-.43,24.23-.43,12.25,0,21.15,2.93,26.73,8.78,5.55,5.85,8.34,14.61,8.34,26.31v.84h-41.35c-20.33,0-38.28,2.57-53.88,7.73-15.59,5.14-27.72,13.09-36.33,23.8-8.63,10.73-12.96,24.44-12.96,41.15,0,15.32,3.49,28.47,10.45,39.46,6.95,11.01,16.63,19.43,29.03,25.28,12.38,5.85,26.8,8.76,43.23,8.76s29.31-2.92,40.3-8.76c11.01-5.85,19.64-14.2,25.9-25.06,2.78-4.82,5.08-10.11,6.9-15.91v43.88h53.04v-140.33c0-21.16-4.18-38.49-12.53-52.01ZM1207.32,322.8c-8.73,10.36-21.36,12.33-27.38,13.26-7.17,1.11-9.25-.07-17.69.4-11.91.66-21.48,3.78-27.9,6.44,4.22-20.66,11.04-35.39,15.31-41.06,3.56-4.73,7.63-8.57,7.63-8.57,2.37-2.23,4.49-3.87,6.21-5.17,5.2-3.93,11.21-6.95,17.66-7.9,5.68-.84,11.47-.02,16.89,1.77,1.66.55,13.33,5.02,12.41,6.63-.36.63-5.91.41-6.84.54,0,0-3.06.37-6.85,1.58-9.38,3-20.09,15.58-19.24,16.49.39.41,2.83-1.94,6.77-4.29,6.22-3.71,15.95-7.29,31.22-6.43.21,3.99.31,16.24-8.2,26.33Z';
+
+// ─── Wordmark component ───────────────────────────────────────────────────
+type WordmarkProps = {width: number};
+
+const Wordmark: React.FC<WordmarkProps> = ({width}) => {
+  const height = width * (VIEW_H / VIEW_W);
+
+  return (
+    <Svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+      preserveAspectRatio="xMidYMid meet">
+      <Defs>
+        <LinearGradient id="grad" x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0" stopColor={COLORS.darkGreen} stopOpacity="1" />
+          <Stop offset="1" stopColor={COLORS.primaryGreen} stopOpacity="1" />
+        </LinearGradient>
+      </Defs>
+
+      <G fill="url(#grad)">
+        <Path d={GLYPH_D} />
+        <Circle cx={264.87} cy={56.95} r={56.95} />
+        <Path d={L_D} />
+        <Path d={I_D} />
+        <Path d={K_D} />
+        <Path d={A_D} />
+        <Path d={S_D} />
+      </G>
+    </Svg>
+  );
+};
+
+// ─── Tagline with underline sweep ─────────────────────────────────────────
+
+const TAGLINE = 'Your companion when calamity strikes the nation.';
+const SWEEP_SEGMENT_RATIO = 0.35; // brighter highlight is 35% of the line.
+
+const TaglineSweep: React.FC<{width: number}> = ({width}) => {
+  // 0 -> sweep highlight is fully off the left edge.
+  // 1 -> sweep highlight is fully off the right edge.
+  const sweep = useSharedValue(0);
+
+  useEffect(() => {
+    sweep.value = withRepeat(
+      withSequence(
+        withTiming(1, {
+          duration: 2200,
+          easing: Easing.inOut(Easing.quad),
+        }),
+        // Hold off-screen on the right side so the eye gets a brief rest
+        // between sweeps; feels less frantic than a tight loop.
+        withTiming(1, {duration: 350}),
+      ),
+      -1,
+      false,
+    );
+  }, [sweep]);
+
+  const segmentWidth = width * SWEEP_SEGMENT_RATIO;
+
+  const sweepStyle = useAnimatedStyle(() => {
+    // Travel from -segmentWidth (fully off the left) to width (fully off the
+    // right). Anchor: the left edge of the highlight band.
+    const x = -segmentWidth + (width + segmentWidth) * sweep.value;
+    return {transform: [{translateX: x}]};
+  });
+
+  return (
+    <View style={{alignItems: 'center', width: '100%'}}>
+      <Text style={styles.taglineText} numberOfLines={1}>
+        {TAGLINE}
+      </Text>
+      <View style={[styles.underlineWrap, {width}]}>
+        <View style={[styles.underlineBase, {width}]} />
+        <Animated.View
+          style={[
+            styles.underlineSweep,
+            {width: segmentWidth},
+            sweepStyle,
+          ]}
+        />
+      </View>
+    </View>
+  );
+};
+
+// ─── Public component ────────────────────────────────────────────────────
+
+export type BrandedLoaderProps = {
+  /** Optional override for the wordmark width. Defaults to ~62% of screen. */
+  logoWidth?: number;
+};
+
+export const BrandedLoader: React.FC<BrandedLoaderProps> = ({logoWidth}) => {
+  const screenW = Dimensions.get('window').width;
+  const w = logoWidth ?? Math.min(Math.round(screenW * 0.62), 320);
+  // Underline tracks ~92% of the logo width — slightly tighter than the
+  // wordmark so it visually "belongs to" the tagline, not the logo.
+  const underlineW = Math.round(w * 0.92);
+
+  return (
+    <View style={styles.root}>
+      <Wordmark width={w} />
+      <View style={{height: 28}} />
+      <TaglineSweep width={underlineW} />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: COLORS.white, // Changed to white
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  taglineText: {
+    fontFamily: FONTS.primaryRegular,
+    fontSize: 13,
+    letterSpacing: 0.3,
+    color: COLORS.darkGreen, // Changed to darkGreen for contrast on light background
+    textAlign: 'center',
+  },
+  underlineWrap: {
+    height: 2,
+    marginTop: 10,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  underlineBase: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    height: 2,
+    backgroundColor: COLORS.primaryGreen, // Changed to primaryGreen
+    opacity: 0.2, // Adjusted opacity
+    borderRadius: 1,
+  },
+  underlineSweep: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    height: 2,
+    backgroundColor: COLORS.primaryGreen, // Changed to primaryGreen
+    borderRadius: 1,
+  },
+});
+
+export default BrandedLoader;

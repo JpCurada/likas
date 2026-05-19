@@ -1,0 +1,11 @@
+{
+  "disaster": "volcano",
+  "source": "PHIVOLCS Volcanic Hazard Maps and Alert Level System; NDRRMC Volcanic Eruption Response Guide",
+  "retrieved": "2026-05-14",
+  "phases": {
+    "before": "PHIVOLCS preparedness: 1) Know your distance from the nearest active volcano and whether you are inside the Permanent Danger Zone or Extended Danger Zone. 2) Monitor PHIVOLCS alert levels (0–5). At Alert Level 3, prepare to evacuate; at Alert Level 4 or 5, evacuation is mandatory. 3) Prepare a Go Bag with N95 masks, goggles, water, food, flashlight, radio, and medicines. 4) Stock dust masks for the entire household. 5) Identify the nearest evacuation center outside the danger zone.",
+    "during": "PHIVOLCS guidance: If inside the danger zone, evacuate immediately when ordered. Protect your breathing with an N95 mask or damp cloth. Wear goggles and long sleeves to shield from ashfall. Stay indoors with windows and doors shut if you cannot evacuate. Cover water containers and food. Avoid riverbeds and low-lying valleys — lahar can travel far and fast. Do NOT approach the volcano to observe.",
+    "after": "NDRRMC guidance: Do not return home until PHIVOLCS lowers the alert level and local officials authorize re-entry. Clean ash from roofs to prevent collapse — wet ash is heavy. Avoid driving in ashfall: it damages engines and reduces visibility. Continue wearing masks during cleanup. Watch for lahar warnings during heavy rain for months after the eruption."
+  },
+  "emergency_contact": "PHIVOLCS Hotline: (02) 8426-1468 to 79; NDRRMC: 911"
+}
