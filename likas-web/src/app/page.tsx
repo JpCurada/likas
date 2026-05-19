@@ -4,7 +4,6 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import {
-  ArrowRight,
   BatteryWarning,
   Bot,
   BrainCircuit,
@@ -30,9 +29,8 @@ import {
   Trees,
   Users,
   Waves,
-  Zap,
 } from "lucide-react";
-
+import { FaGithub, FaLinkedin } from "react-icons/fa";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -176,27 +174,35 @@ const team = [
     name: "John Paul Curada",
     role: "Leader and AI Developer",
     image: "/team/jp.png",
+    linkedin: "https://www.linkedin.com/in/jpcurada/",
+    github: "https://github.com/JpCurada",
   },
   {
     name: "Gerald Berongoy",
     role: "Mobile Developer",
     image: "/team/gerald.png",
+    linkedin: "https://www.linkedin.com/in/geraldberongoy/",
+    github: "https://github.com/geraldsberongoy",
   },
   {
     name: "Kyne Laggui",
     role: "Web Developer",
     image: "/team/kyne.png",
+    linkedin: "https://www.linkedin.com/in/kaydev/",
+    github: "https://github.com/KyneLaggui",
   },
   {
     name: "Henry James Carlos",
     role: "Design and Assets",
     image: "/team/henry.png",
+    linkedin: "https://www.linkedin.com/in/henry-james-carlos-837105269/",
+    github: "https://github.com/hjcarlos",
   },
 ];
 
-const youtubeEmbedUrl = "";
-const heroRouteMockup = "/mockups/hero_route.png";
-const heroAssistantMockup = "/mockups/hero_assistant.png";
+const youtubeEmbedUrl = "https://www.youtube.com/embed/kHHcDSyip-Q";
+const heroRouteMockup = "/mockups/mockup_1.jpg";
+const heroAssistantMockup = "/mockups/mockup_5.jpg";
 
 const navItems = [
   { href: "#features", label: "Features", icon: ShieldCheck },
@@ -461,13 +467,15 @@ function PhoneMockup({
   signal: string;
 }) {
   return (
-    <motion.div variants={fadeUp} className="group">
-      <div className="relative mx-auto flex h-full max-w-[286px] flex-col rounded-[2rem] border border-white/80 bg-white/82 p-4 shadow-xl shadow-emerald-950/8 backdrop-blur transition duration-300 group-hover:-translate-y-2 group-hover:shadow-2xl group-hover:shadow-emerald-950/14">
-        <div className="absolute -right-3 -top-3 grid size-12 place-items-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-950/20">
+    <motion.div variants={fadeUp} className="group h-full">
+      <div className="group relative flex h-full w-full flex-col rounded-[2rem] border border-white/80 bg-white/82 p-4 shadow-xl shadow-emerald-950/8 backdrop-blur transition duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-emerald-950/14 sm:p-5">
+        <div className="absolute -right-3 -top-3 z-10 grid size-12 place-items-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-950/20">
           <Icon className="size-5" />
         </div>
-        <div className="relative mx-auto w-full max-w-[218px]">
+
+        <div className="relative mx-auto w-full max-w-[310px] sm:max-w-[260px] lg:max-w-[240px] xl:max-w-[218px]">
           <div className="absolute inset-x-10 -bottom-3 h-10 rounded-full bg-emerald-500/20 blur-xl" />
+
           <div className="relative aspect-[9/18.5] rounded-[2.45rem] border-[9px] border-slate-950 bg-slate-950 p-1.5 shadow-2xl shadow-emerald-950/18">
             <div
               className="phone-screen relative flex h-full flex-col overflow-hidden rounded-[1.75rem] bg-cover bg-center"
@@ -475,24 +483,27 @@ function PhoneMockup({
             >
               <div className="absolute inset-0 bg-gradient-to-b from-white/4 via-transparent to-slate-950/24" />
 
-              <div className="relative mt-auto p-3">
+              {/* <div className="relative mt-auto p-3">
                 <div className="rounded-[1.35rem] border border-white/60 bg-white/88 p-3 shadow-xl shadow-slate-950/10 backdrop-blur">
                   <p className="text-xs font-bold text-slate-950">{label}</p>
                   <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
                     {signal}
                   </p>
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
+
         <div className="mt-6 flex flex-1 flex-col text-left">
           <Badge className="mb-3 w-fit bg-emerald-50 text-emerald-700">
             {signal}
           </Badge>
+
           <h3 className="text-lg font-semibold leading-6 text-slate-950">
             {title}
           </h3>
+
           <p className="mt-3 text-sm leading-6 text-slate-600">{copy}</p>
         </div>
       </div>
@@ -502,6 +513,7 @@ function PhoneMockup({
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState("top");
+  const [showVideo, setShowVideo] = useState(false);
   const { scrollYProgress } = useScroll();
   const progressWidth = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
   const heroY = useTransform(scrollYProgress, [0, 0.35], [0, 74]);
@@ -596,7 +608,7 @@ export default function Home() {
                     "min-h-13 w-full rounded-full bg-[#3bb372] px-5 text-center text-base text-white shadow-xl shadow-emerald-500/25 hover:bg-emerald-700 sm:w-auto sm:px-7",
                 })}
               >
-                Explore LIKAS <ArrowRight className="ml-2 size-4" />
+                Explore LIKAS
               </a>
               <a
                 href="#video"
@@ -610,23 +622,6 @@ export default function Home() {
                 <Play className="mr-2 size-4 fill-emerald-600 text-emerald-600" />
                 Watch Demo
               </a>
-            </div>
-            <div className="mt-10 grid max-w-xl grid-cols-1 gap-3 min-[430px]:grid-cols-3">
-              {[
-                ["2.58GB", "edge model target"],
-                ["0 data", "offline runtime"],
-                ["PH", "hazard-ready"],
-              ].map(([value, label]) => (
-                <div
-                  key={value}
-                  className="rounded-3xl border border-white bg-white/72 p-4 shadow-sm backdrop-blur"
-                >
-                  <p className="text-xl font-black text-slate-950">{value}</p>
-                  <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
-                    {label}
-                  </p>
-                </div>
-              ))}
             </div>
           </Reveal>
 
@@ -650,7 +645,7 @@ export default function Home() {
             />
             <Reveal delay={0.08} className="lg:col-start-1">
               <a
-                href="/downloads/likas.apk"
+                href="https://cdn.likas-ai.com/apk/likas_v1.0.apk"
                 download
                 className={buttonVariants({
                   size: "lg",
@@ -668,13 +663,37 @@ export default function Home() {
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(116,231,184,0.42),transparent_32%),linear-gradient(135deg,#10251b,#04120c)]" />
               <div className="absolute inset-0 opacity-30 bg-[linear-gradient(90deg,rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(0deg,rgba(255,255,255,0.12)_1px,transparent_1px)] bg-[size:42px_42px]" />
               {youtubeEmbedUrl ? (
-                <iframe
-                  className="absolute inset-0 z-0 h-full w-full"
-                  src={youtubeEmbedUrl}
-                  title="LIKAS YouTube demo"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
+                showVideo ? (
+                  <iframe
+                    className="absolute inset-0 z-0 h-full w-full"
+                    src={`${youtubeEmbedUrl}?autoplay=1`}
+                    title="LIKAS demo"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                ) : (
+                  <div
+                    className="absolute inset-0 z-0 grid place-items-center cursor-pointer"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setShowVideo(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ")
+                        setShowVideo(true);
+                    }}
+                  >
+                    <img
+                      src="/thumbnail.svg"
+                      alt="LIKAS product demo thumbnail"
+                      className="absolute inset-0 h-full w-full p-16 object-contain opacity-90 transition-transform duration-500 group-hover:scale-105"
+                    />
+                    <div className="relative z-10 text-center text-white">
+                      <div className="mx-auto mb-5 grid size-24 place-items-center rounded-full bg-white text-emerald-700 shadow-2xl">
+                        <Play className="ml-1 size-9 fill-emerald-700" />
+                      </div>
+                    </div>
+                  </div>
+                )
               ) : (
                 <div className="absolute inset-0 z-0 grid place-items-center">
                   <div className="text-center text-white">
@@ -886,8 +905,9 @@ export default function Home() {
           title="A closer look at the LIKAS mobile experience."
           copy="Each screen is presented as part of the citizen journey: setting up personal needs, preparing before danger, choosing safer routes, asking the offline assistant, and reviewing emergency center details."
         />
+
         <motion.div
-          className="mx-auto mt-14 grid max-w-7xl gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+          className="mx-auto mt-14 grid max-w-7xl grid-cols-1 gap-8 lg:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
           variants={stagger}
           initial="hidden"
           whileInView="show"
@@ -936,8 +956,9 @@ export default function Home() {
           title="The builders behind LIKAS."
           copy="A multidisciplinary student team combining AI, mobile development, web engineering, design, and community-centered product thinking for disaster resilience."
         />
+
         <div className="mx-auto mt-14 grid max-w-6xl gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {team.map(({ name, role, image }, index) => (
+          {team.map(({ name, role, image, linkedin, github }, index) => (
             <Reveal key={name} delay={index * 0.06}>
               <Card className="overflow-hidden border-emerald-100 bg-white/85 text-center shadow-sm backdrop-blur transition duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-emerald-950/10">
                 <CardContent className="p-4">
@@ -948,8 +969,35 @@ export default function Home() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/24 via-transparent to-white/10" />
                   </div>
+
                   <p className="text-lg font-semibold text-slate-950">{name}</p>
                   <p className="mt-1 text-sm text-slate-500">{role}</p>
+
+                  <div className="mt-4 flex items-center justify-center gap-3">
+                    {linkedin && (
+                      <a
+                        href={linkedin}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`${name}'s LinkedIn profile`}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-100 bg-white text-slate-600 transition hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+                      >
+                        <FaLinkedin className="h-4 w-4" />
+                      </a>
+                    )}
+
+                    {github && (
+                      <a
+                        href={github}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`${name}'s GitHub profile`}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-100 bg-white text-slate-600 transition hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+                      >
+                        <FaGithub className="h-4 w-4" />
+                      </a>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </Reveal>
@@ -991,7 +1039,7 @@ export default function Home() {
                 <Separator className="my-6 bg-white/10" />
                 <Reveal delay={0.08} className="lg:col-start-1">
                   <a
-                    href="/downloads/likas.apk"
+                    href="https://cdn.likas-ai.com/apk/likas_v1.0.apk"
                     download
                     className={buttonVariants({
                       size: "lg",
