@@ -203,6 +203,8 @@ const team = [
 const youtubeEmbedUrl = "https://www.youtube.com/embed/kHHcDSyip-Q";
 const heroRouteMockup = "/mockups/mockup_1.jpg";
 const heroAssistantMockup = "/mockups/mockup_5.jpg";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://likas-ai.com";
+const apkDownloadUrl = "https://cdn.likas-ai.com/apk/likas_v1.0.apk";
 
 const navItems = [
   { href: "#features", label: "Features", icon: ShieldCheck },
@@ -213,6 +215,62 @@ const navItems = [
 ];
 
 const sectionOrder = ["top", "video", "features", "ai", "mockups", "team"];
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": `${siteUrl}/#website`,
+      name: "LIKAS",
+      url: siteUrl,
+      description:
+        "LIKAS is an offline-first AI disaster companion for Filipino communities.",
+      inLanguage: "en-PH",
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${siteUrl}/#app`,
+      name: "LIKAS",
+      applicationCategory: "SafetyApplication",
+      operatingSystem: "Android",
+      url: siteUrl,
+      image: `${siteUrl}/logo.png`,
+      downloadUrl: apkDownloadUrl,
+      description:
+        "An offline-first mobile app for disaster preparedness checklists, safer evacuation routing, emergency center guidance, and low-connectivity AI chat or voice assistance.",
+      featureList: functionalities.map(({ title, copy }) => `${title}: ${copy}`),
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "PHP",
+        availability: "https://schema.org/InStock",
+        url: apkDownloadUrl,
+      },
+      audience: {
+        "@type": "Audience",
+        audienceType:
+          "Filipino citizens, families, barangays, schools, responders, and community organizations",
+      },
+      creator: team.map(({ name, role, github, linkedin }) => ({
+        "@type": "Person",
+        name,
+        jobTitle: role,
+        sameAs: [linkedin, github].filter(Boolean),
+      })),
+    },
+    {
+      "@type": "VideoObject",
+      "@id": `${siteUrl}/#demo-video`,
+      name: "LIKAS product demo",
+      description:
+        "A walkthrough of LIKAS onboarding, preparedness guidance, evacuation routing, and offline AI assistance.",
+      thumbnailUrl: `${siteUrl}/thumbnail.svg`,
+      embedUrl: youtubeEmbedUrl,
+      uploadDate: "2026-05-19",
+    },
+  ],
+};
 
 function Reveal({
   children,
@@ -479,6 +537,8 @@ function PhoneMockup({
           <div className="relative aspect-[9/18.5] rounded-[2.45rem] border-[9px] border-slate-950 bg-slate-950 p-1.5 shadow-2xl shadow-emerald-950/18">
             <div
               className="phone-screen relative flex h-full flex-col overflow-hidden rounded-[1.75rem] bg-cover bg-center"
+              role="img"
+              aria-label={label}
               style={{ backgroundImage: `url(${image})` }}
             >
               <div className="absolute inset-0 bg-gradient-to-b from-white/4 via-transparent to-slate-950/24" />
@@ -566,6 +626,10 @@ export default function Home() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#f5fbf4] pb-24 text-slate-950 md:pb-0">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <GlobalBackdrop />
       <motion.div
         className="fixed left-0 top-0 z-50 h-1 bg-gradient-to-r from-[#3bb372] via-[#74e7b8] to-[#3bb372]"
@@ -645,7 +709,7 @@ export default function Home() {
             />
             <Reveal delay={0.08} className="lg:col-start-1">
               <a
-                href="https://cdn.likas-ai.com/apk/likas_v1.0.apk"
+                href={apkDownloadUrl}
                 download
                 className={buttonVariants({
                   size: "lg",
@@ -682,9 +746,11 @@ export default function Home() {
                         setShowVideo(true);
                     }}
                   >
-                    <img
+                    <Image
                       src="/thumbnail.svg"
                       alt="LIKAS product demo thumbnail"
+                      fill
+                      sizes="(min-width: 1024px) 56vw, 100vw"
                       className="absolute inset-0 h-full w-full p-16 object-contain opacity-90 transition-transform duration-500 group-hover:scale-105"
                     />
                     <div className="relative z-10 text-center text-white">
@@ -1039,7 +1105,7 @@ export default function Home() {
                 <Separator className="my-6 bg-white/10" />
                 <Reveal delay={0.08} className="lg:col-start-1">
                   <a
-                    href="https://cdn.likas-ai.com/apk/likas_v1.0.apk"
+                    href={apkDownloadUrl}
                     download
                     className={buttonVariants({
                       size: "lg",
