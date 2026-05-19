@@ -462,13 +462,13 @@ function PhoneMockup({
   signal: string;
 }) {
   return (
-    <motion.div variants={fadeUp} className="group">
-      <div className="group relative flex h-full w-full flex-col rounded-[2rem] border border-white/80 bg-white/82 p-4 shadow-xl shadow-emerald-950/8 backdrop-blur transition duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-emerald-950/14">
-        <div className="absolute -right-3 -top-3 grid size-12 place-items-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-950/20">
+    <motion.div variants={fadeUp} className="group h-full">
+      <div className="group relative flex h-full w-full flex-col rounded-[2rem] border border-white/80 bg-white/82 p-4 shadow-xl shadow-emerald-950/8 backdrop-blur transition duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-emerald-950/14 sm:p-5">
+        <div className="absolute -right-3 -top-3 z-10 grid size-12 place-items-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-950/20">
           <Icon className="size-5" />
         </div>
 
-        <div className="relative mx-auto w-full max-w-[218px]">
+        <div className="relative mx-auto w-full max-w-[310px] sm:max-w-[260px] lg:max-w-[240px] xl:max-w-[218px]">
           <div className="absolute inset-x-10 -bottom-3 h-10 rounded-full bg-emerald-500/20 blur-xl" />
 
           <div className="relative aspect-[9/18.5] rounded-[2.45rem] border-[9px] border-slate-950 bg-slate-950 p-1.5 shadow-2xl shadow-emerald-950/18">
@@ -478,14 +478,14 @@ function PhoneMockup({
             >
               <div className="absolute inset-0 bg-gradient-to-b from-white/4 via-transparent to-slate-950/24" />
 
-              <div className="relative mt-auto p-3">
+              {/* <div className="relative mt-auto p-3">
                 <div className="rounded-[1.35rem] border border-white/60 bg-white/88 p-3 shadow-xl shadow-slate-950/10 backdrop-blur">
                   <p className="text-xs font-bold text-slate-950">{label}</p>
                   <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
                     {signal}
                   </p>
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
@@ -900,8 +900,9 @@ export default function Home() {
           title="A closer look at the LIKAS mobile experience."
           copy="Each screen is presented as part of the citizen journey: setting up personal needs, preparing before danger, choosing safer routes, asking the offline assistant, and reviewing emergency center details."
         />
+
         <motion.div
-          className="mx-auto mt-14 grid max-w-7xl gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+          className="mx-auto mt-14 grid max-w-7xl grid-cols-1 gap-8 lg:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
           variants={stagger}
           initial="hidden"
           whileInView="show"
