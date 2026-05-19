@@ -463,12 +463,14 @@ function PhoneMockup({
 }) {
   return (
     <motion.div variants={fadeUp} className="group">
-      <div className="relative mx-auto flex h-full max-w-[286px] flex-col rounded-[2rem] border border-white/80 bg-white/82 p-4 shadow-xl shadow-emerald-950/8 backdrop-blur transition duration-300 group-hover:-translate-y-2 group-hover:shadow-2xl group-hover:shadow-emerald-950/14">
+      <div className="group relative flex h-full w-full flex-col rounded-[2rem] border border-white/80 bg-white/82 p-4 shadow-xl shadow-emerald-950/8 backdrop-blur transition duration-300 hover:-translate-y-2 hover:shadow-2xl hover:shadow-emerald-950/14">
         <div className="absolute -right-3 -top-3 grid size-12 place-items-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-950/20">
           <Icon className="size-5" />
         </div>
+
         <div className="relative mx-auto w-full max-w-[218px]">
           <div className="absolute inset-x-10 -bottom-3 h-10 rounded-full bg-emerald-500/20 blur-xl" />
+
           <div className="relative aspect-[9/18.5] rounded-[2.45rem] border-[9px] border-slate-950 bg-slate-950 p-1.5 shadow-2xl shadow-emerald-950/18">
             <div
               className="phone-screen relative flex h-full flex-col overflow-hidden rounded-[1.75rem] bg-cover bg-center"
@@ -487,13 +489,16 @@ function PhoneMockup({
             </div>
           </div>
         </div>
+
         <div className="mt-6 flex flex-1 flex-col text-left">
           <Badge className="mb-3 w-fit bg-emerald-50 text-emerald-700">
             {signal}
           </Badge>
+
           <h3 className="text-lg font-semibold leading-6 text-slate-950">
             {title}
           </h3>
+
           <p className="mt-3 text-sm leading-6 text-slate-600">{copy}</p>
         </div>
       </div>
