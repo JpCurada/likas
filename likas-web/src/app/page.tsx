@@ -194,8 +194,7 @@ const team = [
   },
 ];
 
-const youtubeEmbedUrl =
-  "https://drive.google.com/file/d/18ijXh90RTpf56Dx2Lop7UmW-MI4tgnwO/preview";
+const youtubeEmbedUrl = "https://www.youtube.com/embed/kHHcDSyip-Q";
 const heroRouteMockup = "/mockups/mockup_1.jpg";
 const heroAssistantMockup = "/mockups/mockup_5.jpg";
 
